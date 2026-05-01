@@ -26,6 +26,7 @@ import type { SharedContentResponse } from "../../types";
 import { ChatMessage } from "../chat/ChatMessage";
 import { RevealPreviewHost } from "../chat/ChatMessage/items/RevealPreviewHost";
 import { PersistentToolPanelHost } from "../chat/ChatMessage/items/persistentToolPanelState";
+import { AttachmentPreviewHost } from "../chat/AttachmentPreviewHost";
 import type { RevealPreviewRequest } from "../chat/ChatMessage/items/revealPreviewData";
 import { getLatestAutoPreviewTarget } from "../chat/ChatMessage/autoPreviewEligibility";
 import {
@@ -839,6 +840,7 @@ export function SharedPage() {
         onUserInteraction={handlePreviewInteraction}
       />
       <PersistentToolPanelHost />
+      <AttachmentPreviewHost />
     </div>
   );
 }
