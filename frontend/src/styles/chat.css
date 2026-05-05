@@ -19,6 +19,24 @@
   color: var(--theme-text-secondary);
 }
 
+@media (max-width: 639px) {
+  .chat-input-shell {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  html[data-mobile-keyboard="true"] .chat-input-shell {
+    padding-bottom: 0.5rem;
+  }
+
+  html[data-mobile-keyboard="true"] .chat-input-container {
+    border-radius: 1.25rem;
+  }
+
+  .chat-input-container textarea {
+    font-size: 16px;
+  }
+}
+
 /* Chat toolbar icon button */
 .chat-tool-btn {
   display: flex;

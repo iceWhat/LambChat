@@ -8,6 +8,13 @@
  */
 const KEYBOARD_THRESHOLD_PX = 100;
 
+export interface AppViewportState {
+  heightCssValue: string | null;
+  offsetTopCssValue: string | null;
+  keyboardInsetCssValue: string | null;
+  keyboardOpen: boolean;
+}
+
 export function isKeyboardViewport({
   visualViewportHeight,
   windowInnerHeight,
@@ -47,6 +54,50 @@ export function getAppViewportHeightCssValue({
 
   // No keyboard — let CSS 100dvh handle full-screen height
   return null;
+}
+
+export function getAppViewportState({
+  visualViewportHeight,
+  visualViewportOffsetTop,
+  windowInnerHeight,
+  editableFocused,
+}: {
+  visualViewportHeight?: number | null;
+  visualViewportOffsetTop?: number | null;
+  windowInnerHeight?: number | null;
+  editableFocused: boolean;
+}): AppViewportState {
+  const vvHeight = visualViewportHeight ?? null;
+  const offsetTop = visualViewportOffsetTop ?? 0;
+  const wHeight = windowInnerHeight ?? null;
+  const keyboardOpen =
+    editableFocused &&
+    isKeyboardViewport({
+      visualViewportHeight: vvHeight,
+      windowInnerHeight: wHeight,
+    });
+
+  if (!keyboardOpen || !vvHeight || !wHeight) {
+    return {
+      heightCssValue: null,
+      offsetTopCssValue: null,
+      keyboardInsetCssValue: null,
+      keyboardOpen: false,
+    };
+  }
+
+  const roundedHeight = Math.round(vvHeight);
+  const roundedOffsetTop = Math.max(0, Math.round(offsetTop));
+
+  return {
+    heightCssValue: `${roundedHeight}px`,
+    offsetTopCssValue: roundedOffsetTop > 0 ? `${roundedOffsetTop}px` : null,
+    keyboardInsetCssValue: `${Math.max(
+      0,
+      Math.round(wHeight) - roundedHeight - roundedOffsetTop,
+    )}px`,
+    keyboardOpen: true,
+  };
 }
 
 function parsePixelValue(value: string | null | undefined): number | null {

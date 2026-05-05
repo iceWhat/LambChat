@@ -22,7 +22,11 @@ import "./styles/markdown.css";
 import "./styles/utilities.css";
 import { AuthProvider } from "./hooks/useAuth";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { isMobileDevice, resetMobileViewport } from "./utils/mobile";
+import {
+  isMobileDevice,
+  resetMobileViewport,
+  scrollFocusedInputIntoView,
+} from "./utils/mobile";
 import { registerLambChatPwa } from "./pwa";
 
 // Fix mobile viewport zoom issue after notification interaction
@@ -39,6 +43,9 @@ if (typeof window !== "undefined" && isMobileDevice()) {
   window.addEventListener("focus", () => {
     window.scrollTo(0, 0);
   });
+
+  document.addEventListener("focusin", scrollFocusedInputIntoView);
+  window.visualViewport?.addEventListener("resize", scrollFocusedInputIntoView);
 }
 
 registerLambChatPwa();

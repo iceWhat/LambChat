@@ -18,6 +18,22 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const STORAGE_KEY = "lamb-agent-theme";
+const THEME_COLORS: Record<Theme, string> = {
+  light: "#f5f5f4",
+  dark: "#151210",
+};
+
+function syncBrowserThemeChrome(theme: Theme): void {
+  const color = THEME_COLORS[theme];
+  document
+    .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    ?.setAttribute("content", color);
+  document
+    .querySelector<HTMLMetaElement>(
+      'meta[name="apple-mobile-web-app-status-bar-style"]',
+    )
+    ?.setAttribute("content", theme === "dark" ? "black" : "default");
+}
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -47,6 +63,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     } else {
       root.classList.remove("dark");
     }
+    syncBrowserThemeChrome(theme);
     // Persist to localStorage
     localStorage.setItem(STORAGE_KEY, theme);
     // Sync to backend (non-blocking)

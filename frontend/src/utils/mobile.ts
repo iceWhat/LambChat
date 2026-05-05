@@ -36,3 +36,33 @@ export function resetMobileViewport(): void {
     }, 10);
   }
 }
+
+function isEditableElement(element: Element | null): element is HTMLElement {
+  return (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement ||
+    (element instanceof HTMLElement && element.isContentEditable)
+  );
+}
+
+/**
+ * Keep focused fields visible after the virtual keyboard finishes animating.
+ * The repeated scrolls cover iOS Safari and Android Chrome timing differences.
+ */
+export function scrollFocusedInputIntoView(): void {
+  if (!isMobileDevice() || typeof window === "undefined") return;
+
+  const activeElement = document.activeElement;
+  if (!isEditableElement(activeElement)) return;
+
+  [80, 280].forEach((delay) => {
+    window.setTimeout(() => {
+      activeElement.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+        behavior: "auto",
+      });
+    }, delay);
+  });
+}

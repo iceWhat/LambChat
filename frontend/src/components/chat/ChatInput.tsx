@@ -582,7 +582,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="sm:px-4 pb-3"
+      className="chat-input-shell sm:px-4 pb-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form

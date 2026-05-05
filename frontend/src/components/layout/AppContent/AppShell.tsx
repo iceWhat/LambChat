@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { ProfileModal } from "../../profile/ProfileModal";
 import { Header } from "./Header";
 import {
-  getAppViewportHeightCssValue,
+  getAppViewportState,
   isKeyboardViewport,
   shouldUpdateAppViewportHeight,
 } from "./appViewport";
@@ -83,25 +83,33 @@ export function AppShell({
     const rootStyle = document.documentElement.style;
     let raf = 0;
     let viewportHeightValue: string | null = "";
+    let viewportOffsetTopValue: string | null = "";
+    let keyboardInsetValue: string | null = "";
     let keyboardOpenValue: string | null = "";
 
     const updateViewportHeight = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const visualViewportHeight = window.visualViewport?.height ?? null;
+        const visualViewportOffsetTop = window.visualViewport?.offsetTop ?? 0;
         const windowInnerHeight = window.innerHeight;
         const keyboardViewport = isKeyboardViewport({
           visualViewportHeight,
           windowInnerHeight,
         });
         const keyboardFocused = keyboardViewport && isEditableElementFocused();
-        const nextViewportHeightValue = keyboardFocused
-          ? getAppViewportHeightCssValue({
-              visualViewportHeight,
-              windowInnerHeight,
-            })
+        const viewportState = getAppViewportState({
+          visualViewportHeight,
+          visualViewportOffsetTop,
+          windowInnerHeight,
+          editableFocused: keyboardFocused,
+        });
+        const nextViewportHeightValue = viewportState.heightCssValue;
+        const nextViewportOffsetTopValue = viewportState.offsetTopCssValue;
+        const nextKeyboardInsetValue = viewportState.keyboardInsetCssValue;
+        const nextKeyboardOpenValue = viewportState.keyboardOpen
+          ? "true"
           : null;
-        const nextKeyboardOpenValue = keyboardFocused ? "true" : null;
 
         if (
           shouldUpdateAppViewportHeight(
@@ -116,6 +124,40 @@ export function AppShell({
             rootStyle.setProperty(
               "--app-viewport-height",
               nextViewportHeightValue,
+            );
+          }
+        }
+
+        if (
+          shouldUpdateAppViewportHeight(
+            viewportOffsetTopValue,
+            nextViewportOffsetTopValue,
+          )
+        ) {
+          viewportOffsetTopValue = nextViewportOffsetTopValue;
+          if (nextViewportOffsetTopValue == null) {
+            rootStyle.removeProperty("--app-viewport-offset-top");
+          } else {
+            rootStyle.setProperty(
+              "--app-viewport-offset-top",
+              nextViewportOffsetTopValue,
+            );
+          }
+        }
+
+        if (
+          shouldUpdateAppViewportHeight(
+            keyboardInsetValue,
+            nextKeyboardInsetValue,
+          )
+        ) {
+          keyboardInsetValue = nextKeyboardInsetValue;
+          if (nextKeyboardInsetValue == null) {
+            rootStyle.removeProperty("--app-keyboard-inset");
+          } else {
+            rootStyle.setProperty(
+              "--app-keyboard-inset",
+              nextKeyboardInsetValue,
             );
           }
         }
@@ -157,6 +199,8 @@ export function AppShell({
       document.removeEventListener("focusin", updateViewportHeight);
       document.removeEventListener("focusout", updateViewportHeight);
       rootStyle.removeProperty("--app-viewport-height");
+      rootStyle.removeProperty("--app-viewport-offset-top");
+      rootStyle.removeProperty("--app-keyboard-inset");
       document.documentElement.removeAttribute("data-mobile-keyboard");
     };
   }, []);
@@ -174,6 +218,7 @@ export function AppShell({
         style={{
           backgroundColor: "var(--theme-bg)",
           height: "var(--app-viewport-height, 100dvh)",
+          transform: "translate3d(0, var(--app-viewport-offset-top, 0px), 0)",
         }}
       >
         {sidebar}

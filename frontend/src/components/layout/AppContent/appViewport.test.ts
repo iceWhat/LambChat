@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getAppViewportState,
   getAppViewportHeightCssValue,
   isKeyboardViewport,
   shouldUpdateAppViewportHeight,
@@ -67,4 +68,38 @@ test("ignores tiny visual viewport height jitter", () => {
   assert.equal(shouldUpdateAppViewportHeight("512px", "512px"), false);
   assert.equal(shouldUpdateAppViewportHeight("512px", "513px"), false);
   assert.equal(shouldUpdateAppViewportHeight("512px", "516px"), true);
+});
+
+test("tracks keyboard viewport height, top offset, and covered bottom area", () => {
+  assert.deepEqual(
+    getAppViewportState({
+      visualViewportHeight: 512.4,
+      visualViewportOffsetTop: 36.2,
+      windowInnerHeight: 800,
+      editableFocused: true,
+    }),
+    {
+      heightCssValue: "512px",
+      offsetTopCssValue: "36px",
+      keyboardInsetCssValue: "252px",
+      keyboardOpen: true,
+    },
+  );
+});
+
+test("does not force keyboard viewport variables when no editable field is focused", () => {
+  assert.deepEqual(
+    getAppViewportState({
+      visualViewportHeight: 512.4,
+      visualViewportOffsetTop: 36.2,
+      windowInnerHeight: 800,
+      editableFocused: false,
+    }),
+    {
+      heightCssValue: null,
+      offsetTopCssValue: null,
+      keyboardInsetCssValue: null,
+      keyboardOpen: false,
+    },
+  );
 });
