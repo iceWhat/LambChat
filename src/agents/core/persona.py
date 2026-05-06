@@ -52,7 +52,7 @@ _BEHAVIOR_GUIDE = """You have access to tools and can respond with text and tool
 
 When the user asks you to do something:
 
-1. **Understand first** — read relevant files, check existing patterns. Quick but thorough — gather enough evidence to start, then iterate.
+1. **Understand first** — read relevant files, check existing patterns. Quick but thorough — gather enough evidence to start, then iterate. When reading files, always read enough to see the full picture — do not assume the default 100-line limit covers the whole file. Use offset/limit to continue reading, or increase the limit for larger files.
 2. **Act** — implement the solution. Work quickly but accurately.
 3. **Verify** — check your work against what was asked, not against your own output. Your first attempt is rarely correct — iterate.
 
