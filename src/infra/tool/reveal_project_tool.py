@@ -1,20 +1,22 @@
 """
 Reveal Project 工具
 
-让 Agent 可以向用户展示整个前端项目（多文件），前端使用 Sandpack 进行预览。
-支持纯 HTML/CSS/JS 项目和 React/Vue 等框架项目。
+让 Agent 可以向用户展示整个项目或文件夹（多文件）。
+前端项目会使用 Sandpack 进行浏览器预览；没有可运行前端入口的普通目录会以文件夹模式展示，
+方便用户浏览大量代码、文档、配置或其他文本文件。
 
 工作流程：
 1. Agent 调用 reveal_project 指定项目目录
 2. 后端递归扫描目录，将所有文件上传到 OSS/S3
 3. 返回文件清单（manifest）给前端
-4. 前端从 OSS 拉取文本文件内容，替换二进制文件引用，用 Sandpack 渲染
+4. 前端从 OSS 拉取文本文件内容，前端项目用 Sandpack 渲染，普通文件夹用文件树/代码浏览展示
 
 返回格式（v2）：
 {
     "type": "project_reveal",
     "version": 2,
     "name": "项目名称",
+    "mode": "project" | "folder",
     "template": "react" | "vue" | "vanilla" | "static" | "angular" | "svelte" | "solid" | "nextjs",
     "files": {
         "/App.js": {"url": "/api/upload/file/...", "is_binary": false, "size": 123},
@@ -48,6 +50,7 @@ logger = get_logger(__name__)
 ProjectTemplate = Literal[
     "react", "vue", "vanilla", "static", "angular", "svelte", "solid", "nextjs"
 ]
+RevealMode = Literal["project", "folder"]
 
 # 上传并发数
 UPLOAD_CONCURRENCY = 10
@@ -101,8 +104,8 @@ BINARY_EXTENSIONS = {
     ".wasm",
 }
 
-# 前端相关扩展名白名单，不在列表中的非二进制文件会被跳过
-FRONTEND_EXTENSIONS = {
+# 文本文件白名单：既覆盖前端项目，也覆盖常见代码/脚本/配置/文档目录
+TEXT_EXTENSIONS = {
     # Web 核心
     ".html",
     ".htm",
@@ -138,6 +141,47 @@ FRONTEND_EXTENSIONS = {
     # 其他前端资源
     ".map",
     ".xml",
+    # 通用代码 / 脚本
+    ".py",
+    ".rb",
+    ".php",
+    ".java",
+    ".kt",
+    ".kts",
+    ".go",
+    ".rs",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".swift",
+    ".scala",
+    ".pl",
+    ".pm",
+    ".r",
+    ".lua",
+    ".zig",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".bat",
+    ".cmd",
+    # 通用配置 / 数据
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".properties",
+    ".lock",
+    ".csv",
+    ".tsv",
+    ".sql",
+    ".proto",
+    ".dockerfile",
 }
 
 IGNORE_DIRS = {
@@ -167,6 +211,16 @@ IGNORE_FILES = {
     ".env.production",
     "tsconfig.tsbuildinfo",
     ".eslintcache",
+}
+
+ALLOWED_TEXT_FILENAMES = {
+    "Dockerfile",
+    "Containerfile",
+    "Makefile",
+    "Procfile",
+    "Gemfile",
+    "Rakefile",
+    "Jenkinsfile",
 }
 
 # 入口文件候选顺序（按模板类型分组，避免 React 项目误选 /index.html）
@@ -354,7 +408,7 @@ def detect_template(
 
 
 def _should_skip(rel_path: str) -> bool:
-    """检查文件是否应该跳过（忽略目录、隐藏文件、非前端文件）"""
+    """检查文件是否应该跳过（忽略目录、隐藏文件、非白名单文本文件）"""
     parts = rel_path.strip("/").split("/")
     filename = parts[-1] if parts else ""
 
@@ -365,9 +419,12 @@ def _should_skip(rel_path: str) -> bool:
     if filename in IGNORE_FILES:
         return True
 
+    if filename in ALLOWED_TEXT_FILENAMES:
+        return False
+
     # 跳过不在白名单中的非二进制文件
     ext = os.path.splitext(filename)[1].lower()
-    if ext not in BINARY_EXTENSIONS and ext not in FRONTEND_EXTENSIONS:
+    if ext not in BINARY_EXTENSIONS and ext not in TEXT_EXTENSIONS:
         return True
 
     return False
@@ -617,6 +674,11 @@ def _find_entry(file_keys: set[str], template: Optional[str] = None) -> Optional
     return None
 
 
+def _resolve_reveal_mode(entry: Optional[str]) -> RevealMode:
+    """根据是否找到可运行入口，决定展示为项目还是普通文件夹。"""
+    return "project" if entry else "folder"
+
+
 def _get_base_url(runtime: Any) -> str:
     """从 ToolRuntime 提取 base_url"""
     return get_base_url_from_runtime(runtime)
@@ -709,7 +771,9 @@ async def _upload_file(
 
 @tool
 async def reveal_project(
-    project_path: Annotated[str, "项目目录路径，包含 index.html 或 package.json 的目录"],
+    project_path: Annotated[
+        str, "项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示"
+    ],
     name: Annotated[Optional[str], "项目名称（可选，默认使用目录名）"] = None,
     description: Annotated[Optional[str], "项目描述（可选）"] = None,
     template: Annotated[
@@ -719,13 +783,15 @@ async def reveal_project(
     runtime: ToolRuntime = None,  # type: ignore[assignment]
 ) -> str:
     """
-    向用户展示一个前端项目（多文件预览）
+    向用户展示一个项目或文件夹（多文件预览 / 文件树浏览）
 
-    当 AI 生成了包含多个文件的前端项目（HTML/CSS/JS 或 React/Vue 项目）时，
-    使用此工具让用户可以在沙箱环境中预览整个项目。
+    当 AI 生成或整理了多个文件时，使用此工具把整个目录展示给用户。
+    对 HTML/CSS/JS、React/Vue 等前端项目，工具会返回 project 模式用于浏览器预览；
+    对没有前端入口的非前端普通代码目录、文档目录、配置目录或文件很多的结果，工具会返回 folder
+    模式，让用户直接浏览文件夹内容。
 
     Args:
-        project_path: 项目目录路径（包含 index.html 或 package.json 的目录）
+        project_path: 项目或文件夹目录路径；前端项目可预览，普通文件夹会以 folder 模式展示
         name: 项目名称（可选，默认使用目录名）
         description: 项目描述（可选）
         template: 项目模板类型（可选，自动检测：react/vue/vanilla/static/angular/svelte/solid/nextjs）
@@ -831,15 +897,18 @@ async def reveal_project(
         detected_template = template
         if not detected_template:
             detected_template = detect_template(package_json_content or "{}", file_keys)
+        entry = _find_entry(file_keys, detected_template)
+        mode = _resolve_reveal_mode(entry)
 
         result = {
             "type": "project_reveal",
             "version": 2,
             "name": project_name,
             "description": description or "",
+            "mode": mode,
             "template": detected_template,
             "files": files_manifest,
-            "entry": _find_entry(file_keys, detected_template),
+            "entry": entry,
             "path": project_path,
             "file_count": len(files_manifest),
             "scanned_file_count": len(all_files),
@@ -877,8 +946,9 @@ async def reveal_project(
                     pass
 
             project_meta = {
+                "mode": mode,
                 "template": detected_template,
-                "entry": result.get("entry"),
+                "entry": entry,
                 "file_count": len(files_manifest),
                 "files": {k: dict(v) for k, v in files_manifest.items()},
             }
