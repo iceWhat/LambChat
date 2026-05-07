@@ -167,7 +167,7 @@ export function Toolbar({
             {/* Favorites */}
             <button
               onClick={onFavoritesToggle}
-              className={`${btnBase} px-2 @sm:px-3 transition-all duration-150 ${
+              className={`${btnBase} w-9 h-9 p-0 flex items-center justify-center transition-all duration-150 ${
                 favoritesOnly
                   ? "border-amber-300/80 dark:border-amber-600/60 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-sm shadow-amber-100 dark:shadow-black/20"
                   : "border-stone-200 dark:border-stone-700/60 text-stone-500 dark:text-stone-400 hover:bg-stone-100 dark:hover:bg-stone-800/60 hover:border-stone-300 dark:hover:border-stone-600"
