@@ -56,6 +56,19 @@ def _load_session_routes_module(monkeypatch: pytest.MonkeyPatch):
     )
     monkeypatch.setitem(
         sys.modules,
+        "src.infra.folder.storage",
+        SimpleNamespace(get_project_storage=lambda: SimpleNamespace()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "src.infra.session.favorites",
+        SimpleNamespace(
+            is_session_favorite=lambda *_args, **_kwargs: False,
+            normalize_session_metadata=lambda metadata, *_args, **_kwargs: metadata or {},
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
         "src.infra.session.manager",
         SimpleNamespace(SessionManager=_FakeSessionManager),
     )

@@ -9,6 +9,7 @@ import asyncio
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 
 from src.api.deps import get_current_user_required
 from src.infra.folder.storage import get_project_storage
@@ -17,6 +18,7 @@ from src.infra.session.favorites import is_session_favorite, normalize_session_m
 from src.infra.session.manager import SessionManager
 from src.infra.session.storage import SessionStorage
 from src.kernel.config import settings
+from src.kernel.exceptions import NotFoundError, SessionError
 from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
 from src.kernel.schemas.user import TokenPayload
 
@@ -25,6 +27,10 @@ logger = get_logger(__name__)
 
 # 支持的语言白名单
 SUPPORTED_LANGUAGES = frozenset(["en", "zh", "ja", "ko"])
+
+
+class MessageCheckpointCreatePayload(BaseModel):
+    name: str | None = None
 
 
 def _is_retryable_error(error: Exception) -> bool:
@@ -503,6 +509,80 @@ async def update_session(
     favorites_project_id = await _get_favorites_project_id(user.sub)
     updated_session = _normalize_session(updated_session, favorites_project_id)
     return {"status": "updated", "session": updated_session}
+
+
+@router.post("/{session_id}/messages/{message_id}/fork")
+async def fork_session_from_message(
+    session_id: str,
+    message_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Create a new session forked from a specific message."""
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    try:
+        return await manager.fork_session_from_message(session_id, message_id, user.sub)
+    except NotFoundError as exc:
+        detail = "消息不存在" if "message" in str(exc) else "资源不存在"
+        raise HTTPException(status_code=404, detail=detail) from exc
+    except SessionError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/{session_id}/messages/{message_id}/checkpoints")
+async def create_message_checkpoint(
+    session_id: str,
+    message_id: str,
+    payload: MessageCheckpointCreatePayload,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Create a checkpoint anchored on a specific message."""
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    try:
+        return await manager.create_message_checkpoint(
+            session_id,
+            message_id,
+            user_id=user.sub,
+            name=payload.name,
+        )
+    except NotFoundError as exc:
+        detail = "消息不存在" if "message" in str(exc) else "资源不存在"
+        raise HTTPException(status_code=404, detail=detail) from exc
+
+
+@router.post("/{session_id}/checkpoints/{checkpoint_id}/fork")
+async def fork_session_from_checkpoint(
+    session_id: str,
+    checkpoint_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+):
+    """Create a new session forked from a saved checkpoint."""
+    manager = SessionManager()
+    session = await manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    verify_session_ownership(session, user)
+
+    try:
+        return await manager.fork_session_from_checkpoint(
+            session_id,
+            checkpoint_id,
+            user_id=user.sub,
+        )
+    except NotFoundError as exc:
+        detail = "检查点不存在" if "checkpoint" in str(exc) else "资源不存在"
+        raise HTTPException(status_code=404, detail=detail) from exc
+    except SessionError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/{session_id}/favorite")

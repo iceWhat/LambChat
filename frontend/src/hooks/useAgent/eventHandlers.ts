@@ -297,6 +297,12 @@ function handleUserMessage(
     const match = content.match(/^\[[^\]]+\]\s([\s\S]*)$/);
     return match ? match[1] : null;
   };
+  const resolvedMessageId =
+    typeof data.message_id === "string" && data.message_id.trim()
+      ? data.message_id
+      : typeof data.run_id === "string" && data.run_id.trim()
+        ? `${data.run_id}:user`
+        : crypto.randomUUID();
   const userContent = data.content || "";
   const userAttachments = convertAttachments(data.attachments) || [];
 
@@ -304,7 +310,7 @@ function handleUserMessage(
     ctx.setMessages((prev) => {
       if (prev.length === 0) {
         const newUserMessage: Message = {
-          id: crypto.randomUUID(),
+          id: resolvedMessageId,
           role: "user",
           content: userContent,
           timestamp: eventTimestamp ? new Date(eventTimestamp) : new Date(),
@@ -340,7 +346,7 @@ function handleUserMessage(
       }
 
       const newUserMessage: Message = {
-        id: crypto.randomUUID(),
+        id: resolvedMessageId,
         role: "user",
         content: userContent,
         timestamp: eventTimestamp ? new Date(eventTimestamp) : new Date(),

@@ -1,5 +1,6 @@
 """Session-related schemas."""
 
+from copy import deepcopy
 from datetime import datetime
 from typing import Any, Optional
 
@@ -43,3 +44,34 @@ class Session(SessionBase):
 
     class Config:
         from_attributes = True
+
+
+class SessionCheckpoint(BaseModel):
+    """Message-level fork checkpoint metadata."""
+
+    id: str
+    message_id: str
+    name: str
+    created_at: datetime = Field(default_factory=datetime.now)
+    source_run_id: Optional[str] = None
+    source_trace_id: Optional[str] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class MessageCheckpointCreate(BaseModel):
+    """Payload for creating a message checkpoint."""
+
+    name: Optional[str] = None
+
+
+def clone_session_metadata(
+    metadata: dict[str, Any] | None,
+    *,
+    include_checkpoints: bool = False,
+) -> dict[str, Any]:
+    """Return a copy of session metadata without transient branching state."""
+    copied = deepcopy(metadata or {})
+    if not include_checkpoints:
+        copied.pop("checkpoints", None)
+    copied.pop("current_run_id", None)
+    return copied

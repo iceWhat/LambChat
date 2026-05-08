@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { clsx } from "clsx";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, GitBranch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AttachmentCard, ImageViewer } from "../../common";
 import type { MessageAttachment } from "../../../types";
@@ -12,9 +12,11 @@ import { openAttachmentPreview } from "../attachmentPreviewStore";
 export function UserMessageBubble({
   content,
   attachments,
+  onFork,
 }: {
   content?: string;
   attachments?: MessageAttachment[];
+  onFork?: () => void;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -88,6 +90,20 @@ export function UserMessageBubble({
 
           {/* Action buttons - show on hover */}
           <div className="flex justify-end mt-2 gap-1">
+            {onFork && (
+              <button
+                onClick={onFork}
+                className={clsx(
+                  "p-1.5 rounded-lg transition-colors duration-200",
+                  "opacity-0 group-hover:opacity-100",
+                  "hover:bg-black/5 dark:hover:bg-white/5",
+                  "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+                )}
+                title={t("chat.message.fork")}
+              >
+                <GitBranch size={16} />
+              </button>
+            )}
             <button
               onClick={handleCopy}
               className={clsx(

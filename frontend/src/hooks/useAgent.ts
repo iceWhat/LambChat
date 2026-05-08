@@ -510,6 +510,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
       setMessages(optimisticMessages);
       setIsLoading(true);
       setError(null);
+      let finalAssistantMessageId = assistantMessageId;
 
       try {
         // 用户发送消息时标记当前 session 为已读
@@ -639,13 +640,20 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
           setCurrentRunId(newRunId);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantMessageId ? { ...m, runId: newRunId } : m,
+              m.id === assistantMessageId
+                ? {
+                    ...m,
+                    id: newRunId,
+                    runId: newRunId,
+                  }
+                : m,
             ),
           );
         }
 
         const streamSessionId = newSessionId || sessionId;
         const streamRunId = newRunId;
+        finalAssistantMessageId = newRunId || assistantMessageId;
 
         if (!streamSessionId || !streamRunId) {
           throw new Error("Missing session_id or run_id");
@@ -656,7 +664,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         await connectToSSE(
           streamSessionId,
           streamRunId,
-          assistantMessageId,
+          finalAssistantMessageId,
           ctx,
         );
       } catch (err) {
@@ -670,7 +678,7 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
         setError(errorMessage);
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantMessageId
+            m.id === finalAssistantMessageId
               ? {
                   ...m,
                   content: i18n.t("chat.errorPrefix", { error: errorMessage }),

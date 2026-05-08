@@ -71,6 +71,7 @@ export interface EventData {
   model_id?: string;
   model?: string;
   // user:message event fields
+  message_id?: string;
   attachments?: Array<{
     id: string;
     key: string;
@@ -164,6 +165,7 @@ export interface HistoryEventData {
     size: number;
     url: string;
   }>;
+  message_id?: string;
 }
 
 // History event from backend

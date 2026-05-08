@@ -2,14 +2,25 @@
 会话管理器
 """
 
+import uuid
+from copy import deepcopy
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from src.infra.logging import get_logger
 from src.infra.session.storage import SessionStorage
 from src.infra.session.trace_storage import get_trace_storage
+from src.infra.storage.checkpoint import clone_checkpoints_for_fork
 from src.infra.storage.s3 import get_storage_service
 from src.infra.upload.file_record import FileRecordStorage
-from src.kernel.schemas.session import Session, SessionCreate, SessionUpdate
+from src.kernel.exceptions import NotFoundError, SessionError
+from src.kernel.schemas.session import (
+    Session,
+    SessionCheckpoint,
+    SessionCreate,
+    SessionUpdate,
+    clone_session_metadata,
+)
 
 logger = get_logger(__name__)
 
@@ -177,3 +188,264 @@ class SessionManager:
             session_id,
             SessionUpdate(metadata={"is_active": False}),
         )
+
+    async def create_message_checkpoint(
+        self,
+        session_id: str,
+        message_id: str,
+        *,
+        user_id: str,
+        name: str | None = None,
+    ) -> dict:
+        """Create a named checkpoint for a message within a session."""
+        session = await self.get_session(session_id)
+        if not session or session.user_id != user_id:
+            raise NotFoundError("session_not_found")
+
+        target = await self._resolve_fork_target(session_id, message_id)
+        checkpoint = SessionCheckpoint(
+            id=f"checkpoint_{uuid.uuid4().hex}",
+            message_id=message_id,
+            name=(name or "Checkpoint").strip() or "Checkpoint",
+            source_run_id=target["run_id"],
+            source_trace_id=target.get("trace_id"),
+        )
+        checkpoints = self._load_session_checkpoints(session)
+        checkpoints.append(checkpoint)
+
+        updated_session = await self.update_session(
+            session_id,
+            SessionUpdate(
+                metadata={"checkpoints": [item.model_dump(mode="json") for item in checkpoints]}
+            ),
+        )
+        return {
+            "checkpoint": checkpoint.model_dump(mode="json"),
+            "session": updated_session,
+        }
+
+    async def fork_session_from_checkpoint(
+        self,
+        session_id: str,
+        checkpoint_id: str,
+        *,
+        user_id: str,
+    ) -> dict:
+        """Fork a new session from a stored checkpoint."""
+        session = await self.get_session(session_id)
+        if not session or session.user_id != user_id:
+            raise NotFoundError("session_not_found")
+
+        checkpoints = self._load_session_checkpoints(session)
+        checkpoint = next((item for item in checkpoints if item.id == checkpoint_id), None)
+        if checkpoint is None:
+            raise NotFoundError("checkpoint_not_found")
+
+        result = await self.fork_session_from_message(
+            session_id,
+            checkpoint.message_id,
+            user_id,
+            fork_metadata={
+                "fork_type": "checkpoint",
+                "checkpoint_id": checkpoint.id,
+                "checkpoint_name": checkpoint.name,
+            },
+        )
+        result["checkpoint_id"] = checkpoint.id
+        return result
+
+    async def fork_session_from_message(
+        self,
+        session_id: str,
+        message_id: str,
+        user_id: str,
+        fork_metadata: dict | None = None,
+    ) -> dict:
+        """Fork a new session from a specific message anchor."""
+        source_session = await self.get_session(session_id)
+        if not source_session or source_session.user_id != user_id:
+            raise NotFoundError("session_not_found")
+
+        target = await self._resolve_fork_target(session_id, message_id)
+        new_metadata = clone_session_metadata(source_session.metadata)
+        new_metadata.update(
+            {
+                "forked_from_session_id": session_id,
+                "forked_from_message_id": message_id,
+                "forked_at": datetime.now(timezone.utc).isoformat(),
+                **(fork_metadata or {}),
+            }
+        )
+        if target.get("run_id"):
+            new_metadata["current_run_id"] = target["run_id"]
+
+        new_session = await self.create_session(
+            SessionCreate(
+                name=self._build_fork_session_name(source_session.name),
+                metadata=new_metadata,
+            ),
+            user_id=user_id,
+        )
+
+        try:
+            copied_checkpoint_count = await clone_checkpoints_for_fork(
+                source_session.id,
+                new_session.id,
+                turn_index=target["turn_index"],
+                target_type=target["target_type"],
+            )
+            cloned_trace_count = await self._clone_history_to_session(
+                source_session=source_session,
+                target_session=new_session,
+                target=target,
+                user_id=user_id,
+            )
+            await self.storage.rebuild_search_index(new_session.id)
+            return {
+                "session": new_session,
+                "source_session_id": source_session.id,
+                "source_message_id": message_id,
+                "copied_trace_count": cloned_trace_count,
+                "copied_checkpoint_count": copied_checkpoint_count,
+            }
+        except Exception as exc:
+            await self.delete_session(new_session.id)
+            raise SessionError(f"fork_checkpoint_copy_failed: {exc}") from exc
+
+    async def _clone_history_to_session(
+        self,
+        *,
+        source_session: Session,
+        target_session: Session,
+        target: dict,
+        user_id: str,
+    ) -> int:
+        cursor = self.trace_storage.collection.find(
+            {"session_id": source_session.id},
+            {"_id": 0},
+        ).sort("started_at", 1)
+        source_traces = await cursor.to_list(length=None)
+
+        cloned_docs: list[dict] = []
+        for trace in source_traces:
+            run_id = trace.get("run_id")
+            if not run_id:
+                continue
+            if run_id in target["completed_run_ids"]:
+                cloned_docs.append(self._build_cloned_trace_doc(trace, target_session.id, user_id))
+            elif run_id == target["run_id"] and target["target_type"] == "user":
+                cloned_docs.append(
+                    self._build_partial_user_trace_doc(
+                        trace,
+                        target["user_event"],
+                        target_session.id,
+                        user_id,
+                    )
+                )
+                break
+            elif run_id == target["run_id"] and target["target_type"] == "assistant":
+                cloned_docs.append(self._build_cloned_trace_doc(trace, target_session.id, user_id))
+                break
+
+        if cloned_docs:
+            await self.trace_storage.collection.insert_many(cloned_docs)
+        return len(cloned_docs)
+
+    async def _resolve_fork_target(self, session_id: str, message_id: str) -> dict:
+        cursor = self.trace_storage.collection.find(
+            {"session_id": session_id},
+            {"_id": 0},
+        ).sort("started_at", 1)
+        traces = await cursor.to_list(length=None)
+        completed_run_ids: list[str] = []
+
+        for trace in traces:
+            run_id = trace.get("run_id")
+            if not isinstance(run_id, str) or not run_id:
+                continue
+            turn_index = len(completed_run_ids) + 1
+
+            for event in trace.get("events", []):
+                if event.get("event_type") != "user:message":
+                    continue
+                data = event.get("data") or {}
+                current_message_id = self._resolve_user_message_id(run_id, data)
+                if current_message_id == message_id:
+                    return {
+                        "target_type": "user",
+                        "run_id": run_id,
+                        "trace_id": trace.get("trace_id"),
+                        "user_event": event,
+                        "completed_run_ids": completed_run_ids,
+                        "turn_index": turn_index,
+                    }
+
+            if run_id == message_id:
+                return {
+                    "target_type": "assistant",
+                    "run_id": run_id,
+                    "trace_id": trace.get("trace_id"),
+                    "completed_run_ids": [*completed_run_ids, run_id],
+                    "turn_index": turn_index,
+                }
+
+            completed_run_ids.append(run_id)
+
+        raise NotFoundError("message_not_found")
+
+    @staticmethod
+    def _resolve_user_message_id(run_id: str, data: dict) -> str:
+        message_id = str(data.get("message_id") or "").strip()
+        if message_id:
+            return message_id
+        return f"{run_id}:user"
+
+    @staticmethod
+    def _build_cloned_trace_doc(trace: dict, session_id: str, user_id: str) -> dict:
+        cloned = deepcopy(trace)
+        cloned.pop("_id", None)
+        cloned["trace_id"] = f"trace_{uuid.uuid4().hex}"
+        cloned["session_id"] = session_id
+        cloned["user_id"] = user_id
+        return cloned
+
+    def _build_partial_user_trace_doc(
+        self,
+        trace: dict,
+        user_event: dict,
+        session_id: str,
+        user_id: str,
+    ) -> dict:
+        timestamp = user_event.get("timestamp") or datetime.now(timezone.utc)
+        return {
+            "trace_id": f"trace_{uuid.uuid4().hex}",
+            "session_id": session_id,
+            "run_id": trace.get("run_id"),
+            "agent_id": trace.get("agent_id"),
+            "user_id": user_id,
+            "events": [deepcopy(user_event)],
+            "event_count": 1,
+            "started_at": timestamp,
+            "updated_at": timestamp,
+            "completed_at": timestamp,
+            "status": "completed",
+            "metadata": deepcopy(trace.get("metadata") or {}),
+        }
+
+    @staticmethod
+    def _build_fork_session_name(name: str | None) -> str:
+        base = (name or "New Chat").strip() or "New Chat"
+        if base.endswith(" (Fork)"):
+            return base
+        return f"{base} (Fork)"
+
+    @staticmethod
+    def _load_session_checkpoints(session: Session) -> list[SessionCheckpoint]:
+        raw_items = session.metadata.get("checkpoints") if session.metadata else []
+        if not isinstance(raw_items, list):
+            return []
+        checkpoints: list[SessionCheckpoint] = []
+        for item in raw_items:
+            if isinstance(item, dict):
+                checkpoints.append(SessionCheckpoint(**item))
+        return checkpoints

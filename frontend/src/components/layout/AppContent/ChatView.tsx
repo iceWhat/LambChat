@@ -1,6 +1,8 @@
 import { useMemo, useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ListTree } from "lucide-react";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { ChatMessage } from "../../chat/ChatMessage";
 import { AttachmentPreviewHost } from "../../chat/AttachmentPreviewHost";
@@ -73,6 +75,7 @@ import { clearSidebarHistory } from "../../chat/ChatMessage/items/sidebarHistory
 import type { ExternalNavigationTargetFile } from "./externalNavigationState";
 import { isFileLink } from "../../documents/utils";
 import { getFullUrl } from "../../../services/api/config";
+import { sessionApi } from "../../../services/api";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
 
 interface ChatViewProps {
@@ -220,6 +223,7 @@ export function ChatView({
   outlineToggleRef,
 }: ChatViewProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const sessionRunning = isSessionRunning(messages, isLoading);
   const hasVisibleStreamingMessage = messages.some(
@@ -542,6 +546,22 @@ export function ChatView({
   const isMobileViewport =
     typeof window !== "undefined" ? window.innerWidth < 640 : false;
 
+  const handleForkMessage = useCallback(
+    async (messageId: string) => {
+      if (!sessionId) return;
+      try {
+        const response = await sessionApi.forkMessage(sessionId, messageId);
+        toast.success(t("chat.message.forkSuccess"));
+        navigate(`/chat/${response.session.id}`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : t("chat.message.forkFailed"),
+        );
+      }
+    },
+    [navigate, sessionId, t],
+  );
+
   const handleVirtuosoRangeChanged = useCallback((range: ListRange) => {
     setVisibleRange((current) =>
       current?.startIndex === range.startIndex &&
@@ -607,6 +627,7 @@ export function ChatView({
         activePreview={activePreview}
         latestAutoPreview={latestAutoPreview}
         onOpenPreview={handleOpenPreview}
+        onForkMessage={handleForkMessage}
       />
     ),
     [
@@ -619,6 +640,7 @@ export function ChatView({
       activePreview,
       latestAutoPreview,
       handleOpenPreview,
+      handleForkMessage,
     ],
   );
 

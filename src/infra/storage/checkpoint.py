@@ -10,6 +10,7 @@ Checkpoint 存储实现
 两者都不可用时回退到 MemorySaver（内存存储，重启丢失）。
 """
 
+import copy
 import time
 from collections import OrderedDict
 from typing import AsyncContextManager, Optional
@@ -262,3 +263,87 @@ async def get_async_checkpointer(thread_id: str | None = None):
         get_async_checkpointer._memory_saver = MemorySaver()  # type: ignore[attr-defined]
         logger.warning("Using MemorySaver singleton (data will be lost on restart)")
     return get_async_checkpointer._memory_saver  # type: ignore[attr-defined]
+
+
+def _is_human_message(message: object) -> bool:
+    return type(message).__name__ == "HumanMessage"
+
+
+def _is_ai_message(message: object) -> bool:
+    return type(message).__name__ == "AIMessage"
+
+
+def _extract_checkpoint_messages(checkpoint_tuple: object) -> list[object]:
+    checkpoint = getattr(checkpoint_tuple, "checkpoint", {}) or {}
+    channel_values = checkpoint.get("channel_values", {}) if isinstance(checkpoint, dict) else {}
+    messages = channel_values.get("messages", [])
+    return messages if isinstance(messages, list) else []
+
+
+async def clone_checkpoints_for_fork(
+    source_thread_id: str,
+    target_thread_id: str,
+    *,
+    turn_index: int,
+    target_type: str,
+) -> int:
+    """Clone checkpoint state up to the fork boundary into a new thread."""
+    source_saver = await get_async_checkpointer(thread_id=source_thread_id)
+    target_saver = await get_async_checkpointer(thread_id=target_thread_id)
+    default_config = {"configurable": {"thread_id": source_thread_id, "checkpoint_ns": ""}}
+    default_tuples = [item async for item in source_saver.alist(default_config)]
+
+    boundary_checkpoint_id: str | None = None
+    for checkpoint_tuple in default_tuples:
+        messages = _extract_checkpoint_messages(checkpoint_tuple)
+        human_count = sum(1 for message in messages if _is_human_message(message))
+        if human_count != turn_index or not messages:
+            continue
+
+        last_message = messages[-1]
+        if target_type == "user" and _is_human_message(last_message):
+            boundary_checkpoint_id = checkpoint_tuple.config["configurable"]["checkpoint_id"]
+            break
+        if target_type == "assistant" and _is_ai_message(last_message):
+            boundary_checkpoint_id = checkpoint_tuple.config["configurable"]["checkpoint_id"]
+            break
+
+    if not boundary_checkpoint_id:
+        raise ValueError(
+            f"Unable to locate fork checkpoint for thread={source_thread_id} turn={turn_index} type={target_type}"
+        )
+
+    all_tuples = [
+        item async for item in source_saver.alist({"configurable": {"thread_id": source_thread_id}})
+    ]
+    eligible_tuples = [
+        item
+        for item in all_tuples
+        if item.config["configurable"]["checkpoint_id"] <= boundary_checkpoint_id
+    ]
+    eligible_tuples.sort(key=lambda item: item.config["configurable"]["checkpoint_id"])
+
+    copied = 0
+    for checkpoint_tuple in eligible_tuples:
+        cfg = checkpoint_tuple.config["configurable"]
+        target_config = {
+            "configurable": {
+                "thread_id": target_thread_id,
+                "checkpoint_ns": cfg.get("checkpoint_ns", ""),
+            }
+        }
+        parent_config = getattr(checkpoint_tuple, "parent_config", None)
+        if parent_config:
+            target_config["configurable"]["checkpoint_id"] = parent_config["configurable"][
+                "checkpoint_id"
+            ]
+
+        await target_saver.aput(
+            target_config,
+            copy.deepcopy(checkpoint_tuple.checkpoint),
+            copy.deepcopy(checkpoint_tuple.metadata),
+            copy.deepcopy(checkpoint_tuple.checkpoint.get("channel_versions", {})),
+        )
+        copied += 1
+
+    return copied

@@ -37,6 +37,27 @@ export interface SessionRunsQuery {
   trace_id?: string;
 }
 
+export function buildMessageForkUrl(
+  sessionId: string,
+  messageId: string,
+): string {
+  return `${API_BASE}/api/sessions/${sessionId}/messages/${messageId}/fork`;
+}
+
+export function buildMessageCheckpointUrl(
+  sessionId: string,
+  messageId: string,
+): string {
+  return `${API_BASE}/api/sessions/${sessionId}/messages/${messageId}/checkpoints`;
+}
+
+export function buildCheckpointForkUrl(
+  sessionId: string,
+  checkpointId: string,
+): string {
+  return `${API_BASE}/api/sessions/${sessionId}/checkpoints/${checkpointId}/fork`;
+}
+
 function getBrowserTimezone(): string | undefined {
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   return typeof timezone === "string" && timezone.trim() ? timezone : undefined;
@@ -343,6 +364,42 @@ export const sessionApi = {
    */
   async markRead(sessionId: string): Promise<void> {
     await authFetch(`${API_BASE}/api/sessions/${sessionId}/mark-read`, {
+      method: "POST",
+    });
+  },
+
+  async forkMessage(
+    sessionId: string,
+    messageId: string,
+  ): Promise<{ session: BackendSession; source_session_id: string }> {
+    return authFetch(buildMessageForkUrl(sessionId, messageId), {
+      method: "POST",
+    });
+  },
+
+  async createCheckpoint(
+    sessionId: string,
+    messageId: string,
+    name?: string,
+  ): Promise<{
+    checkpoint: {
+      id: string;
+      name: string;
+      message_id: string;
+      created_at?: string;
+    };
+  }> {
+    return authFetch(buildMessageCheckpointUrl(sessionId, messageId), {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  async forkCheckpoint(
+    sessionId: string,
+    checkpointId: string,
+  ): Promise<{ session: BackendSession; source_session_id: string }> {
+    return authFetch(buildCheckpointForkUrl(sessionId, checkpointId), {
       method: "POST",
     });
   },

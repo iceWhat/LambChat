@@ -19,6 +19,19 @@ import type {
 import { convertAttachments, processMessageEvent } from "./eventProcessor";
 import { clearAllLoadingStates } from "./messageParts";
 
+function resolveUserMessageId(
+  event: HistoryEvent,
+  eventData: HistoryEventData,
+): string {
+  if (typeof eventData.message_id === "string" && eventData.message_id.trim()) {
+    return eventData.message_id;
+  }
+  if (typeof event.run_id === "string" && event.run_id.trim()) {
+    return `${event.run_id}:user`;
+  }
+  return crypto.randomUUID();
+}
+
 interface ProcessHistoryOptions {
   options?: {
     onApprovalRequired?: (approval: {
@@ -203,7 +216,7 @@ export function reconstructMessagesFromEvents(
       }
       const userAttachments = convertAttachments(eventData.attachments);
       reconstructedMessages.push({
-        id: crypto.randomUUID(),
+        id: resolveUserMessageId(event, eventData),
         role: "user",
         content: eventData.content || "",
         timestamp: new Date(event.timestamp || Date.now()),

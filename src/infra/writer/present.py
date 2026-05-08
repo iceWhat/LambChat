@@ -642,9 +642,16 @@ class Presenter:
         self,
         content: str,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        message_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出用户消息"""
-        data: Dict[str, Any] = {"content": content, "timestamp": _get_timestamp()}
+        resolved_message_id = message_id or f"{self.run_id}:user"
+        data: Dict[str, Any] = {
+            "content": content,
+            "timestamp": _get_timestamp(),
+            "message_id": resolved_message_id,
+            "run_id": self.run_id,
+        }
         if attachments:
             data["attachments"] = attachments
         else:
@@ -826,10 +833,13 @@ class Presenter:
         return event
 
     async def emit_user_message(
-        self, content: str, attachments: Optional[List[Dict[str, Any]]] = None
+        self,
+        content: str,
+        attachments: Optional[List[Dict[str, Any]]] = None,
+        message_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """输出用户消息并保存"""
-        event = self.present_user_message(content, attachments)
+        event = self.present_user_message(content, attachments, message_id=message_id)
         await self.save_event(event)
         if self.config.session_id:
             try:

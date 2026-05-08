@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 import { useEffect, useRef, useState, memo } from "react";
 import toast from "react-hot-toast";
-import { Copy, Info, Sparkles } from "lucide-react";
+import { Copy, GitBranch, Info, Sparkles } from "lucide-react";
 import type {
   Message,
   MessagePart,
@@ -76,6 +76,7 @@ interface ChatMessageProps {
     preview: RevealPreviewRequest,
     source?: RevealPreviewOpenSource,
   ) => boolean;
+  onForkMessage?: (messageId: string) => void | Promise<void>;
 }
 
 // Token usage statistics button component - ChatGPT style
@@ -252,6 +253,7 @@ export const ChatMessage = memo(function ChatMessage({
   activePreview,
   latestAutoPreview,
   onOpenPreview,
+  onForkMessage,
 }: ChatMessageProps) {
   const { t } = useTranslation();
   const { availableModels } = useSettingsContext();
@@ -278,6 +280,11 @@ export const ChatMessage = memo(function ChatMessage({
         <UserMessageBubble
           content={message.content}
           attachments={message.attachments}
+          onFork={
+            onForkMessage && !message.isStreaming
+              ? () => void onForkMessage(message.id)
+              : undefined
+          }
         />
       </div>
     );
@@ -431,6 +438,20 @@ export const ChatMessage = memo(function ChatMessage({
             >
               <Copy size={16} />
             </button>
+            {sessionId && onForkMessage && (
+              <button
+                onClick={() => void onForkMessage(message.id)}
+                className={clsx(
+                  "p-1.5 rounded-md transition-colors",
+                  !isLastMessage && "opacity-0 group-hover:opacity-100",
+                  "hover:bg-stone-200 dark:hover:bg-stone-700",
+                  "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
+                )}
+                title={t("chat.message.fork")}
+              >
+                <GitBranch size={16} />
+              </button>
+            )}
             {/* Token usage statistics button */}
             {(message.tokenUsage || message.duration) && (
               <TokenDetailsButton

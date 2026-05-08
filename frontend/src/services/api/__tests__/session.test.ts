@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildSessionRunsUrl, buildSubmitChatBody } from "../session.ts";
+import {
+  buildCheckpointForkUrl,
+  buildMessageCheckpointUrl,
+  buildMessageForkUrl,
+  buildSessionRunsUrl,
+  buildSubmitChatBody,
+} from "../session.ts";
 
 test("builds a session list url with favorites_only", () => {
   const searchParams = new URLSearchParams();
@@ -63,5 +69,26 @@ test("includes persona preset fields in the submit chat body", () => {
       persona_preset_id: "preset-1",
       disabled_mcp_tools: undefined,
     },
+  );
+});
+
+test("builds the message fork url", () => {
+  assert.equal(
+    buildMessageForkUrl("session-1", "message-1"),
+    "/api/sessions/session-1/messages/message-1/fork",
+  );
+});
+
+test("builds the message checkpoint url", () => {
+  assert.equal(
+    buildMessageCheckpointUrl("session-1", "message-1"),
+    "/api/sessions/session-1/messages/message-1/checkpoints",
+  );
+});
+
+test("builds the checkpoint fork url", () => {
+  assert.equal(
+    buildCheckpointForkUrl("session-1", "checkpoint-1"),
+    "/api/sessions/session-1/checkpoints/checkpoint-1/fork",
   );
 });
