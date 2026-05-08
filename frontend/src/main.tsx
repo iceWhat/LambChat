@@ -41,7 +41,7 @@ if (typeof window !== "undefined" && isMobileDevice()) {
 
   // Also handle focus event as a fallback
   window.addEventListener("focus", () => {
-    window.scrollTo(0, 0);
+    resetMobileViewport();
   });
 
   document.addEventListener("focusin", scrollFocusedInputIntoView);

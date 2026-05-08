@@ -19,8 +19,8 @@ export function isMobileDevice(): boolean {
 export function resetMobileViewport(): void {
   if (!isMobileDevice()) return;
 
-  // Scroll to top to reset any scroll offset
-  window.scrollTo(0, 0);
+  const scrollX = window.scrollX ?? 0;
+  const scrollY = window.scrollY ?? 0;
 
   // Force viewport recalculation by temporarily changing and restoring the meta tag
   const viewport = document.querySelector('meta[name="viewport"]');
@@ -33,6 +33,7 @@ export function resetMobileViewport(): void {
       if (originalContent) {
         viewport.setAttribute("content", originalContent);
       }
+      window.scrollTo(scrollX, scrollY);
     }, 10);
   }
 }
