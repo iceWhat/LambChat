@@ -280,6 +280,7 @@ export const ChatMessage = memo(function ChatMessage({
         <UserMessageBubble
           content={message.content}
           attachments={message.attachments}
+          isLastMessage={isLastMessage}
           onFork={
             onForkMessage && !message.isStreaming
               ? () => void onForkMessage(message.id)

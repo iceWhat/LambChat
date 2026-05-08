@@ -13,10 +13,12 @@ export function UserMessageBubble({
   content,
   attachments,
   onFork,
+  isLastMessage,
 }: {
   content?: string;
   attachments?: MessageAttachment[];
   onFork?: () => void;
+  isLastMessage?: boolean;
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -95,7 +97,7 @@ export function UserMessageBubble({
                 onClick={onFork}
                 className={clsx(
                   "p-1.5 rounded-lg transition-colors duration-200",
-                  "opacity-0 group-hover:opacity-100",
+                  getUserMessageActionButtonVisibilityClass(isLastMessage),
                   "hover:bg-black/5 dark:hover:bg-white/5",
                   "text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300",
                 )}
@@ -108,7 +110,7 @@ export function UserMessageBubble({
               onClick={handleCopy}
               className={clsx(
                 "p-1.5 rounded-lg transition-colors duration-200",
-                "opacity-0 group-hover:opacity-100",
+                getUserMessageActionButtonVisibilityClass(isLastMessage),
                 "hover:bg-black/5 dark:hover:bg-white/5",
                 copied
                   ? "text-emerald-500 dark:text-emerald-400"
@@ -132,4 +134,10 @@ export function UserMessageBubble({
       )}
     </div>
   );
+}
+
+export function getUserMessageActionButtonVisibilityClass(
+  isLastMessage?: boolean,
+) {
+  return isLastMessage ? "" : "opacity-0 group-hover:opacity-100";
 }
