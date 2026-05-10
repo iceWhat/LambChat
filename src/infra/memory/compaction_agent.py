@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from typing import Annotated, Any
@@ -10,6 +11,7 @@ from deepagents import create_deep_agent
 from langchain.tools import tool
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
+from langsmith.run_helpers import tracing_context
 
 from src.infra.logging import get_logger
 from src.infra.memory.distributed import (
@@ -34,8 +36,8 @@ _COMPACTION_SYSTEM_PROMPT = (
     "All memories (metadata + full content) are provided in the user message below.\n"
     "You do NOT need to fetch anything — all data is already available.\n\n"
     "Available tools:\n"
-    "- memory_compaction_update: update one existing automatic memory.\n"
-    "- memory_compaction_delete: delete one redundant automatic memory.\n\n"
+    "- memory_compaction_update: update one existing automatic memory (use memory_id).\n"
+    "- memory_compaction_delete: delete one redundant automatic memory (use memory_id).\n\n"
     "Follow these steps:\n\n"
     "Step 1 — Candidate selection (from the inventory below):\n"
     "- Identify groups needing compaction: duplicates, near-duplicates, "
@@ -78,6 +80,7 @@ class MemoryCompactionAgent:
         self._min_interval_seconds_override = min_interval_seconds
         self._load_config()
         self._last_attempt_by_user: dict[str, float] = {}
+        self._after_write_tasks_by_user: dict[str, asyncio.Task[dict[str, Any]]] = {}
 
     def _load_config(self) -> None:
         self.enabled = (
@@ -152,35 +155,85 @@ class MemoryCompactionAgent:
             count,
             self.threshold,
         )
-        result = await self.compact_user_memories(backend, user_id)
-        if result.get("skipped") and result.get("reason") in {
-            "lock_not_acquired",
-            "lock_unavailable",
-        }:
-            logger.info(
-                "[MemoryCompactionAgent] after-write lock skipped for %s: %s",
-                user_id,
-                result,
-            )
+        if self._schedule_after_write_compaction(backend, user_id):
             return {
-                "triggered": False,
-                "reason": result["reason"],
+                "triggered": True,
+                "reason": "threshold_reached",
                 "count": count,
-                "result": result,
+                "scheduled": True,
             }
+        return {
+            "triggered": False,
+            "reason": "already_running",
+            "count": count,
+        }
 
-        await self._mark_attempt(user_id)
+    def _schedule_after_write_compaction(self, backend: Any, user_id: str) -> bool:
+        existing = self._after_write_tasks_by_user.get(user_id)
+        if existing is not None and not existing.done():
+            logger.info(
+                "[MemoryCompactionAgent] after-write skipped for %s: compaction already running",
+                user_id,
+            )
+            return False
+
+        task = asyncio.create_task(self._run_after_write_compaction_detached(backend, user_id))
+        self._after_write_tasks_by_user[user_id] = task
+        task.add_done_callback(lambda done: self._after_write_compaction_done(user_id, done))
+        return True
+
+    async def _run_after_write_compaction_detached(
+        self,
+        backend: Any,
+        user_id: str,
+    ) -> dict[str, Any]:
+        with tracing_context(parent=False):
+            result = await self.compact_user_memories(backend, user_id)
+            if not (
+                result.get("skipped")
+                and result.get("reason") in {"lock_not_acquired", "lock_unavailable"}
+            ):
+                await self._mark_attempt(user_id)
         logger.info(
-            "[MemoryCompactionAgent] after-write completed for %s: %s",
+            "[MemoryCompactionAgent] after-write background completed for %s: %s",
             user_id,
             result,
         )
-        return {
-            "triggered": not bool(result.get("skipped")),
-            "reason": "threshold_reached",
-            "count": count,
-            "result": result,
-        }
+        return result
+
+    def _after_write_compaction_done(
+        self,
+        user_id: str,
+        task: asyncio.Task[dict[str, Any]],
+    ) -> None:
+        current = self._after_write_tasks_by_user.get(user_id)
+        if current is task:
+            self._after_write_tasks_by_user.pop(user_id, None)
+        if task.cancelled():
+            logger.info("[MemoryCompactionAgent] after-write background cancelled for %s", user_id)
+            return
+        try:
+            result = task.result()
+        except Exception:
+            logger.exception(
+                "[MemoryCompactionAgent] after-write background failed for %s", user_id
+            )
+            return
+        if result.get("skipped"):
+            logger.info(
+                "[MemoryCompactionAgent] after-write background skipped for %s: %s",
+                user_id,
+                result,
+            )
+
+    async def stop(self) -> None:
+        """Cancel any after-write compaction tasks owned by this process."""
+        tasks = list(self._after_write_tasks_by_user.values())
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._after_write_tasks_by_user.clear()
 
     async def compact_user_memories(self, backend: Any, user_id: str) -> dict[str, Any]:
         """Run the DeepAgent memory compactor for one user's automatic memories."""
@@ -437,10 +490,10 @@ class MemoryCompactionAgent:
             "",
             "## Full Inventory",
         ]
-        for i, m in enumerate(inventory, 1):
+        for m in inventory:
             tags = ", ".join(m.get("tags", []))
             lines.append(
-                f'[{i}] id={m["memory_id"]} | title="{m["title"]}" | '
+                f'memory_id={m["memory_id"]} | title="{m["title"]}" | '
                 f'summary="{m["summary"]}" | tags=[{tags}] | '
                 f"type={m['memory_type']} | context={m['context']} | "
                 f"updated={m['updated_at']} | accesses={m['access_count']}"
@@ -488,4 +541,6 @@ def get_memory_compaction_agent() -> MemoryCompactionAgent:
 
 async def stop_memory_compaction_agent() -> None:
     global _memory_compaction_agent
+    if _memory_compaction_agent is not None:
+        await _memory_compaction_agent.stop()
     _memory_compaction_agent = None

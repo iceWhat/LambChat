@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import contextmanager
+
 import pytest
 from langgraph.errors import GraphRecursionError
 
@@ -110,6 +113,15 @@ class _CompactionCapableBackend:
         return {"success": True}
 
 
+async def _wait_for_after_write_tasks(agent: MemoryCompactionAgent) -> None:
+    for _ in range(50):
+        tasks = list(agent._after_write_tasks_by_user.values())  # type: ignore[attr-defined]
+        if not tasks:
+            return
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.sleep(0.01)
+
+
 @pytest.mark.asyncio
 async def test_maybe_compact_after_write_skips_when_disabled():
     backend = _Backend({"u1": 100})
@@ -161,8 +173,91 @@ async def test_maybe_compact_after_write_triggers_at_threshold():
     assert result["triggered"] is True
     assert result["reason"] == "threshold_reached"
     assert result["count"] == 50
-    assert result["result"]["agent"] == "deepagent"
+    assert result["scheduled"] is True
+    await _wait_for_after_write_tasks(agent)
     assert backend.compacted == ["u1"]
+
+
+@pytest.mark.asyncio
+async def test_maybe_compact_after_write_schedules_detached_compaction(monkeypatch):
+    from src.infra.memory import compaction_agent as compaction_module
+
+    backend = _Backend({"u1": 80})
+    agent = MemoryCompactionAgent(enabled=True, threshold=50, min_interval_seconds=900)
+    started = asyncio.Event()
+    finish = asyncio.Event()
+    events: list[tuple[str, object]] = []
+
+    @contextmanager
+    def fake_tracing_context(**kwargs):
+        events.append(("trace_kwargs", kwargs))
+        yield
+
+    async def fake_mark(user_id: str, ttl_seconds: int) -> str:
+        events.append(("mark", (user_id, ttl_seconds)))
+        return "marked"
+
+    async def fake_compact(_backend, user_id: str):
+        events.append(("compact_start", user_id))
+        started.set()
+        await finish.wait()
+        events.append(("compact_finish", user_id))
+        return {"agent": "deepagent", "checked": 80}
+
+    monkeypatch.setattr(compaction_module, "tracing_context", fake_tracing_context, raising=False)
+    monkeypatch.setattr(compaction_module, "mark_compaction_cooldown", fake_mark)
+    agent.compact_user_memories = fake_compact  # type: ignore[method-assign]
+
+    result = await asyncio.wait_for(
+        agent.maybe_compact_after_write(backend, "u1"),
+        timeout=0.05,
+    )
+
+    assert result == {
+        "triggered": True,
+        "reason": "threshold_reached",
+        "count": 80,
+        "scheduled": True,
+    }
+
+    await asyncio.wait_for(started.wait(), timeout=1)
+    assert ("trace_kwargs", {"parent": False}) in events
+
+    finish.set()
+    for _ in range(50):
+        if not agent._after_write_tasks_by_user:  # type: ignore[attr-defined]
+            break
+        await asyncio.sleep(0.01)
+
+    assert agent._after_write_tasks_by_user == {}  # type: ignore[attr-defined]
+    assert ("compact_finish", "u1") in events
+    assert ("mark", ("u1", 900)) in events
+
+
+@pytest.mark.asyncio
+async def test_stop_cancels_after_write_compaction_task():
+    backend = _Backend({"u1": 80})
+    agent = MemoryCompactionAgent(enabled=True, threshold=50)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def fake_compact(_backend, _user_id: str):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    agent.compact_user_memories = fake_compact  # type: ignore[method-assign]
+
+    result = await agent.maybe_compact_after_write(backend, "u1")
+    await asyncio.wait_for(started.wait(), timeout=1)
+    await agent.stop()
+
+    assert result["scheduled"] is True
+    assert cancelled.is_set()
+    assert agent._after_write_tasks_by_user == {}  # type: ignore[attr-defined]
 
 
 @pytest.mark.asyncio
@@ -180,6 +275,8 @@ async def test_maybe_compact_after_write_does_not_require_legacy_consolidate_met
     result = await agent.maybe_compact_after_write(backend, "u1")
 
     assert result["triggered"] is True
+    assert result["scheduled"] is True
+    await _wait_for_after_write_tasks(agent)
     assert seen == ["u1"]
 
 
@@ -248,7 +345,8 @@ async def test_maybe_compact_after_write_runs_deepagent_compactor(monkeypatch):
     result = await agent.maybe_compact_after_write(backend, "u1")
 
     assert result["triggered"] is True
-    assert result["result"]["agent"] == "deepagent"
+    assert result["scheduled"] is True
+    await _wait_for_after_write_tasks(agent)
     assert created["model"] == "fake-compaction-model"
     tool_names = {tool.name for tool in created["tools"]}
     assert tool_names == {
@@ -480,12 +578,14 @@ async def test_maybe_compact_after_write_does_not_cool_down_when_lock_not_acquir
 
     agent = MemoryCompactionAgent(enabled=True, threshold=50, min_interval_seconds=900)
     first = await agent.maybe_compact_after_write(backend, "u1")
+    await _wait_for_after_write_tasks(agent)
     second = await agent.maybe_compact_after_write(backend, "u1")
+    await _wait_for_after_write_tasks(agent)
 
-    assert first["triggered"] is False
-    assert second["triggered"] is False
-    assert first["reason"] == "lock_not_acquired"
-    assert second["reason"] == "lock_not_acquired"
+    assert first["triggered"] is True
+    assert second["triggered"] is True
+    assert first["scheduled"] is True
+    assert second["scheduled"] is True
     assert attempts == 2
 
 
@@ -535,6 +635,7 @@ async def test_successful_after_write_marks_distributed_cooldown(monkeypatch):
     result = await agent.maybe_compact_after_write(backend, "u1")
 
     assert result["triggered"] is True
+    await _wait_for_after_write_tasks(agent)
     assert marked == [("u1", 900)]
 
 
