@@ -1,11 +1,5 @@
 import { type ReactNode, useMemo, useState } from "react";
-import {
-  FolderTree,
-  Code2,
-  ChevronRight,
-  Files,
-  PackageOpen,
-} from "lucide-react";
+import { FolderTree, Code2, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import type { MessagePart } from "../../../types";
@@ -82,17 +76,17 @@ function TreeFileRow({
       type="button"
       onClick={() => onOpenPreview?.(node.artifact.preview, "manual")}
       className={clsx(
-        "group flex w-full cursor-pointer items-center gap-3 rounded-xl py-2.5 text-left",
+        "group flex w-full cursor-pointer items-center gap-3 rounded-xl py-2 text-left",
         "border border-transparent transition-all duration-200",
-        "hover:border-[var(--theme-primary-light)] hover:bg-[var(--theme-primary-light)]/50",
+        "hover:border-[var(--theme-border)] hover:bg-[var(--theme-primary-light)]/60",
       )}
       style={{
         paddingLeft: `${12 + depth * 16}px`,
         paddingRight: "12px",
       }}
     >
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--theme-bg)]">
-        <Icon size={18} className={clsx("shrink-0", info.color)} />
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[var(--theme-bg)] shadow-[inset_0_0_0_1px_var(--theme-border)] dark:shadow-none transition-colors group-hover:bg-[var(--theme-primary-light)]">
+        <Icon size={15} className={clsx("shrink-0", info.color)} />
       </span>
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate text-[13px] font-medium leading-5 text-[var(--theme-text)]">
@@ -103,7 +97,7 @@ function TreeFileRow({
         </span>
       </span>
       <ChevronRight
-        size={14}
+        size={12}
         className="shrink-0 text-[var(--theme-text-secondary)] opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
       />
     </button>
@@ -125,18 +119,14 @@ function TreeDirRow({
   ) => boolean;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(defaultExpanded ?? true);
+  const [expanded, setExpanded] = useState(defaultExpanded ?? false);
 
   return (
     <div>
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="group flex w-full cursor-pointer items-center gap-3 rounded-xl py-2.5 text-left transition-colors hover:bg-[var(--theme-primary-light)]"
-        style={{
-          paddingLeft: `${12 + depth * 16}px`,
-          paddingRight: "12px",
-        }}
+        className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-[var(--theme-primary-light)]"
       >
         <FolderIcon size={36} className="shrink-0" />
         <span className="min-w-0 flex-1 text-left">
@@ -204,18 +194,17 @@ function ProjectRow({
     <button
       type="button"
       onClick={() => onOpenPreview?.(artifact.preview, "manual")}
-      className={clsx(
-        "group flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left",
-        "border border-transparent transition-all duration-200",
-        "hover:border-[var(--theme-primary-light)] hover:bg-[var(--theme-primary-light)]/50",
-        "hover:shadow-[0_1px_3px_rgba(0,0,0,0.04)]",
-      )}
+      className="group flex w-full cursor-pointer items-center gap-3 rounded-xl px-1 py-2.5 text-left transition-colors hover:bg-[var(--theme-primary-light)]"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--theme-primary-light)] to-[var(--theme-bg)] text-[var(--theme-primary)] shadow-sm">
-        <Icon size={20} strokeWidth={1.8} />
+      <span className="flex items-center justify-center size-10 rounded-xl shrink-0 bg-blue-100 dark:bg-blue-900/40 transition-transform duration-200 group-hover:scale-105">
+        <Icon
+          size={20}
+          strokeWidth={1.8}
+          className="shrink-0 text-blue-600 dark:text-blue-400"
+        />
       </span>
       <span className="min-w-0 flex-1 text-left">
-        <span className="block truncate text-sm font-semibold leading-5 text-[var(--theme-text)]">
+        <span className="block truncate text-sm font-medium leading-5 text-[var(--theme-text)]">
           {artifact.name}
         </span>
         <span className="mt-0.5 block truncate text-xs leading-4 text-[var(--theme-text-secondary)]">
@@ -223,8 +212,8 @@ function ProjectRow({
         </span>
       </span>
       <ChevronRight
-        size={16}
-        className="shrink-0 text-[var(--theme-text-secondary)] opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100"
+        size={18}
+        className="shrink-0 text-[var(--theme-text-secondary)] transition-transform duration-200"
       />
     </button>
   );
@@ -258,47 +247,6 @@ function getArtifactSubtitle(
   });
 }
 
-function ArtifactStat({
-  icon,
-  label,
-  value,
-  accent,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={clsx(
-        "relative flex min-w-0 items-center gap-2.5 overflow-hidden rounded-xl px-3.5 py-2.5 transition-shadow duration-200",
-        "bg-gradient-to-br from-[var(--theme-bg-card)] to-[var(--theme-bg)]",
-        "border border-[var(--theme-border)]/60",
-      )}
-    >
-      <span
-        className={clsx(
-          "flex size-8 shrink-0 items-center justify-center rounded-lg",
-          accent
-            ? "bg-[var(--theme-primary-light)] text-[var(--theme-primary)]"
-            : "bg-[var(--theme-bg)] text-[var(--theme-text-secondary)]",
-        )}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[11px] font-medium leading-none text-[var(--theme-text-secondary)]">
-          {label}
-        </span>
-        <span className="mt-1 block text-base font-bold tabular-nums leading-none text-[var(--theme-text)]">
-          {value}
-        </span>
-      </span>
-    </div>
-  );
-}
-
 function SectionTitle({
   children,
   count,
@@ -307,12 +255,12 @@ function SectionTitle({
   count: number;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-3 px-1 pt-1">
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--theme-text-secondary)]">
+    <div className="flex items-center gap-2.5 px-1 pt-2 pb-1.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
         {children}
       </span>
-      <span className="h-px flex-1 bg-gradient-to-r from-[var(--theme-border)] to-transparent" />
-      <span className="flex size-5 items-center justify-center rounded-full bg-[var(--theme-bg)] text-[10px] font-bold tabular-nums text-[var(--theme-text-secondary)]">
+      <span className="h-px flex-1 bg-gradient-to-r from-[var(--theme-border)]/80 to-transparent" />
+      <span className="flex min-w-[20px] items-center justify-center rounded-full bg-[var(--theme-primary)]/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--theme-primary)]">
         {count}
       </span>
     </div>
@@ -368,43 +316,26 @@ export function RevealArtifactsSummary({
       status: "idle",
       subtitle,
       panelKey: "reveal-artifacts",
+      mobileFillViewport: true,
       children: (
         <div className="flex min-h-full flex-col bg-[var(--theme-bg-card)]">
-          <div className="shrink-0 border-b border-[var(--theme-border)] bg-[var(--theme-bg-card)] px-4 py-2.5">
+          <div className="shrink-0 border-b border-[var(--theme-border)] bg-gradient-to-b from-[var(--theme-bg)] to-[var(--theme-bg-card)] px-4 py-2">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-[var(--theme-text-secondary)]">
+              <span className="text-[11px] font-medium text-[var(--theme-text-secondary)]">
                 {subtitle}
               </span>
-              <span className="shrink-0 rounded-lg bg-gradient-to-r from-[var(--theme-primary-light)] to-[var(--theme-primary)]/10 px-2.5 py-1 text-xs font-bold tabular-nums text-[var(--theme-primary)] shadow-sm">
+              <span className="shrink-0 rounded-md bg-[var(--theme-primary)]/10 px-2 py-0.5 text-[11px] font-bold tabular-nums text-[var(--theme-primary)]">
                 {stats.totalCount}
               </span>
             </div>
           </div>
-          <div className="grid shrink-0 grid-cols-3 gap-2.5 border-b border-[var(--theme-border)] bg-gradient-to-b from-[var(--theme-bg)] to-[var(--theme-bg-card)] px-3 py-3.5">
-            <ArtifactStat
-              icon={<PackageOpen size={15} />}
-              label={t("chat.message.artifacts", "交付物")}
-              value={stats.totalCount}
-              accent
-            />
-            <ArtifactStat
-              icon={<Files size={15} />}
-              label={t("chat.message.files", "文件")}
-              value={stats.fileCount}
-            />
-            <ArtifactStat
-              icon={<Code2 size={15} />}
-              label={t("chat.message.projects", "项目")}
-              value={stats.projectCount}
-            />
-          </div>
-          <div className="flex-1 space-y-4 overflow-y-auto px-1 py-2 scroll-smooth">
+          <div className="flex-1 space-y-3 overflow-y-auto px-3 py-3 scroll-smooth">
             {projects.length > 0 && (
               <section>
                 <SectionTitle count={projects.length}>
                   {t("chat.message.projects", "项目")}
                 </SectionTitle>
-                <div>
+                <div className="space-y-1.5">
                   {projects.map((p) => (
                     <ProjectRow
                       key={p.id}
@@ -427,7 +358,7 @@ export function RevealArtifactsSummary({
                         key={child.path || `d-${i}`}
                         node={child}
                         depth={0}
-                        defaultExpanded={fileTree.children.length <= 3}
+                        defaultExpanded={false}
                         onOpenPreview={onOpenPreview}
                       />
                     ) : (
@@ -460,21 +391,21 @@ export function RevealArtifactsSummary({
             handleOpenPanel();
           }
         }}
-        className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-stone-200 transition-all duration-200 hover:shadow-md hover:ring-stone-300 dark:bg-stone-900 dark:ring-stone-700/80 dark:hover:ring-stone-600 sm:px-4 sm:py-3"
+        className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-[var(--theme-bg-card)] px-3 py-2.5 shadow-[0_1px_3px_var(--theme-shadow-sm)] ring-1 ring-[var(--theme-border)] transition-all duration-200 hover:shadow-[0_4px_12px_var(--theme-shadow-md)] hover:ring-[var(--theme-primary)]/30 sm:px-4 sm:py-3"
       >
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-stone-100 dark:bg-stone-800">
-          <FolderIcon size={30} className="shrink-0" />
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--theme-primary-light)] transition-transform duration-200 group-hover:scale-105">
+          <FolderIcon size={28} className="shrink-0" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium text-stone-800 dark:text-stone-100">
+          <div className="truncate text-sm font-semibold text-[var(--theme-text)]">
             {t("chat.message.allFiles", "全部文件")}
           </div>
-          <div className="mt-0.5 truncate text-xs text-stone-400 dark:text-stone-500">
+          <div className="mt-0.5 truncate text-xs text-[var(--theme-text-secondary)]">
             {subtitle}
           </div>
         </div>
         <div className="relative z-10 flex shrink-0 items-center gap-1">
-          <span className="rounded-lg bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-700 transition-colors group-hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:group-hover:bg-stone-700">
+          <span className="rounded-lg bg-[var(--theme-primary-light)] px-3 py-1.5 text-xs font-medium text-[var(--theme-primary)] ring-1 ring-[var(--theme-border)] transition-colors group-hover:bg-[var(--theme-primary)] group-hover:text-white group-hover:ring-transparent">
             {t("project.preview", "预览")}
           </span>
         </div>

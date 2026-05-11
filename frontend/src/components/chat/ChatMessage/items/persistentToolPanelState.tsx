@@ -28,6 +28,8 @@ export interface PersistentToolPanelState {
   onUserInteraction?: () => void;
   /** If true, skip opening on mobile devices */
   auto?: boolean;
+  /** When true, mobile renders as full-viewport instead of bottom sheet */
+  mobileFillViewport?: boolean;
 }
 
 const panelStore = createSingletonStore<PersistentToolPanelState | null>(null);
@@ -124,6 +126,7 @@ export function PersistentToolPanelHost() {
       footer={panel.footer}
       overlayClass={panel.overlayClass}
       panelClass={panel.panelClass}
+      mobileFillViewport={panel.mobileFillViewport}
       onUserInteraction={panel.onUserInteraction}
     >
       {panel.children}
