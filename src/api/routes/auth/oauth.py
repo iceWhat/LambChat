@@ -136,9 +136,11 @@ def _token_fragment(token) -> str:
 
 
 async def _verify_state(provider: str, state: str, client_ip: str) -> bool:
-    result = _verify_oauth_state(provider, state, client_ip)
-    if isawaitable(result):
-        result = await result
+    coro_or_result = _verify_oauth_state(provider, state, client_ip)
+    if isawaitable(coro_or_result):
+        result = await coro_or_result
+    else:
+        result = coro_or_result
     return bool(result)
 
 
