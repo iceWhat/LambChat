@@ -78,6 +78,8 @@ import { getFullUrl } from "../../../services/api/config";
 import { sessionApi } from "../../../services/api";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
 
+const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-28 sm:bottom-36";
+
 interface ChatViewProps {
   messages: Message[];
   sessionId: string | null;
@@ -778,7 +780,9 @@ export function ChatView({
 
       {/* Right-side floating button cluster */}
       {messages.length > 0 && showScrollTop && (
-        <div className="absolute right-3 sm:right-4 z-50 flex flex-col gap-1.5 bottom-36 sm:bottom-48">
+        <div
+          className={`absolute right-3 sm:right-4 z-50 flex flex-col gap-1.5 ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS}`}
+        >
           <button
             onClick={scrollToTop}
             className="flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
@@ -802,7 +806,7 @@ export function ChatView({
       {messages.length > 0 && !isNearBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 bottom-36 sm:bottom-48 -translate-x-1/2"
+          className={`absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} -translate-x-1/2`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

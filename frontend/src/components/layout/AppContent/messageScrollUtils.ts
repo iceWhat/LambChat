@@ -382,6 +382,8 @@ export function startVirtuosoScrollToBottom({
   const stableHeightWindowMs = settleWindowMs ?? Math.max(intervalMs * 4, 120);
   const maxScrollWindowMs =
     maxDurationMs ?? Math.max(intervalMs * maxAttempts, stableHeightWindowMs);
+  const isAtKnownBottom = () =>
+    scroller.scrollTop + scroller.clientHeight >= lastKnownScrollHeight - 1;
   const resetSettleBudget = () => {
     attempts = 0;
     lastKnownScrollHeight = scroller.scrollHeight;
@@ -427,6 +429,11 @@ export function startVirtuosoScrollToBottom({
           return;
         }
 
+        if (postSettleObserveUntil > 0 && !isAtKnownBottom()) {
+          finish("aborted");
+          return;
+        }
+
         noteLayoutChange();
         scroll();
       });
@@ -466,17 +473,30 @@ export function startVirtuosoScrollToBottom({
 
     attempts += 1;
 
-    if (scroller.scrollHeight !== lastKnownScrollHeight) {
-      noteLayoutChange();
-    }
+    const heightChanged = scroller.scrollHeight !== lastKnownScrollHeight;
 
     const isAtBottom =
       scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
 
     if (postSettleObserveUntil > 0) {
       if (!isAtBottom) {
+        if (!heightChanged) {
+          finish("aborted");
+          return;
+        }
+
+        if (!isAtKnownBottom()) {
+          finish("aborted");
+          return;
+        }
+
+        noteLayoutChange();
         scroll();
         return;
+      }
+
+      if (heightChanged) {
+        noteLayoutChange();
       }
 
       if (Date.now() < postSettleObserveUntil) {
@@ -485,6 +505,10 @@ export function startVirtuosoScrollToBottom({
 
       finish("settled");
       return;
+    }
+
+    if (heightChanged) {
+      noteLayoutChange();
     }
 
     const hasStableHeight =

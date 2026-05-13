@@ -30,3 +30,15 @@ test("passes the message list session key into the scroll hook as a bottom-lock 
     /useMessageScroll\([\s\S]*isLoadingHistory,\s*messageListSessionKey,\s*\)/,
   );
 });
+
+test("keeps both floating scroll buttons close to the chat input", () => {
+  assert.match(
+    chatViewSource,
+    /const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-28 sm:bottom-36";/,
+  );
+  assert.equal(
+    chatViewSource.match(/\$\{FLOATING_SCROLL_BUTTON_OFFSET_CLASS\}/g)?.length,
+    2,
+  );
+  assert.doesNotMatch(chatViewSource, /bottom-36 sm:bottom-48/);
+});
