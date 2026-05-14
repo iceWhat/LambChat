@@ -80,3 +80,12 @@ class Role(RoleBase):
     is_system: bool = False  # System roles cannot be deleted
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class RoleListResponse(BaseModel):
+    """Paginated role list."""
+
+    roles: List[Role]
+    total: int
+    skip: int
+    limit: int

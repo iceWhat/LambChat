@@ -129,6 +129,9 @@ class MCPServersResponse(BaseModel):
     """Response containing list of MCP servers"""
 
     servers: list[MCPServerResponse] = Field(default_factory=list)
+    total: int = 0
+    skip: int = 0
+    limit: int = 100
 
 
 class MCPServerToggleResponse(BaseModel):

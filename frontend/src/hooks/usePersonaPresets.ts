@@ -11,10 +11,15 @@ import type {
   PersonaPresetUpdate,
 } from "../types";
 
-export function usePersonaPresets(options?: { enabled?: boolean }) {
+export function usePersonaPresets(options?: {
+  enabled?: boolean;
+  listParams?: PersonaPresetListParams;
+}) {
   const { t } = useTranslation();
   const enabled = options?.enabled !== false;
+  const listParams = options?.listParams;
   const [presets, setPresets] = useState<PersonaPreset[]>([]);
+  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,18 +30,13 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
       setIsLoading(true);
       setError(null);
       try {
-        let allPresets: PersonaPreset[] = [];
-        let skip = 0;
-        const pageSize = 200;
-        const listParams = { ...params, limit: pageSize };
-        while (true) {
-          const response = await personaPresetApi.list({ ...listParams, skip });
-          allPresets = allPresets.concat(response.presets);
-          skip += response.presets.length;
-          if (skip >= response.total || response.presets.length < pageSize)
-            break;
-        }
-        setPresets(allPresets);
+        const response = await personaPresetApi.list({
+          skip: 0,
+          limit: 12,
+          ...params,
+        });
+        setPresets(response.presets);
+        setTotal(response.total);
       } catch (err) {
         setError(
           err instanceof Error
@@ -54,15 +54,15 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
   );
 
   useEffect(() => {
-    fetchPresets();
-  }, [fetchPresets]);
+    fetchPresets(listParams);
+  }, [fetchPresets, listParams]);
 
   useEffect(() => {
     if (!enabled) return;
     return subscribePersonaPresetsChanged(() => {
-      void fetchPresets();
+      void fetchPresets(listParams);
     });
-  }, [enabled, fetchPresets]);
+  }, [enabled, fetchPresets, listParams]);
 
   const usePreset = useCallback(
     async (presetId: string): Promise<PersonaPresetSnapshot | null> => {
@@ -136,7 +136,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
       setError(null);
       try {
         const copied = await personaPresetApi.copy(presetId);
-        await fetchPresets();
+        await fetchPresets(listParams);
         return copied;
       } catch (err) {
         setError(
@@ -149,7 +149,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setIsMutating(false);
       }
     },
-    [fetchPresets, t],
+    [fetchPresets, listParams, t],
   );
 
   const createPreset = useCallback(
@@ -158,7 +158,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
       setError(null);
       try {
         const created = await personaPresetApi.create(data);
-        await fetchPresets();
+        await fetchPresets(listParams);
         return created;
       } catch (err) {
         setError(
@@ -174,7 +174,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setIsMutating(false);
       }
     },
-    [fetchPresets, t],
+    [fetchPresets, listParams, t],
   );
 
   const updatePreset = useCallback(
@@ -186,7 +186,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
       setError(null);
       try {
         const updated = await personaPresetApi.update(presetId, data);
-        await fetchPresets();
+        await fetchPresets(listParams);
         return updated;
       } catch (err) {
         setError(
@@ -202,7 +202,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setIsMutating(false);
       }
     },
-    [fetchPresets, t],
+    [fetchPresets, listParams, t],
   );
 
   const deletePreset = useCallback(
@@ -211,7 +211,7 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
       setError(null);
       try {
         await personaPresetApi.delete(presetId);
-        await fetchPresets();
+        await fetchPresets(listParams);
         return true;
       } catch (err) {
         setError(
@@ -227,11 +227,12 @@ export function usePersonaPresets(options?: { enabled?: boolean }) {
         setIsMutating(false);
       }
     },
-    [fetchPresets, t],
+    [fetchPresets, listParams, t],
   );
 
   return {
     presets,
+    total,
     isLoading,
     isMutating,
     error,

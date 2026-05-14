@@ -64,7 +64,7 @@ export function ModelPanel() {
     try {
       // 并行加载所有数据
       const [roleList, modelData] = await Promise.all([
-        roleApi.list(),
+        roleApi.list({ limit: 200 }),
         modelApi.list(true),
       ]);
 
@@ -86,13 +86,13 @@ export function ModelPanel() {
       }
 
       // 设置角色列表
-      setRoles(roleList || []);
+      setRoles(roleList.roles || []);
 
       // 加载角色-models 映射
       const allModelIds = (modelData.models || [])
         .map((model: ModelConfig) => model.id || "")
         .filter(Boolean);
-      const roleModelPromises = (roleList || []).map(async (role) => {
+      const roleModelPromises = (roleList.roles || []).map(async (role) => {
         try {
           const assignment = await agentConfigApi.getRoleModels(role.id);
           return {

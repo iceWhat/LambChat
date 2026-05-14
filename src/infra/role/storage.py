@@ -325,6 +325,7 @@ class RoleStorage:
         self,
         skip: int = 0,
         limit: int = 100,
+        q: str | None = None,
     ) -> list[Role]:
         """
         列出角色
@@ -336,7 +337,14 @@ class RoleStorage:
         Returns:
             角色列表
         """
-        cursor = self.collection.find().skip(skip).limit(limit)
+        query: dict[str, Any] = {}
+        if q:
+            query["$or"] = [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"description": {"$regex": q, "$options": "i"}},
+            ]
+
+        cursor = self.collection.find(query).sort("name", 1).skip(skip).limit(limit)
         roles = []
 
         async for role_dict in cursor:
@@ -345,6 +353,16 @@ class RoleStorage:
             roles.append(Role(**role_dict))
 
         return roles
+
+    async def count_roles(self, q: str | None = None) -> int:
+        """Count roles matching an optional search query."""
+        query: dict[str, Any] = {}
+        if q:
+            query["$or"] = [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"description": {"$regex": q, "$options": "i"}},
+            ]
+        return await self.collection.count_documents(query)
 
     async def get_by_ids(self, role_ids: list[str]) -> list[Role]:
         """

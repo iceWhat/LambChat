@@ -9,6 +9,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { skillApi } from "../services/api/skill";
+import type { SkillListParams } from "../services/api/skill";
 import type {
   SkillResponse,
   SkillSource,
@@ -66,9 +67,15 @@ function composeSkillResponse(
   };
 }
 
-export function useSkills(options?: { enabled?: boolean }) {
+export function useSkills(options?: {
+  enabled?: boolean;
+  listParams?: SkillListParams;
+}) {
   const enabled = options?.enabled !== false; // Default to true
+  const listParams = options?.listParams;
   const [skills, setSkills] = useState<SkillResponse[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,36 +90,42 @@ export function useSkills(options?: { enabled?: boolean }) {
   const pendingTogglesRef = useRef<Map<string, boolean>>(new Map());
 
   // Fetch all skills (basic info only)
-  const fetchSkills = useCallback(async () => {
-    if (!enabled) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const userSkills: UserSkill[] = await skillApi.list();
-      // For list view, we don't fetch full details immediately
-      // Components that need details will fetch them on demand
-      const composed = userSkills.map((u) => composeSkillResponse(u));
-      // 保留正在 toggle 中的 skill 的乐观状态，避免竞态覆盖
-      const pendingToggles = pendingTogglesRef.current;
-      if (pendingToggles.size === 0) {
-        setSkills(composed);
-      } else {
-        setSkills(
-          composed.map((s) => {
-            const pendingEnabled = pendingToggles.get(s.name);
-            if (pendingEnabled !== undefined) {
-              return { ...s, enabled: pendingEnabled };
-            }
-            return s;
-          }),
-        );
+  const fetchSkills = useCallback(
+    async (params?: SkillListParams) => {
+      if (!enabled) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await skillApi.list(params ?? listParams ?? {});
+        const userSkills: UserSkill[] = response.skills;
+        // For list view, we don't fetch full details immediately
+        // Components that need details will fetch them on demand
+        const composed = userSkills.map((u) => composeSkillResponse(u));
+        setTotal(response.total);
+        setAvailableTags(response.available_tags || []);
+        // 保留正在 toggle 中的 skill 的乐观状态，避免竞态覆盖
+        const pendingToggles = pendingTogglesRef.current;
+        if (pendingToggles.size === 0) {
+          setSkills(composed);
+        } else {
+          setSkills(
+            composed.map((s) => {
+              const pendingEnabled = pendingToggles.get(s.name);
+              if (pendingEnabled !== undefined) {
+                return { ...s, enabled: pendingEnabled };
+              }
+              return s;
+            }),
+          );
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch skills");
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch skills");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [enabled]);
+    },
+    [enabled, listParams],
+  );
 
   // Fetch single skill — metadata + file paths only (lazy: content loaded on demand)
   const getSkill = useCallback(
@@ -140,11 +153,19 @@ export function useSkills(options?: { enabled?: boolean }) {
             marketplace_is_active: cached.marketplace_is_active,
           };
         } else {
-          // Fallback: fetch list to find the skill
-          const list = await skillApi.list();
-          const found = list.find((s) => s.skill_name === name);
-          if (!found) return null;
-          userSkill = found;
+          userSkill = {
+            skill_name: detail.skill_name || name,
+            description: detail.description || name,
+            tags: detail.tags || [],
+            files: detail.files || [],
+            enabled: detail.enabled ?? true,
+            file_count: detail.files?.length || 0,
+            installed_from: "manual",
+            created_at: undefined,
+            updated_at: undefined,
+            is_published: detail.is_published || false,
+            marketplace_is_active: detail.marketplace_is_active ?? true,
+          };
         }
 
         const resp = composeSkillResponse(userSkill, detail);
@@ -183,10 +204,19 @@ export function useSkills(options?: { enabled?: boolean }) {
             marketplace_is_active: cached.marketplace_is_active,
           };
         } else {
-          const list = await skillApi.list();
-          const found = list.find((s) => s.skill_name === name);
-          if (!found) return null;
-          userSkill = found;
+          userSkill = {
+            skill_name: detail.skill_name || name,
+            description: detail.description || name,
+            tags: detail.tags || [],
+            files: detail.files || [],
+            enabled: detail.enabled ?? true,
+            file_count: detail.files?.length || 0,
+            installed_from: "manual",
+            created_at: undefined,
+            updated_at: undefined,
+            is_published: detail.is_published || false,
+            marketplace_is_active: detail.marketplace_is_active ?? true,
+          };
         }
 
         const filesContent: Record<string, string> = {};
@@ -599,11 +629,13 @@ export function useSkills(options?: { enabled?: boolean }) {
 
   // Initial load
   useEffect(() => {
-    fetchSkills();
-  }, [fetchSkills]);
+    fetchSkills(listParams);
+  }, [fetchSkills, listParams]);
 
   return {
     skills,
+    availableTags,
+    total,
     isLoading,
     error,
     fetchSkills,

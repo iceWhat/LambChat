@@ -311,6 +311,8 @@ class SkillStorage:
         skip: int = 0,
         limit: int = 100,
         disabled_skills: Optional[list[str]] = None,
+        q: str | None = None,
+        tags: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
         """列出用户所有 Skill（带文件信息）
 
@@ -325,10 +327,20 @@ class SkillStorage:
         disabled_set = set(disabled_skills)
 
         collection = self._get_files_collection()
+        skill_names: list[str] | None = None
+        if q or tags:
+            skill_names = await self.list_matching_skill_names(user_id, q=q, tags=tags)
+            paged_names = skill_names[skip : skip + limit]
+            if not paged_names:
+                return []
 
         # 使用 aggregation 一次获取所有 skill 的统计信息 + 文件路径（排除 __meta__）
+        match: dict[str, Any] = {"user_id": user_id, "file_path": {"$ne": "__meta__"}}
+        if skill_names is not None:
+            match["skill_name"] = {"$in": paged_names}
+
         pipeline: list[dict[str, Any]] = [
-            {"$match": {"user_id": user_id, "file_path": {"$ne": "__meta__"}}},
+            {"$match": match},
             {
                 "$group": {
                     "_id": "$skill_name",
@@ -339,9 +351,9 @@ class SkillStorage:
                 }
             },
             {"$sort": {"_id": 1}},
-            {"$skip": skip},
-            {"$limit": limit},
         ]
+        if skill_names is None:
+            pipeline.extend([{"$skip": skip}, {"$limit": limit}])
         skill_stats: dict[str, dict] = {}
         async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
             skill_stats[doc["_id"]] = {
@@ -367,7 +379,10 @@ class SkillStorage:
 
         # 组装结果
         result = []
-        for skill_name in sorted(skill_stats.keys()):
+        ordered_names = paged_names if skill_names is not None else sorted(skill_stats.keys())
+        for skill_name in ordered_names:
+            if skill_name not in skill_stats:
+                continue
             stats = skill_stats[skill_name]
             meta = meta_map.get(skill_name)
             enabled = skill_name not in disabled_set
@@ -386,6 +401,78 @@ class SkillStorage:
             )
 
         return result
+
+    async def count_user_skills(
+        self,
+        user_id: str,
+        q: str | None = None,
+        tags: Optional[list[str]] = None,
+    ) -> int:
+        """Count user skills matching an optional name search."""
+        if q or tags:
+            return len(await self.list_matching_skill_names(user_id, q=q, tags=tags))
+        collection = self._get_files_collection()
+        match: dict[str, Any] = {"user_id": user_id, "file_path": {"$ne": "__meta__"}}
+        if q:
+            match["skill_name"] = {"$regex": q, "$options": "i"}
+        pipeline: list[dict[str, Any]] = [
+            {"$match": match},
+            {"$group": {"_id": "$skill_name"}},
+            {"$count": "total"},
+        ]
+        async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
+            return int(doc.get("total", 0))
+        return 0
+
+    async def list_user_skill_tags(self, user_id: str) -> list[str]:
+        """List all tags used by a user's skills."""
+        _, tags = await self._list_matching_skill_names_and_tags(user_id)
+        return tags
+
+    async def list_matching_skill_names(
+        self,
+        user_id: str,
+        q: str | None = None,
+        tags: Optional[list[str]] = None,
+    ) -> list[str]:
+        """List skill names matching search text and all selected tags."""
+        names, _ = await self._list_matching_skill_names_and_tags(user_id, q=q, tags=tags)
+        return names
+
+    async def _list_matching_skill_names_and_tags(
+        self,
+        user_id: str,
+        q: str | None = None,
+        tags: Optional[list[str]] = None,
+    ) -> tuple[list[str], list[str]]:
+        from src.infra.skill.parser import parse_skill_md
+
+        collection = self._get_files_collection()
+        q_lower = q.lower() if q else None
+        selected_tags = set(tags or [])
+        matching_names: list[str] = []
+        available_tags: set[str] = set()
+
+        async for doc in collection.find(
+            {"user_id": user_id, "file_path": "SKILL.md"},
+            {"skill_name": 1, "content": 1},
+        ):
+            skill_name = doc["skill_name"]
+            _, description, parsed_tags = parse_skill_md(doc.get("content", ""))
+            tag_set = set(parsed_tags)
+            available_tags.update(tag_set)
+
+            if q_lower and (
+                q_lower not in skill_name.lower()
+                and q_lower not in (description or "").lower()
+                and not any(q_lower in tag.lower() for tag in parsed_tags)
+            ):
+                continue
+            if selected_tags and not selected_tags.issubset(tag_set):
+                continue
+            matching_names.append(skill_name)
+
+        return sorted(matching_names), sorted(available_tags)
 
     async def batch_get_skill_md_contents(
         self, skill_names: list[str], user_id: str

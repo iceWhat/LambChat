@@ -14,10 +14,7 @@ interface RoleInfo {
   is_system: boolean;
 }
 
-export function RoleSelector({
-  selectedRoles,
-  onChange,
-}: RoleSelectorProps) {
+export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
   const { t } = useTranslation();
 
   const [availableRoles, setAvailableRoles] = useState<RoleInfo[]>([]);
@@ -29,10 +26,10 @@ export function RoleSelector({
   useEffect(() => {
     setLoading(true);
     roleApi
-      .list()
-      .then((roles) => {
+      .list({ limit: 200 })
+      .then((response) => {
         setAvailableRoles(
-          roles.map((r) => ({
+          response.roles.map((r) => ({
             name: r.name,
             description: r.description,
             is_system: r.is_system,

@@ -494,11 +494,6 @@ export function RolesPanel() {
   const [total, setTotal] = useState(0);
   const pageSize = 20;
 
-  // Update total when roles change
-  useEffect(() => {
-    setTotal(roles.length);
-  }, [roles]);
-
   // Reset to page 1 when search changes
   useEffect(() => {
     setPage(1);
@@ -544,8 +539,13 @@ export function RolesPanel() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await roleApi.list();
-      setRoles(data);
+      const data = await roleApi.list({
+        skip: (page - 1) * pageSize,
+        limit: pageSize,
+        q: searchQuery.trim() || undefined,
+      });
+      setRoles(data.roles);
+      setTotal(data.total);
     } catch (err) {
       const errorMsg = (err as Error).message || t("roles.loadFailed");
       setError(errorMsg);
@@ -553,7 +553,7 @@ export function RolesPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [page, pageSize, searchQuery, t]);
 
   useEffect(() => {
     loadPermissions();
@@ -574,8 +574,8 @@ export function RolesPanel() {
         );
         toast.success(t("roles.updateSuccess"));
       } else {
-        const created = await roleApi.create(data as RoleCreate);
-        setRoles((prev) => [...prev, created]);
+        await roleApi.create(data as RoleCreate);
+        await loadData();
         toast.success(t("roles.createSuccess"));
       }
       setShowFormModal(false);
@@ -593,7 +593,7 @@ export function RolesPanel() {
     setIsSaving(true);
     try {
       await roleApi.delete(deleteRole.id);
-      setRoles((prev) => prev.filter((r) => r.id !== deleteRole.id));
+      await loadData();
       setDeleteRole(null);
       toast.success(t("roles.deleteSuccess"));
     } catch (error) {
@@ -603,16 +603,8 @@ export function RolesPanel() {
     }
   };
 
-  // 过滤角色
-  const filteredRoles = roles.filter((r) =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  // Get paginated roles
-  const paginatedRoles = filteredRoles.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  const filteredRoles = roles;
+  const paginatedRoles = roles;
 
   // 打开编辑模态框
   const openEditModal = (role: Role) => {

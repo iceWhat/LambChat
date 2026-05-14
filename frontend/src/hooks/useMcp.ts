@@ -14,26 +14,50 @@ import type {
 
 const API_BASE = "/api/mcp";
 
-export function useMCP() {
+interface MCPListParams {
+  skip?: number;
+  limit?: number;
+  q?: string;
+}
+
+function buildMCPListUrl(params: MCPListParams = {}): string {
+  const searchParams = new URLSearchParams();
+  if (params.skip !== undefined) searchParams.set("skip", String(params.skip));
+  if (params.limit !== undefined)
+    searchParams.set("limit", String(params.limit));
+  if (params.q) searchParams.set("q", params.q);
+  const query = searchParams.toString();
+  return `${API_BASE}/${query ? `?${query}` : ""}`;
+}
+
+export function useMCP(options?: { listParams?: MCPListParams }) {
+  const listParams = options?.listParams;
   const [servers, setServers] = useState<MCPServerResponse[]>([]);
+  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch all MCP servers
-  const fetchServers = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data: MCPServersResponse = await authFetch(`${API_BASE}/`);
-      setServers(data.servers ?? []);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch MCP servers",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const fetchServers = useCallback(
+    async (params?: MCPListParams) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data: MCPServersResponse = await authFetch(
+          buildMCPListUrl(params ?? listParams ?? {}),
+        );
+        setServers(data.servers ?? []);
+        setTotal(data.total);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch MCP servers",
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [listParams],
+  );
 
   // Get single server
   const getServer = useCallback(
@@ -263,11 +287,12 @@ export function useMCP() {
 
   // Initial load
   useEffect(() => {
-    fetchServers();
-  }, [fetchServers]);
+    fetchServers(listParams);
+  }, [fetchServers, listParams]);
 
   return {
     servers,
+    total,
     isLoading,
     error,
     fetchServers,

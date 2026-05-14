@@ -2,9 +2,7 @@
 角色路由
 """
 
-from typing import List
-
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import (
     get_current_user_required,
@@ -12,21 +10,24 @@ from src.api.deps import (
 )
 from src.infra.role.manager import RoleManager
 from src.kernel.exceptions import ValidationError
-from src.kernel.schemas.role import Role, RoleCreate, RoleUpdate
+from src.kernel.schemas.role import Role, RoleCreate, RoleListResponse, RoleUpdate
 from src.kernel.schemas.user import TokenPayload
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[Role])
+@router.get("/", response_model=RoleListResponse)
 async def list_roles(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
+    q: str | None = None,
     _: TokenPayload = Depends(get_current_user_required),
 ):
     """列出角色（只需登录）"""
     manager = RoleManager()
-    return await manager.list_roles(skip, limit)
+    roles = await manager.list_roles(skip, limit, q)
+    total = await manager.count_roles(q)
+    return RoleListResponse(roles=roles, total=total, skip=skip, limit=limit)
 
 
 @router.post("/", response_model=Role)

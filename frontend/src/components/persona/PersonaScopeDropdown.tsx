@@ -6,7 +6,7 @@ interface ScopeTab {
   key: ScopeFilter;
   label: string;
   icon: "Users" | "Sparkles" | "User" | "Pin" | "Star";
-  count: number;
+  count?: number;
 }
 
 const ICON_MAP = {
@@ -70,12 +70,14 @@ export function PersonaScopeDropdown({
             >
               <Icon size={14} />
               <span className="flex-1 text-left">{label}</span>
-              <span
-                className="text-xs"
-                style={{ color: "var(--theme-text-secondary)" }}
-              >
-                {count}
-              </span>
+              {typeof count === "number" && (
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--theme-text-secondary)" }}
+                >
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}

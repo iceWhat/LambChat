@@ -95,6 +95,9 @@ export interface SkillResponse {
 export interface SkillsResponse {
   skills: UserSkill[];
   total: number;
+  skip: number;
+  limit: number;
+  available_tags: string[];
 }
 
 // Skill Create Request (simplified - write individual files via /files/{path})

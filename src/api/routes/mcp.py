@@ -4,7 +4,7 @@ MCP (Model Context Protocol) API router
 Provides endpoints for managing MCP server configurations.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.deps import require_permissions
 from src.infra.logging import get_logger
@@ -36,6 +36,26 @@ admin_router = APIRouter()
 # Dependency to get MCPStorage
 async def get_mcp_storage() -> MCPStorage:
     return MCPStorage()
+
+
+def _paginate_servers(
+    servers: list[MCPServerResponse],
+    *,
+    skip: int,
+    limit: int,
+    q: str | None,
+) -> MCPServersResponse:
+    servers = sorted(servers, key=lambda server: server.name.lower())
+    if q:
+        lowered = q.lower()
+        servers = [server for server in servers if lowered in server.name.lower()]
+    total = len(servers)
+    return MCPServersResponse(
+        servers=servers[skip : skip + limit],
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
 
 
 def _is_admin(user: TokenPayload) -> bool:
@@ -75,6 +95,9 @@ def _has_permission_for_transport(user: TokenPayload, transport: str) -> bool:
 
 @router.get("/", response_model=MCPServersResponse)
 async def list_servers(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
+    q: str | None = None,
     user: TokenPayload = Depends(require_permissions("mcp:read")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
@@ -84,7 +107,7 @@ async def list_servers(
         is_admin=_is_admin(user),
         user_roles=user.roles,
     )
-    return MCPServersResponse(servers=servers)
+    return _paginate_servers(servers, skip=skip, limit=limit, q=q)
 
 
 @router.post("/", response_model=MCPServerResponse, status_code=201)
@@ -400,12 +423,15 @@ async def toggle_tool(
 
 @admin_router.get("/", response_model=MCPServersResponse)
 async def admin_list_servers(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
+    q: str | None = None,
     user: TokenPayload = Depends(require_permissions("mcp:admin")),
     storage: MCPStorage = Depends(get_mcp_storage),
 ):
     """Get all MCP servers (admin view - includes all system servers, bypasses role filter)"""
     servers = await storage.get_visible_servers(user.sub, is_admin=True, user_roles=user.roles)
-    return MCPServersResponse(servers=servers)
+    return _paginate_servers(servers, skip=skip, limit=limit, q=q)
 
 
 @admin_router.post("/", response_model=MCPServerResponse, status_code=201)

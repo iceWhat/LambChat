@@ -97,8 +97,22 @@ export function ChatAppContent({
   const canManagePersonaPresets =
     hasPermission(Permission.PERSONA_PRESET_WRITE) ||
     hasPermission(Permission.PERSONA_PRESET_ADMIN);
+  const [personaPresetPage, setPersonaPresetPage] = useState(1);
+  const [personaPresetQuery, setPersonaPresetQuery] = useState("");
+  const [personaPresetTag, setPersonaPresetTag] = useState<string | null>(null);
+  const personaPresetPageSize = 12;
+  const personaPresetListParams = useMemo(
+    () => ({
+      skip: (personaPresetPage - 1) * personaPresetPageSize,
+      limit: personaPresetPageSize,
+      q: personaPresetQuery.trim() || undefined,
+      tag: personaPresetTag || undefined,
+    }),
+    [personaPresetPage, personaPresetQuery, personaPresetTag],
+  );
   const {
     presets: personaPresets,
+    total: personaPresetsTotal,
     isLoading: personaPresetsLoading,
     isMutating: personaPresetsMutating,
     usePreset: activatePersonaPreset,
@@ -106,7 +120,17 @@ export function ChatAppContent({
     copyPreset: copyPersonaPreset,
     createPreset: createPersonaPreset,
     updatePreset: updatePersonaPreset,
-  } = usePersonaPresets({ enabled: canReadPersonaPresets });
+  } = usePersonaPresets({
+    enabled: canReadPersonaPresets,
+    listParams: personaPresetListParams,
+  });
+
+  const handlePersonaPresetSearchChange = useCallback((query: string) => {
+    setPersonaPresetQuery(query);
+  }, []);
+  const handlePersonaPresetTagChange = useCallback((tag: string | null) => {
+    setPersonaPresetTag(tag);
+  }, []);
 
   const projectManager = useProjectManager();
 
@@ -737,6 +761,11 @@ export function ChatAppContent({
           totalSkillsCount={effectiveSkills.length}
           enableSkills={enableSkills}
           personaPresets={personaPresets}
+          personaPresetsTotal={personaPresetsTotal}
+          personaPresetsPage={personaPresetPage}
+          onPersonaPresetsPageChange={setPersonaPresetPage}
+          onPersonaPresetsSearchChange={handlePersonaPresetSearchChange}
+          onPersonaPresetsTagChange={handlePersonaPresetTagChange}
           selectedPersonaPresetId={sessionConfig.personaPresetId}
           selectedPersonaName={sessionConfig.personaSnapshot?.name || null}
           selectedPersonaSnapshot={sessionConfig.personaSnapshot}

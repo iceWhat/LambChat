@@ -9,7 +9,7 @@ import io
 import zipfile
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 
 from src.api.deps import require_permissions
@@ -23,6 +23,7 @@ from src.infra.skill.types import (
     MarketplaceSkillUpdate,
     PublishToMarketplaceRequest,
     UserSkill,
+    UserSkillListResponse,
 )
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
@@ -315,10 +316,12 @@ async def upload_skill_from_zip(
     }
 
 
-@router.get("/", response_model=list[UserSkill])
+@router.get("/", response_model=UserSkillListResponse)
 async def list_user_skills(
-    skip: int = 0,
-    limit: int = 100,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=200),
+    q: str | None = None,
+    tags: list[str] | None = Query(None),
     user: TokenPayload = Depends(require_permissions("skill:read")),
     storage: SkillStorage = Depends(get_storage),
     marketplace: MarketplaceStorage = Depends(get_marketplace_storage),
@@ -330,12 +333,25 @@ async def list_user_skills(
     disabled_skills = []
     if user_doc and user_doc.metadata:
         disabled_skills = user_doc.metadata.get("disabled_skills", [])
+    available_tags = await storage.list_user_skill_tags(user.sub)
 
     skills = await storage.list_user_skills(
-        user.sub, skip=skip, limit=limit, disabled_skills=disabled_skills
+        user.sub,
+        skip=skip,
+        limit=limit,
+        disabled_skills=disabled_skills,
+        q=q,
+        tags=tags,
     )
+    total = await storage.count_user_skills(user.sub, q=q, tags=tags)
     if not skills:
-        return []
+        return UserSkillListResponse(
+            skills=[],
+            total=total,
+            skip=skip,
+            limit=limit,
+            available_tags=available_tags,
+        )
 
     # 批量查询发布状态
     published_map = await marketplace.get_user_published_skills(user.sub)
@@ -355,7 +371,7 @@ async def list_user_skills(
             if parsed_tags:
                 tags_map[name] = parsed_tags
 
-    return [
+    items = [
         UserSkill(
             skill_name=s["skill_name"],
             description=description_map.get(s["skill_name"], ""),
@@ -374,6 +390,13 @@ async def list_user_skills(
         )
         for s in skills
     ]
+    return UserSkillListResponse(
+        skills=items,
+        total=total,
+        skip=skip,
+        limit=limit,
+        available_tags=available_tags,
+    )
 
 
 @router.get("/{name}", response_model=UserSkill)

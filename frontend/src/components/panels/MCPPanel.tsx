@@ -26,8 +26,21 @@ import type { MCPServerResponse, MCPServerCreate } from "../../types";
 
 export function MCPPanel() {
   const { t } = useTranslation();
+  const [searchQuery, setSearchQuery] = useState("");
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const listParams = useMemo(
+    () => ({
+      skip: (page - 1) * pageSize,
+      limit: pageSize,
+      q: searchQuery.trim() || undefined,
+    }),
+    [page, pageSize, searchQuery],
+  );
   const {
     servers,
+    total,
     isLoading,
     error,
     createServer,
@@ -39,10 +52,9 @@ export function MCPPanel() {
     promoteServer,
     demoteServer,
     clearError,
-  } = useMCP();
+  } = useMCP({ listParams });
   const { hasAnyPermission, user } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [editingServer, setEditingServer] = useState<MCPServerResponse | null>(
     null,
   );
@@ -57,10 +69,6 @@ export function MCPPanel() {
     success: boolean;
     message: string;
   } | null>(null);
-
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -97,20 +105,8 @@ export function MCPPanel() {
   // Note: canDelete permission is checked server-side
   // Client-side uses canWrite for UI actions, server validates actual permissions
 
-  const filteredServers = useMemo(
-    () =>
-      servers.filter((server) =>
-        server.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [servers, searchQuery],
-  );
-  const total = filteredServers.length;
-
-  // Get paginated servers
-  const paginatedServers = filteredServers.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  const filteredServers = servers;
+  const paginatedServers = servers;
 
   const handleCreate = useCallback(async () => {
     setIsCreating(true);

@@ -112,6 +112,11 @@ export interface ChatInputProps {
   totalSkillsCount?: number;
   enableSkills?: boolean;
   personaPresets?: PersonaPreset[];
+  personaPresetsTotal?: number;
+  personaPresetsPage?: number;
+  onPersonaPresetsPageChange?: (page: number) => void;
+  onPersonaPresetsSearchChange?: (query: string) => void;
+  onPersonaPresetsTagChange?: (tag: string | null) => void;
   selectedPersonaPresetId?: string | null;
   selectedPersonaName?: string | null;
   personaSkillsControlled?: boolean;
@@ -173,6 +178,11 @@ export const ChatInput = memo(function ChatInput({
   totalSkillsCount = 0,
   enableSkills = true,
   personaPresets = [],
+  personaPresetsTotal,
+  personaPresetsPage,
+  onPersonaPresetsPageChange,
+  onPersonaPresetsSearchChange,
+  onPersonaPresetsTagChange,
   selectedPersonaPresetId,
   selectedPersonaName,
   personaSkillsControlled = false,
@@ -713,6 +723,11 @@ export const ChatInput = memo(function ChatInput({
         personaSkillsControlled={personaSkillsControlled}
         selectedPersonaName={selectedPersonaName}
         personaPresets={personaPresets}
+        personaPresetsTotal={personaPresetsTotal}
+        personaPresetsPage={personaPresetsPage}
+        onPersonaPresetsPageChange={onPersonaPresetsPageChange}
+        onPersonaPresetsSearchChange={onPersonaPresetsSearchChange}
+        onPersonaPresetsTagChange={onPersonaPresetsTagChange}
         selectedPersonaPresetId={selectedPersonaPresetId}
         personaPresetsLoading={personaPresetsLoading}
         personaPresetsMutating={personaPresetsMutating}

@@ -85,6 +85,7 @@ class RoleManager:
         self,
         skip: int = 0,
         limit: int = 100,
+        q: str | None = None,
     ) -> list[Role]:
         """
         列出角色
@@ -96,7 +97,11 @@ class RoleManager:
         Returns:
             角色列表
         """
-        return await self.storage.list_roles(skip, limit)
+        return await self.storage.list_roles(skip, limit, q)
+
+    async def count_roles(self, q: str | None = None) -> int:
+        """Count roles matching an optional search query."""
+        return await self.storage.count_roles(q)
 
     async def init_default_roles(self) -> None:
         """

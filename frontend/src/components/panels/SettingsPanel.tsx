@@ -143,8 +143,8 @@ export function SettingsPanel() {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const roleList = await roleApi.list();
-        setRoles(roleList);
+        const roleList = await roleApi.list({ limit: 200 });
+        setRoles(roleList.roles);
       } catch (err) {
         console.error("Failed to fetch roles:", err);
       }

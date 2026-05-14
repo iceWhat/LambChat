@@ -2,18 +2,37 @@
  * Role API - 角色管理
  */
 
-import type { Role, RoleCreate, RoleUpdate } from "../../types";
+import type {
+  Role,
+  RoleCreate,
+  RoleListResponse,
+  RoleUpdate,
+} from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+
+export interface RoleListParams {
+  skip?: number;
+  limit?: number;
+  q?: string;
+}
+
+export function buildRoleListUrl(params: RoleListParams = {}): string {
+  const searchParams = new URLSearchParams();
+  if (params.skip !== undefined) searchParams.set("skip", String(params.skip));
+  if (params.limit !== undefined)
+    searchParams.set("limit", String(params.limit));
+  if (params.q) searchParams.set("q", params.q);
+  const query = searchParams.toString();
+  return `${API_BASE}/api/roles/${query ? `?${query}` : ""}`;
+}
 
 export const roleApi = {
   /**
    * 列出角色
    */
-  async list(skip = 0, limit = 100): Promise<Role[]> {
-    return authFetch<Role[]>(
-      `${API_BASE}/api/roles/?skip=${skip}&limit=${limit}`,
-    );
+  async list(params: RoleListParams = {}): Promise<RoleListResponse> {
+    return authFetch<RoleListResponse>(buildRoleListUrl(params));
   },
 
   /**

@@ -1,14 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { useLocation, useNavigate } from "react-router-dom";
 import { exportProjectZip } from "../../../utils/exportProjectZip";
 import { useSkills } from "../../../hooks/useSkills";
 import { sanitizeSkillName } from "../../../utils/skillFilters";
-import {
-  skillMatchesQuery,
-  collectSkillTags,
-} from "../../../utils/skillFilters";
 import type { SkillResponse, SkillCreate } from "../../../types";
 
 interface GitHubSkill {
@@ -29,8 +25,28 @@ export function useSkillsActions() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
+  // Search & filter
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const listParams = useMemo(
+    () => ({
+      skip: (page - 1) * pageSize,
+      limit: pageSize,
+      q: searchQuery.trim() || undefined,
+      tags: selectedTags.length > 0 ? selectedTags : undefined,
+    }),
+    [page, pageSize, searchQuery, selectedTags],
+  );
+
   const {
     skills,
+    availableTags,
+    total,
     isLoading,
     error,
     getSkill,
@@ -47,30 +63,8 @@ export function useSkillsActions() {
     installGitHubSkills,
     publishToMarketplace,
     clearError,
-  } = useSkills();
-
-  // Search & filter
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const availableTags = collectSkillTags(skills);
-
-  const filteredSkills = skills.filter((skill) => {
-    const matchesQuery = skillMatchesQuery(skill, searchQuery);
-    const matchesTags =
-      selectedTags.length === 0 ||
-      selectedTags.every((tag) => skill.tags.includes(tag));
-    return matchesQuery && matchesTags;
-  });
-
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const pageSize = 20;
-
-  useEffect(() => {
-    setTotal(skills.length);
-  }, [skills]);
+  } = useSkills({ listParams });
+  const filteredSkills = skills;
 
   useEffect(() => {
     setPage(1);
@@ -87,10 +81,7 @@ export function useSkillsActions() {
     navigate(location.pathname, { replace: true });
   }, [location.pathname, location.state, navigate]);
 
-  const paginatedSkills = filteredSkills.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+  const paginatedSkills = filteredSkills;
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>

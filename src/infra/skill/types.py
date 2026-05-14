@@ -79,6 +79,16 @@ class UserSkill(BaseModel):
     marketplace_is_active: bool = True
 
 
+class UserSkillListResponse(BaseModel):
+    """Paginated user skill list."""
+
+    skills: list[UserSkill] = Field(default_factory=list)
+    total: int = 0
+    skip: int = 0
+    limit: int = 100
+    available_tags: list[str] = Field(default_factory=list)
+
+
 class MarketplaceSkillResponse(BaseModel):
     """商城 Skill 响应"""
 

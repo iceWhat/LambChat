@@ -360,8 +360,8 @@ export function UsersPanel() {
 
     // 角色列表单独加载,失败不影响用户列表
     try {
-      const rolesData = await roleApi.list();
-      setRoles(rolesData);
+      const rolesData = await roleApi.list({ limit: 200 });
+      setRoles(rolesData.roles);
     } catch (err) {
       console.error("Failed to load roles:", err);
       // 角色加载失败不显示错误,只是角色列表为空

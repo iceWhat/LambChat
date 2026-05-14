@@ -145,6 +145,13 @@ export interface Role {
   updated_at: string;
 }
 
+export interface RoleListResponse {
+  roles: Role[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
 // 角色创建请求
 export interface RoleCreate {
   name: string;

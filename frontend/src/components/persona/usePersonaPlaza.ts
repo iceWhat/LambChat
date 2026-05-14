@@ -88,8 +88,30 @@ export function usePersonaPlaza() {
   const canWrite = hasPermission(Permission.PERSONA_PRESET_WRITE);
   const canAdmin = hasPermission(Permission.PERSONA_PRESET_ADMIN);
 
+  const [query, setQuery] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const listParams = useMemo(
+    () => ({
+      skip: (page - 1) * PAGE_SIZE,
+      limit: PAGE_SIZE,
+      q: query.trim() || undefined,
+      tag: activeTag || undefined,
+      scope:
+        scopeFilter === "global" || scopeFilter === "user"
+          ? scopeFilter
+          : undefined,
+      pinned: scopeFilter === "pinned" ? true : undefined,
+      favorite: scopeFilter === "favorite" ? true : undefined,
+    }),
+    [activeTag, page, query, scopeFilter],
+  );
+
   const {
     presets,
+    total,
     isLoading,
     isMutating,
     error,
@@ -99,13 +121,7 @@ export function usePersonaPlaza() {
     createPreset,
     updatePreset,
     deletePreset,
-  } = usePersonaPresets({ enabled: canRead });
-
-  const [query, setQuery] = useState("");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
-  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
+  } = usePersonaPresets({ enabled: canRead, listParams });
 
   const [showModal, setShowModal] = useState(false);
   const [editingPreset, setEditingPreset] = useState<PersonaPreset | null>(
@@ -130,50 +146,14 @@ export function usePersonaPlaza() {
   );
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return presets
-      .filter((preset) => {
-        const matchesQuery =
-          !q ||
-          preset.name.toLowerCase().includes(q) ||
-          preset.description.toLowerCase().includes(q) ||
-          preset.system_prompt.toLowerCase().includes(q);
-        const matchesTag = !activeTag || preset.tags.includes(activeTag);
-        const matchesScope =
-          scopeFilter === "all" ||
-          (scopeFilter === "pinned" && !!preset.is_pinned) ||
-          (scopeFilter === "favorite" && !!preset.is_favorite) ||
-          preset.scope === scopeFilter;
-        return matchesQuery && matchesTag && matchesScope;
-      })
-      .sort(comparePersonaPresetPreference);
-  }, [presets, query, activeTag, scopeFilter]);
+    return [...presets].sort(comparePersonaPresetPreference);
+  }, [presets]);
 
   useEffect(() => {
     setPage(1);
   }, [query, activeTag, scopeFilter]);
 
-  const paged = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
-
-  const globalCount = useMemo(
-    () => presets.filter((p) => p.scope === "global").length,
-    [presets],
-  );
-  const userCount = useMemo(
-    () => presets.filter((p) => p.scope === "user").length,
-    [presets],
-  );
-  const pinnedCount = useMemo(
-    () => presets.filter((p) => p.is_pinned).length,
-    [presets],
-  );
-  const favoriteCount = useMemo(
-    () => presets.filter((p) => p.is_favorite).length,
-    [presets],
-  );
+  const paged = filtered;
 
   const handleUse = useCallback(
     async (preset: PersonaPreset) => {
@@ -308,31 +288,31 @@ export function usePersonaPlaza() {
       key: "all" as ScopeFilter,
       label: t("personaPresets.all", "全部"),
       icon: "Users" as const,
-      count: presets.length,
+      count: scopeFilter === "all" ? total : undefined,
     },
     {
       key: "pinned" as ScopeFilter,
       label: t("personaPresets.pinned", "置顶"),
       icon: "Pin" as const,
-      count: pinnedCount,
+      count: scopeFilter === "pinned" ? total : undefined,
     },
     {
       key: "favorite" as ScopeFilter,
       label: t("personaPresets.favorites", "收藏"),
       icon: "Star" as const,
-      count: favoriteCount,
+      count: scopeFilter === "favorite" ? total : undefined,
     },
     {
       key: "global" as ScopeFilter,
       label: t("personaPresets.official", "官方"),
       icon: "Sparkles" as const,
-      count: globalCount,
+      count: scopeFilter === "global" ? total : undefined,
     },
     {
       key: "user" as ScopeFilter,
       label: t("personaPresets.mine", "我的"),
       icon: "User" as const,
-      count: userCount,
+      count: scopeFilter === "user" ? total : undefined,
     },
   ];
 
@@ -465,7 +445,7 @@ export function usePersonaPlaza() {
     selectedPresetId,
     filtered,
     paged,
-    total: filtered.length,
+    total,
     page,
     pageSize: PAGE_SIZE,
     setPage,

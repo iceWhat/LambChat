@@ -11,23 +11,41 @@
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import type {
-  UserSkill,
   UserSkillDetail,
   SkillFileResponse,
   SkillToggleResponse,
   SkillCreate,
   MarketplaceSkillResponse,
   PublishToMarketplaceRequest,
+  SkillsResponse,
 } from "../../types/skill";
 
 const SKILLS_API = `${API_BASE}/api/skills`;
+
+export interface SkillListParams {
+  skip?: number;
+  limit?: number;
+  q?: string;
+  tags?: string[];
+}
+
+export function buildSkillListUrl(params: SkillListParams = {}): string {
+  const searchParams = new URLSearchParams();
+  if (params.skip !== undefined) searchParams.set("skip", String(params.skip));
+  if (params.limit !== undefined)
+    searchParams.set("limit", String(params.limit));
+  if (params.q) searchParams.set("q", params.q);
+  params.tags?.forEach((tag) => searchParams.append("tags", tag));
+  const query = searchParams.toString();
+  return `${SKILLS_API}/${query ? `?${query}` : ""}`;
+}
 
 export const skillApi = {
   /**
    * List all user skills
    */
-  async list(): Promise<UserSkill[]> {
-    return authFetch(`${SKILLS_API}/`);
+  async list(params: SkillListParams = {}): Promise<SkillsResponse> {
+    return authFetch(buildSkillListUrl(params));
   },
 
   /**

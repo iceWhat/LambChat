@@ -49,7 +49,7 @@ export function AgentConfigPanel() {
         canManageAgents
           ? agentConfigApi.getGlobalConfig()
           : Promise.resolve(null),
-        roleApi.list(),
+        roleApi.list({ limit: 200 }),
         agentApi.list(),
       ]);
 
@@ -81,11 +81,11 @@ export function AgentConfigPanel() {
       }
 
       // 设置角色列表
-      setRoles(roleList || []);
+      setRoles(roleList.roles || []);
 
       // 加载角色-agents 映射
       if (canManageAgents) {
-        const roleAgentPromises = (roleList || []).map(async (role) => {
+        const roleAgentPromises = (roleList.roles || []).map(async (role) => {
           try {
             const assignment = await agentConfigApi.getRoleAgents(role.id);
             return { roleId: role.id, agents: assignment.allowed_agents };

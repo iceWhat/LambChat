@@ -42,6 +42,11 @@ export interface ChatInputSelectorsProps {
   selectedPersonaName?: string | null;
   // Persona presets
   personaPresets?: PersonaPreset[];
+  personaPresetsTotal?: number;
+  personaPresetsPage?: number;
+  onPersonaPresetsPageChange?: (page: number) => void;
+  onPersonaPresetsSearchChange?: (query: string) => void;
+  onPersonaPresetsTagChange?: (tag: string | null) => void;
   selectedPersonaPresetId?: string | null;
   personaPresetsLoading?: boolean;
   personaPresetsMutating?: boolean;
@@ -86,6 +91,11 @@ export function ChatInputSelectors({
   personaSkillsControlled = false,
   selectedPersonaName,
   personaPresets = [],
+  personaPresetsTotal,
+  personaPresetsPage,
+  onPersonaPresetsPageChange,
+  onPersonaPresetsSearchChange,
+  onPersonaPresetsTagChange,
   selectedPersonaPresetId,
   personaPresetsLoading = false,
   personaPresetsMutating = false,
@@ -140,12 +150,17 @@ export function ChatInputSelectors({
       {onUsePersonaPreset && onCopyPersonaPreset && onClearPersonaPreset && (
         <PersonaPresetSelector
           presets={personaPresets}
+          total={personaPresetsTotal}
+          page={personaPresetsPage}
           selectedPresetId={selectedPersonaPresetId}
           isOpen={activePanel === "persona"}
           isLoading={personaPresetsLoading}
           isMutating={personaPresetsMutating}
           canManagePresets={canManagePersonaPresets}
           onOpenChange={(open) => onActivePanelChange(open ? "persona" : null)}
+          onPageChange={onPersonaPresetsPageChange}
+          onSearchChange={onPersonaPresetsSearchChange}
+          onTagChange={onPersonaPresetsTagChange}
           onUsePreset={onUsePersonaPreset}
           onTogglePreference={onTogglePersonaPreference}
           onCopyPreset={onCopyPersonaPreset}

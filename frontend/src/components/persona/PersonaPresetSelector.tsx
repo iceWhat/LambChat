@@ -22,12 +22,17 @@ const PAGE_SIZE = 12;
 
 interface PersonaPresetSelectorProps {
   presets: PersonaPreset[];
+  total?: number;
+  page?: number;
   selectedPresetId?: string | null;
   isOpen: boolean;
   isLoading?: boolean;
   isMutating?: boolean;
   canManagePresets?: boolean;
   onOpenChange: (open: boolean) => void;
+  onPageChange?: (page: number) => void;
+  onSearchChange?: (query: string) => void;
+  onTagChange?: (tag: string | null) => void;
   onUsePreset: (preset: PersonaPreset) => Promise<PersonaPresetSnapshot | null>;
   onTogglePreference?: (
     preset: PersonaPreset,
@@ -40,12 +45,17 @@ interface PersonaPresetSelectorProps {
 
 export function PersonaPresetSelector({
   presets,
+  total,
+  page: controlledPage,
   selectedPresetId,
   isOpen,
   isLoading = false,
   isMutating = false,
   canManagePresets = false,
   onOpenChange,
+  onPageChange,
+  onSearchChange,
+  onTagChange,
   onUsePreset,
   onTogglePreference,
   onCopyPreset,
@@ -59,6 +69,8 @@ export function PersonaPresetSelector({
     null,
   );
   const [page, setPage] = useState(1);
+  const currentPage = controlledPage ?? page;
+  const usesRemoteFiltering = !!onSearchChange || !!onTagChange;
 
   const tags = useMemo(
     () => Array.from(new Set(presets.flatMap((preset) => preset.tags))).sort(),
@@ -66,6 +78,7 @@ export function PersonaPresetSelector({
   );
 
   const filtered = useMemo(() => {
+    if (usesRemoteFiltering) return presets;
     const q = query.trim().toLowerCase();
     return presets.filter((preset) => {
       const matchesQuery =
@@ -75,16 +88,35 @@ export function PersonaPresetSelector({
       const matchesTag = !activeTag || preset.tags.includes(activeTag);
       return matchesQuery && matchesTag;
     });
-  }, [activeTag, presets, query]);
+  }, [activeTag, presets, query, usesRemoteFiltering]);
 
   useEffect(() => {
     setPage(1);
-  }, [query, activeTag]);
+    onPageChange?.(1);
+  }, [query, activeTag, onPageChange]);
+
+  useEffect(() => {
+    onSearchChange?.(query);
+  }, [onSearchChange, query]);
+
+  useEffect(() => {
+    onTagChange?.(activeTag);
+  }, [activeTag, onTagChange]);
 
   const paged = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
+    if (usesRemoteFiltering) return filtered;
+    const start = (currentPage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
-  }, [filtered, page]);
+  }, [currentPage, filtered, usesRemoteFiltering]);
+
+  const totalItems = total ?? filtered.length;
+  const handlePageChange = (nextPage: number) => {
+    if (onPageChange) {
+      onPageChange(nextPage);
+    } else {
+      setPage(nextPage);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -433,16 +465,16 @@ export function PersonaPresetSelector({
           )}
         </div>
 
-        {filtered.length > PAGE_SIZE && (
+        {totalItems > PAGE_SIZE && (
           <div
             className="border-t px-5 py-3"
             style={{ borderColor: "var(--theme-border)" }}
           >
             <Pagination
-              page={page}
+              page={currentPage}
               pageSize={PAGE_SIZE}
-              total={filtered.length}
-              onChange={setPage}
+              total={totalItems}
+              onChange={handlePageChange}
             />
           </div>
         )}

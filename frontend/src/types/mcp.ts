@@ -34,6 +34,9 @@ export interface MCPRoleQuota {
 // MCP Servers List Response
 export interface MCPServersResponse {
   servers: MCPServerResponse[];
+  total: number;
+  skip: number;
+  limit: number;
 }
 
 // MCP Server Create Request

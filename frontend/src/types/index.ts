@@ -125,6 +125,7 @@ export {
   type RegisterResponse,
   type Role,
   type RoleCreate,
+  type RoleListResponse,
   type RoleUpdate,
   type RoleLimits,
   type LoginRequest,

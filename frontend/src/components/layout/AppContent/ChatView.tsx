@@ -109,6 +109,11 @@ interface ChatViewProps {
   totalSkillsCount: number;
   enableSkills: boolean;
   personaPresets: PersonaPreset[];
+  personaPresetsTotal: number;
+  personaPresetsPage: number;
+  onPersonaPresetsPageChange: (page: number) => void;
+  onPersonaPresetsSearchChange: (query: string) => void;
+  onPersonaPresetsTagChange: (tag: string | null) => void;
   selectedPersonaPresetId: string | null;
   selectedPersonaName: string | null;
   selectedPersonaSnapshot: PersonaPresetSnapshot | null;
@@ -190,6 +195,11 @@ export function ChatView({
   totalSkillsCount,
   enableSkills,
   personaPresets,
+  personaPresetsTotal,
+  personaPresetsPage,
+  onPersonaPresetsPageChange,
+  onPersonaPresetsSearchChange,
+  onPersonaPresetsTagChange,
   selectedPersonaPresetId,
   selectedPersonaName,
   selectedPersonaSnapshot,
@@ -673,6 +683,11 @@ export function ChatView({
     totalSkillsCount,
     enableSkills,
     personaPresets,
+    personaPresetsTotal,
+    personaPresetsPage,
+    onPersonaPresetsPageChange,
+    onPersonaPresetsSearchChange,
+    onPersonaPresetsTagChange,
     selectedPersonaPresetId,
     selectedPersonaName,
     personaSkillsControlled,
