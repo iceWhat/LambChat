@@ -281,7 +281,7 @@ export const WelcomePage = memo(function WelcomePage({
             className={
               showPersonaCards
                 ? "welcome-persona-gallery px-2 pb-1 sm:px-0 sm:pb-0"
-                : "welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3 px-2 sm:px-0"
+                : "welcome-suggestions-grid-wrapper"
             }
           >
             {showPersonaCards &&
@@ -331,23 +331,25 @@ export const WelcomePage = memo(function WelcomePage({
                         }}
                       />
                       <span className="welcome-persona-info min-w-0 flex-1 pt-0.5">
-                        <span
-                          className="block truncate text-[14px] font-medium leading-[1.35] transition-colors duration-300 group-hover:text-[var(--theme-text)]"
-                          style={{ color: "var(--theme-text)" }}
-                        >
-                          {preset.name}
-                        </span>
-                        {primaryTag && (
+                        <span className="welcome-persona-name-row relative flex items-center gap-1.5">
                           <span
-                            className="welcome-persona-tag mt-1 inline-flex max-w-full rounded-full px-2 py-0.5 text-[10px] leading-none"
-                            style={{
-                              backgroundColor: "var(--theme-primary-light)",
-                              color: "var(--theme-primary)",
-                            }}
+                            className="truncate text-[14px] font-semibold leading-[1.35] transition-colors duration-300 group-hover:text-[var(--theme-text)]"
+                            style={{ color: "var(--theme-text)" }}
                           >
-                            {primaryTag}
+                            {preset.name}
                           </span>
-                        )}
+                          {primaryTag && (
+                            <span
+                              className="welcome-persona-tag shrink-0 inline-flex rounded-full px-1.5 py-[1px] text-[10px] leading-none font-medium"
+                              style={{
+                                backgroundColor: "var(--theme-primary-light)",
+                                color: "var(--theme-primary)",
+                              }}
+                            >
+                              {primaryTag}
+                            </span>
+                          )}
+                        </span>
                         {preset.description && (
                           <span
                             className="welcome-persona-description block mt-1 text-[12px] leading-[1.5]"
@@ -364,37 +366,45 @@ export const WelcomePage = memo(function WelcomePage({
                   </button>
                 );
               })}
-            {showStarterPrompts &&
-              starterPrompts.map((suggestion, i) => (
-                <button
-                  key={suggestion.text}
-                  onClick={() => handleSuggestionClick(suggestion.text)}
-                  className={getWelcomeSuggestionButtonClass(i)}
-                  style={{
-                    backgroundColor: "var(--theme-bg-card)",
-                    borderColor: "var(--theme-border)",
-                    animationDelay: `${i * 60}ms`,
-                  }}
-                >
-                  {/* Hover shimmer layer */}
-                  <span className="welcome-card-shimmer" aria-hidden="true" />
-                  <span
-                    className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
+            <div
+              className={
+                showStarterPrompts
+                  ? "welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3 px-2 sm:px-0"
+                  : undefined
+              }
+            >
+              {showStarterPrompts &&
+                starterPrompts.map((suggestion, i) => (
+                  <button
+                    key={suggestion.text}
+                    onClick={() => handleSuggestionClick(suggestion.text)}
+                    className={getWelcomeSuggestionButtonClass(i)}
                     style={{
-                      backgroundColor: "var(--theme-primary-light)",
-                      color: "var(--theme-primary)",
+                      backgroundColor: "var(--theme-bg-card)",
+                      borderColor: "var(--theme-border)",
+                      animationDelay: `${i * 60}ms`,
                     }}
                   >
-                    {suggestion.icon || "✨"}
-                  </span>
-                  <span
-                    className="relative text-[12.5px] sm:text-[13.5px] leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"
-                    style={{ color: "var(--theme-text-secondary)" }}
-                  >
-                    {suggestion.text}
-                  </span>
-                </button>
-              ))}
+                    {/* Hover shimmer layer */}
+                    <span className="welcome-card-shimmer" aria-hidden="true" />
+                    <span
+                      className="relative flex items-center justify-center size-6 sm:size-7 xl:size-8 2xl:size-8 rounded-lg text-[13px] sm:text-[15px] xl:text-lg 2xl:text-lg shrink-0 transition-transform duration-300 group-hover:scale-110"
+                      style={{
+                        backgroundColor: "var(--theme-primary-light)",
+                        color: "var(--theme-primary)",
+                      }}
+                    >
+                      {suggestion.icon || "✨"}
+                    </span>
+                    <span
+                      className="relative text-[12.5px] sm:text-[13.5px] leading-[1.4] sm:leading-[1.45] truncate transition-colors duration-300 group-hover:text-[var(--theme-text)]"
+                      style={{ color: "var(--theme-text-secondary)" }}
+                    >
+                      {suggestion.text}
+                    </span>
+                  </button>
+                ))}
+            </div>
           </div>
         </div>
       )}

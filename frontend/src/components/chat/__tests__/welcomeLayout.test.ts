@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   getSelectedPersonaStarterPrompts,
   getWelcomePersonaCards,
@@ -9,6 +12,12 @@ import {
   getWelcomeSuggestionButtonClass,
 } from "../welcomeLayout.ts";
 
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const welcomeCss = readFileSync(
+  resolve(currentDir, "../../../styles/welcome.css"),
+  "utf8",
+);
+
 test("keeps every welcome persona card reachable on mobile", () => {
   const className = getWelcomePersonaCardClass(3);
 
@@ -16,11 +25,25 @@ test("keeps every welcome persona card reachable on mobile", () => {
   assert.equal(className.includes("hidden sm:flex"), false);
 });
 
-test("keeps later starter prompt pills compact on narrow screens", () => {
+test("keeps later starter prompt pills reachable on narrow screens", () => {
   const className = getWelcomeSuggestionButtonClass(2);
 
   assert.equal(className.includes("welcome-suggestion-pill"), true);
-  assert.equal(className.includes("hidden sm:flex"), true);
+  assert.equal(className.includes("hidden sm:flex"), false);
+});
+
+test("caps welcome suggestion prompts to two rows with vertical scrolling", () => {
+  assert.match(
+    welcomeCss,
+    /\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*--welcome-suggestion-row-height: 2\.5rem;[\s\S]*max-height: calc\(\s*var\(--welcome-suggestion-row-height\) \* 2 \+ var\(--welcome-suggestion-row-gap\)\s*\);[\s\S]*overflow-y: auto;/,
+  );
+});
+
+test("caps welcome persona choices to two rows with vertical scrolling", () => {
+  assert.match(
+    welcomeCss,
+    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*--welcome-persona-card-height: 6rem;[\s\S]*max-height: calc\(\s*var\(--welcome-persona-card-height\) \* 2 \+ var\(--welcome-persona-row-gap\)\s*\);[\s\S]*overflow-y: auto;/,
+  );
 });
 
 test("keeps starter prompt container narrower than persona gallery", () => {
