@@ -68,7 +68,7 @@ export function PersonaPresetCard({
             <button
               type="button"
               className={`pps-card__icon-action ${
-                preset.is_pinned ? "pps-card__icon-action--active" : ""
+                preset.is_pinned ? "pps-card__icon-action--active-pin" : ""
               }`}
               title={t("personaPresets.pin", "置顶")}
               onClick={() =>
@@ -80,7 +80,7 @@ export function PersonaPresetCard({
             <button
               type="button"
               className={`pps-card__icon-action ${
-                preset.is_favorite ? "pps-card__icon-action--active" : ""
+                preset.is_favorite ? "pps-card__icon-action--active-fav" : ""
               }`}
               title={t("personaPresets.favorite", "收藏")}
               onClick={() =>

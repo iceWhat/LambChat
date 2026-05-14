@@ -164,7 +164,7 @@ export function MentionPopup({
                           type="button"
                           className={`mention-popup-action ${
                             preset.is_pinned
-                              ? "mention-popup-action--active"
+                              ? "mention-popup-action--active-pin"
                               : ""
                           }`}
                           title={t("personaPresets.pin", "置顶")}
@@ -183,7 +183,7 @@ export function MentionPopup({
                           type="button"
                           className={`mention-popup-action ${
                             preset.is_favorite
-                              ? "mention-popup-action--active"
+                              ? "mention-popup-action--active-fav"
                               : ""
                           }`}
                           title={t("personaPresets.favorite", "收藏")}

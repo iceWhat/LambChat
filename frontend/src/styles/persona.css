@@ -1323,10 +1323,23 @@
     transform 0.15s ease;
 }
 
-.pps-card__icon-action:hover,
-.pps-card__icon-action--active {
+.pps-card__icon-action:hover {
   background: var(--theme-primary-light);
   color: var(--theme-primary);
+}
+
+.pps-card__icon-action--active-pin {
+  color: #d97706;
+}
+.pps-card__icon-action--active-pin svg path {
+  fill: currentColor;
+}
+
+.pps-card__icon-action--active-fav {
+  color: #eab308;
+}
+.pps-card__icon-action--active-fav svg path {
+  fill: currentColor;
 }
 
 .pps-card__icon-action:active {
@@ -1336,6 +1349,20 @@
 .dark .pps-card__icon-action {
   background: rgba(0, 0, 0, 0.45);
   color: rgba(255, 255, 255, 0.74);
+}
+
+.dark .pps-card__icon-action--active-pin {
+  color: #fbbf24;
+}
+.dark .pps-card__icon-action--active-pin svg path {
+  fill: currentColor;
+}
+
+.dark .pps-card__icon-action--active-fav {
+  color: #facc15;
+}
+.dark .pps-card__icon-action--active-fav svg path {
+  fill: currentColor;
 }
 
 .pps-card__avatar {

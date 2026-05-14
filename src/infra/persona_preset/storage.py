@@ -13,6 +13,7 @@ class PersonaPresetStorage:
 
     def __init__(self):
         self._collection = None
+        self._user_collection = None
 
     @property
     def collection(self):
@@ -26,13 +27,14 @@ class PersonaPresetStorage:
         return self._collection
 
     @property
-    def preference_collection(self):
-        """Lazy MongoDB collection for per-user preset preferences."""
-        from src.infra.storage.mongodb import get_mongo_client
+    def user_collection(self):
+        if self._user_collection is None:
+            from src.infra.storage.mongodb import get_mongo_client
 
-        client = get_mongo_client()
-        db = client[settings.MONGODB_DB]
-        return db["persona_preset_preferences"]
+            client = get_mongo_client()
+            db = client[settings.MONGODB_DB]
+            self._user_collection = db["users"]
+        return self._user_collection
 
     _REQUIRED_DEFAULTS: dict[str, Any] = {
         "name": "Untitled",
@@ -43,9 +45,6 @@ class PersonaPresetStorage:
         "skill_names": [],
         "visibility": "private",
         "status": "draft",
-        "is_favorite": False,
-        "is_pinned": False,
-        "last_used_at": None,
     }
 
     @classmethod
@@ -87,6 +86,74 @@ class PersonaPresetStorage:
         doc = await self.collection.find_one({"_id": query_id})
         return self._to_model_dict(doc) if doc else None
 
+    # ── User preference helpers (stored in user metadata) ──
+
+    MAX_PINNED = 10
+
+    async def _get_user_preset_preference(self, user_id: str) -> dict[str, list[str]]:
+        doc = await self.user_collection.find_one(
+            {"_id": ObjectId(user_id)},
+            {"metadata.pinned_preset_ids": 1, "metadata.favorite_preset_ids": 1},
+        )
+        metadata = (doc or {}).get("metadata") or {}
+        return {
+            "pinned": metadata.get("pinned_preset_ids") or [],
+            "favorite": metadata.get("favorite_preset_ids") or [],
+        }
+
+    async def _set_user_preset_preference(self, user_id: str, pref: dict[str, list[str]]) -> None:
+        await self.user_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {
+                "$set": {
+                    "metadata.pinned_preset_ids": pref["pinned"],
+                    "metadata.favorite_preset_ids": pref["favorite"],
+                    "updated_at": utc_now(),
+                }
+            },
+        )
+
+    async def update_user_preference(
+        self,
+        *,
+        user_id: str,
+        preset_id: str,
+        update: dict[str, Any],
+    ) -> dict[str, Any]:
+        pref = await self._get_user_preset_preference(user_id)
+        pinned: list[str] = list(pref["pinned"])
+        favorite: list[str] = list(pref["favorite"])
+
+        if update.get("is_pinned") is not None:
+            if update["is_pinned"] and preset_id not in pinned:
+                if len(pinned) >= self.MAX_PINNED:
+                    return {
+                        "is_favorite": preset_id in favorite,
+                        "is_pinned": False,
+                        "last_used_at": None,
+                    }
+                pinned.append(preset_id)
+            elif not update["is_pinned"] and preset_id in pinned:
+                pinned.remove(preset_id)
+
+        if update.get("is_favorite") is not None:
+            if update["is_favorite"] and preset_id not in favorite:
+                favorite.append(preset_id)
+            elif not update["is_favorite"] and preset_id in favorite:
+                favorite.remove(preset_id)
+
+        await self._set_user_preset_preference(user_id, {"pinned": pinned, "favorite": favorite})
+        return {
+            "is_favorite": preset_id in favorite,
+            "is_pinned": preset_id in pinned,
+            "last_used_at": None,
+        }
+
+    async def touch_user_preference(self, **_: Any) -> dict[str, Any]:
+        return {"is_favorite": False, "is_pinned": False, "last_used_at": None}
+
+    # ── List / Count ──
+
     async def list_visible(
         self,
         *,
@@ -109,10 +176,25 @@ class PersonaPresetStorage:
             tag=tag,
             q=q,
         )
+
+        if favorite is not None or pinned is not None:
+            pref = await self._get_user_preset_preference(user_id)
+            target_ids: set[str] = set()
+            if pinned:
+                target_ids.update(pref["pinned"])
+            if favorite:
+                target_ids.update(pref["favorite"])
+            if not target_ids:
+                return []
+            try:
+                object_ids = [ObjectId(pid) for pid in target_ids]
+            except Exception:
+                return []
+            query["_id"] = {"$in": object_ids}
+
         cursor = self.collection.find(query)
         docs = [self._to_model_dict(doc) async for doc in cursor]
-        docs = await self._apply_user_preferences(user_id, docs)
-        docs = self._filter_by_preferences(docs, favorite=favorite, pinned=pinned)
+        await self._apply_user_preferences(user_id, docs)
         docs.sort(key=self._preference_sort_key)
         return docs[skip : skip + limit]
 
@@ -136,13 +218,23 @@ class PersonaPresetStorage:
             tag=tag,
             q=q,
         )
-        if favorite is None and pinned is None:
-            return await self.collection.count_documents(query)
 
-        cursor = self.collection.find(query)
-        docs = [self._to_model_dict(doc) async for doc in cursor]
-        docs = await self._apply_user_preferences(user_id, docs)
-        return len(self._filter_by_preferences(docs, favorite=favorite, pinned=pinned))
+        if favorite is not None or pinned is not None:
+            pref = await self._get_user_preset_preference(user_id)
+            target_ids: set[str] = set()
+            if pinned:
+                target_ids.update(pref["pinned"])
+            if favorite:
+                target_ids.update(pref["favorite"])
+            if not target_ids:
+                return 0
+            try:
+                object_ids = [ObjectId(pid) for pid in target_ids]
+            except Exception:
+                return 0
+            query["_id"] = {"$in": object_ids}
+
+        return await self.collection.count_documents(query)
 
     async def update(self, preset_id: str, update: dict[str, Any]) -> Optional[dict[str, Any]]:
         try:
@@ -175,75 +267,7 @@ class PersonaPresetStorage:
             return
         await self.collection.update_one({"_id": query_id}, {"$inc": {"usage_count": 1}})
 
-    async def update_user_preference(
-        self,
-        *,
-        user_id: str,
-        preset_id: str,
-        update: dict[str, Any],
-    ) -> dict[str, Any]:
-        now = utc_now()
-        allowed = {
-            key: value
-            for key, value in update.items()
-            if key in {"is_favorite", "is_pinned"} and value is not None
-        }
-        allowed["updated_at"] = now
-        result = await self.preference_collection.find_one_and_update(
-            {"user_id": user_id, "preset_id": preset_id},
-            {
-                "$set": allowed,
-                "$setOnInsert": {
-                    "user_id": user_id,
-                    "preset_id": preset_id,
-                    "created_at": now,
-                },
-            },
-            upsert=True,
-            return_document=True,
-        )
-        return self._preference_to_dict(result)
-
-    async def touch_user_preference(
-        self,
-        *,
-        user_id: str,
-        preset_id: str,
-    ) -> dict[str, Any]:
-        now = utc_now()
-        result = await self.preference_collection.find_one_and_update(
-            {"user_id": user_id, "preset_id": preset_id},
-            {
-                "$set": {
-                    "last_used_at": now,
-                    "updated_at": now,
-                },
-                "$setOnInsert": {
-                    "user_id": user_id,
-                    "preset_id": preset_id,
-                    "is_favorite": False,
-                    "is_pinned": False,
-                    "created_at": now,
-                },
-            },
-            upsert=True,
-            return_document=True,
-        )
-        return self._preference_to_dict(result)
-
-    @staticmethod
-    def _preference_to_dict(doc: dict[str, Any] | None) -> dict[str, Any]:
-        if not doc:
-            return {
-                "is_favorite": False,
-                "is_pinned": False,
-                "last_used_at": None,
-            }
-        return {
-            "is_favorite": bool(doc.get("is_favorite", False)),
-            "is_pinned": bool(doc.get("is_pinned", False)),
-            "last_used_at": doc.get("last_used_at"),
-        }
+    # ── Internal helpers ──
 
     async def _apply_user_preferences(
         self,
@@ -252,37 +276,21 @@ class PersonaPresetStorage:
     ) -> list[dict[str, Any]]:
         if not docs:
             return docs
-
-        preset_ids = [doc["id"] for doc in docs]
-        cursor = self.preference_collection.find(
-            {"user_id": user_id, "preset_id": {"$in": preset_ids}}
-        )
-        preferences = {pref["preset_id"]: self._preference_to_dict(pref) async for pref in cursor}
+        pref = await self._get_user_preset_preference(user_id)
+        pinned_set = set(pref["pinned"])
+        favorite_set = set(pref["favorite"])
         for doc in docs:
-            doc.update(preferences.get(doc["id"], self._preference_to_dict(None)))
-        return docs
-
-    @staticmethod
-    def _filter_by_preferences(
-        docs: list[dict[str, Any]],
-        *,
-        favorite: bool | None = None,
-        pinned: bool | None = None,
-    ) -> list[dict[str, Any]]:
-        if favorite is not None:
-            docs = [doc for doc in docs if bool(doc.get("is_favorite")) is favorite]
-        if pinned is not None:
-            docs = [doc for doc in docs if bool(doc.get("is_pinned")) is pinned]
+            doc["is_pinned"] = doc["id"] in pinned_set
+            doc["is_favorite"] = doc["id"] in favorite_set
+            doc["last_used_at"] = None
         return docs
 
     @staticmethod
     def _preference_sort_key(doc: dict[str, Any]) -> tuple:
-        last_used = doc.get("last_used_at")
         updated = doc.get("updated_at")
         return (
             0 if doc.get("is_pinned") else 1,
             0 if doc.get("is_favorite") else 1,
-            -(last_used.timestamp() if last_used else 0),
             -int(doc.get("usage_count", 0) or 0),
             -(updated.timestamp() if updated else 0),
         )

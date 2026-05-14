@@ -162,5 +162,28 @@ async def update_user_metadata(
                 detail="Too many pinned models: maximum 10 allowed.",
             )
 
+    # Validate pinned_preset_ids if provided
+    if "pinned_preset_ids" in request.metadata:
+        pinned = request.metadata["pinned_preset_ids"]
+        if not isinstance(pinned, list) or not all(isinstance(m, str) for m in pinned):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid pinned_preset_ids: must be a list of strings.",
+            )
+        if len(pinned) > 10:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Too many pinned presets: maximum 10 allowed.",
+            )
+
+    # Validate favorite_preset_ids if provided
+    if "favorite_preset_ids" in request.metadata:
+        favs = request.metadata["favorite_preset_ids"]
+        if not isinstance(favs, list) or not all(isinstance(f, str) for f in favs):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid favorite_preset_ids: must be a list of strings.",
+            )
+
     updated_user = await storage.update_metadata(current_user.sub, request.metadata)
     return updated_user

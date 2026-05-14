@@ -388,14 +388,41 @@
     transform 0.15s ease;
 }
 
-.mention-popup-action:hover,
-.mention-popup-action--active {
+.mention-popup-action:hover {
   background: var(--theme-primary-light);
   color: var(--theme-primary);
 }
 
 .mention-popup-action:active {
   transform: scale(0.94);
+}
+
+.mention-popup-action--active-pin {
+  color: #d97706;
+}
+.mention-popup-action--active-pin svg path {
+  fill: currentColor;
+}
+
+.mention-popup-action--active-fav {
+  color: #eab308;
+}
+.mention-popup-action--active-fav svg path {
+  fill: currentColor;
+}
+
+.dark .mention-popup-action--active-pin {
+  color: #fbbf24;
+}
+.dark .mention-popup-action--active-pin svg path {
+  fill: currentColor;
+}
+
+.dark .mention-popup-action--active-fav {
+  color: #facc15;
+}
+.dark .mention-popup-action--active-fav svg path {
+  fill: currentColor;
 }
 
 .mention-popup-empty {
