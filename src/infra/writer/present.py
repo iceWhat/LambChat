@@ -109,6 +109,7 @@ class Presenter:
         self._trace_created: bool = False
         self._completed: bool = False
         self._token_usage_recorded: bool = False
+        self._done_recorded: bool = False
 
     @property
     def trace_id(self) -> str:
@@ -275,6 +276,8 @@ class Presenter:
             await self._ensure_trace()
 
             event_type = event.get("event", "unknown")
+            if event_type == "done" and self._done_recorded:
+                return
             data = event.get("data", {})
 
             # 如果 data 是字符串（旧格式或外部传入），需要解析并清理
@@ -300,6 +303,8 @@ class Presenter:
                 )
                 if event_type == "token:usage":
                     self._token_usage_recorded = True
+                elif event_type == "done":
+                    self._done_recorded = True
         except Exception as e:
             logger.warning("Failed to save event: %s", e)
 

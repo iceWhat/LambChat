@@ -4,6 +4,7 @@ import pytest
 
 from src.infra.task.executor import TaskExecutor
 from src.infra.task.status import TaskStatus
+from src.infra.writer.present import create_presenter
 
 
 class _FakeWebSocketManager:
@@ -33,6 +34,29 @@ class _FakeLogger:
         self.warnings.append(message % args if args else message)
 
 
+class _FakeDualWriter:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+        self.completed: list[tuple[str, str, dict | None]] = []
+
+    async def create_trace(self, **kwargs):
+        return True
+
+    async def write_event(self, **kwargs):
+        self.events.append(kwargs)
+        return True
+
+    async def _flush_redis_buffer(self):
+        return None
+
+    async def flush_mongo_buffer(self):
+        return None
+
+    async def complete_trace(self, trace_id: str, status: str, metadata=None):
+        self.completed.append((trace_id, status, metadata))
+        return True
+
+
 @pytest.mark.asyncio
 async def test_task_notification_warns_when_no_websocket_delivery(
     monkeypatch: pytest.MonkeyPatch,
@@ -54,3 +78,37 @@ async def test_task_notification_warns_when_no_websocket_delivery(
 
     assert ws_manager.sent
     assert any("delivered=0" in message for message in fake_logger.warnings)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_task_emits_usage_then_done_before_terminal_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = _FakeDualWriter()
+    executor = TaskExecutor(storage=None, run_info={}, heartbeat_manager=None)  # type: ignore[arg-type]
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+
+    async def _no_op(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(executor, "_update_session_status", _no_op)
+    monkeypatch.setattr(executor, "_send_task_notification", _no_op)
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+
+    await executor._handle_cancelled_error(
+        "session-1",
+        "run-1",
+        "user-1",
+        writer,
+        presenter,
+    )
+
+    assert [event["event_type"] for event in writer.events[:2]] == ["token:usage", "done"]
+    assert [event["trace_id"] for event in writer.events[:2]] == ["trace-1", "trace-1"]
+    assert [event["run_id"] for event in writer.events[:2]] == ["run-1", "run-1"]

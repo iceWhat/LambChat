@@ -9,8 +9,13 @@ import { prepareMessagesForRunningRun } from "../historyLoader.ts";
 function createContext(
   messages: Message[],
   lastHistoryTimestamp: Date | null,
-): EventHandlerContext & { setMessagesCalls: () => number } {
+): EventHandlerContext & {
+  connectionStatuses: string[];
+  messages: () => Message[];
+  setMessagesCalls: () => number;
+} {
   let setMessagesCalls = 0;
+  const connectionStatuses: string[] = [];
 
   return {
     sessionIdRef: { current: "session-1" },
@@ -22,12 +27,18 @@ function createContext(
     setMessages: (updater: React.SetStateAction<Message[]>) => {
       setMessagesCalls += 1;
       if (typeof updater === "function") {
-        updater(messages);
+        messages = updater(messages);
+      } else {
+        messages = updater;
       }
     },
-    setConnectionStatus: () => undefined,
+    setConnectionStatus: (status: string) => {
+      connectionStatuses.push(status);
+    },
     setIsInitializingSandbox: () => undefined,
     setSandboxError: () => undefined,
+    connectionStatuses,
+    messages: () => messages,
     setMessagesCalls: () => setMessagesCalls,
   };
 }
@@ -105,4 +116,39 @@ test("creates a new streaming assistant for a running run after the latest user 
       ["assistant-latest", "assistant", "run-latest", true],
     ],
   );
+});
+
+test("user cancel marks message cancelled without closing the SSE connection", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "",
+        timestamp: new Date("2026-04-19T01:02:03.456Z"),
+        parts: [{ type: "text", content: "partial" }],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+
+  handleStreamEvent(
+    {
+      event: "user:cancel",
+      data: JSON.stringify({ run_id: "run-1" }),
+    },
+    "assistant-1",
+    "redis-event-cancel",
+    "2026-04-19T01:02:04.000Z",
+    ctx,
+  );
+
+  assert.equal(ctx.messages()[0]?.cancelled, true);
+  assert.equal(ctx.messages()[0]?.isStreaming, false);
+  assert.deepEqual(ctx.messages()[0]?.parts?.map((part) => part.type), [
+    "text",
+    "cancelled",
+  ]);
+  assert.deepEqual(ctx.connectionStatuses, []);
 });

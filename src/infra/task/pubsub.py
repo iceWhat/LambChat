@@ -100,6 +100,7 @@ class TaskPubSub:
                             trace_id,
                             status="error",
                             metadata={"cancel_reason": "Task cancelled via pub/sub"},
+                            ensure_token_usage=False,
                         )
                         logger.info(
                             f"MongoDB trace status updated via pub/sub: trace_id={trace_id}, success={success}"

@@ -215,6 +215,7 @@ class TaskExecutor:
                 pass
         # 完成 trace（如果已创建）
         if presenter is not None:
+            await presenter.emit(presenter.done())
             await presenter.complete("error")
         # 写入错误事件（包含 trace_id 以写入 MongoDB）
         trace_id = presenter.trace_id if presenter else None
@@ -265,6 +266,7 @@ class TaskExecutor:
             logger.warning(f"Failed to flush events on TaskInterruptedError: {flush_error}")
         # 完成 trace
         if presenter is not None:
+            await presenter.emit(presenter.done())
             await presenter.complete("error")
         # 写入错误事件（包含 trace_id 以写入 MongoDB）
         trace_id = presenter.trace_id if presenter else None

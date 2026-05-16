@@ -71,11 +71,7 @@ function isTerminalErrorPayload(data: unknown): boolean {
 }
 
 export function isTerminalSSEEvent(eventType: string, data?: unknown): boolean {
-  if (
-    eventType === "done" ||
-    eventType === "complete" ||
-    eventType === "user:cancel"
-  ) {
+  if (eventType === "done" || eventType === "complete") {
     return true;
   }
 

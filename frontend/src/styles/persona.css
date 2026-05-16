@@ -1478,3 +1478,9 @@
   cursor: not-allowed;
   transform: none !important;
 }
+
+.pps-card__action--loading,
+.pps-card__action--loading:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}

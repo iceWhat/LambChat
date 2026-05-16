@@ -9,6 +9,7 @@ import {
   Copy,
   Pin,
   Star,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
@@ -72,6 +73,9 @@ export function PersonaPresetSelector({
   const [previewPreset, setPreviewPreset] = useState<PersonaPreset | null>(
     null,
   );
+  const [pendingUsePresetId, setPendingUsePresetId] = useState<string | null>(
+    null,
+  );
   const [page, setPage] = useState(1);
   const currentPage = controlledPage ?? page;
   const usesRemoteFiltering = !!onSearchChange || !!onTagChange;
@@ -114,6 +118,15 @@ export function PersonaPresetSelector({
   }, [currentPage, filtered, usesRemoteFiltering]);
 
   const totalItems = total ?? filtered.length;
+  const handleUsePreset = async (preset: PersonaPreset) => {
+    setPendingUsePresetId(preset.id);
+    try {
+      return await onUsePreset(preset);
+    } finally {
+      setPendingUsePresetId(null);
+    }
+  };
+
   const handlePageChange = (nextPage: number) => {
     if (onPageChange) {
       onPageChange(nextPage);
@@ -272,6 +285,7 @@ export function PersonaPresetSelector({
             <div className="grid auto-grid-cols gap-4">
               {paged.map((preset, index) => {
                 const selected = selectedPresetId === preset.id;
+                const isUsingPreset = pendingUsePresetId === preset.id;
                 const gradient = nameToGradient(preset.name);
                 const primaryTag = preset.tags[0];
                 return (
@@ -434,22 +448,31 @@ export function PersonaPresetSelector({
                       >
                         <button
                           type="button"
-                          disabled={isMutating}
+                          disabled={isMutating || isUsingPreset}
+                          aria-busy={isUsingPreset}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            const snapshot = await onUsePreset(preset);
+                            const snapshot = await handleUsePreset(preset);
                             if (snapshot) onOpenChange(false);
                           }}
                           className={`pps-card__action ${
                             selected
                               ? "pps-card__action--active"
                               : "pps-card__action--primary"
+                          } ${
+                            isUsingPreset ? "pps-card__action--loading" : ""
                           }`}
                         >
-                          <Sparkles size={13} />
-                          {selected
-                            ? t("personaPresets.using", "使用中")
-                            : t("personaPresets.use", "使用")}
+                          {isUsingPreset ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={13} />
+                          )}
+                          {isUsingPreset
+                            ? t("personaPresets.applying", "使用中...")
+                            : selected
+                              ? t("personaPresets.using", "使用中")
+                              : t("personaPresets.use", "使用")}
                         </button>
                         {preset.scope === "global" && (
                           <button
@@ -498,9 +521,10 @@ export function PersonaPresetSelector({
           preset={previewPreset}
           isSelected={selectedPresetId === previewPreset.id}
           isMutating={isMutating}
+          isUsingPreset={pendingUsePresetId === previewPreset.id}
           onClose={() => setPreviewPreset(null)}
           onUsePreset={async (preset) => {
-            const snapshot = await onUsePreset(preset);
+            const snapshot = await handleUsePreset(preset);
             if (snapshot) {
               setPreviewPreset(null);
               onOpenChange(false);

@@ -7,7 +7,7 @@
  * and React state updates (side effects).
  */
 
-import type { Message, FormField } from "../../types";
+import type { Message, MessagePart, FormField } from "../../types";
 import { uuid } from "../../utils/uuid";
 import { authFetch } from "../../services/api/fetch";
 import { sessionApi } from "../../services/api";
@@ -121,7 +121,7 @@ export function handleStreamEvent(
     }
 
     case "user:cancel": {
-      handleError(data, messageId, ctx, true);
+      handleError(data, messageId, ctx, true, { keepConnectionOpen: true });
       return;
     }
 
@@ -373,6 +373,7 @@ function handleError(
   messageId: string,
   ctx: EventHandlerContext,
   forceCancelled?: boolean,
+  options?: { keepConnectionOpen?: boolean },
 ): void {
   const errorMsg = data.error
     ? translateBackendError(data.error, i18n.t.bind(i18n))
@@ -387,7 +388,7 @@ function handleError(
           ...m,
           isStreaming: false,
           cancelled: true,
-          parts: clearAllLoadingStates(m.parts || []),
+          parts: appendCancelledPart(clearAllLoadingStates(m.parts || [])),
         };
       }
       return {
@@ -398,9 +399,18 @@ function handleError(
       };
     }),
   );
-  ctx.setConnectionStatus("disconnected");
-  ctx.setIsInitializingSandbox(false);
+  if (!options?.keepConnectionOpen) {
+    ctx.setConnectionStatus("disconnected");
+    ctx.setIsInitializingSandbox(false);
+  }
   ctx.options?.onClearApprovals?.();
+}
+
+function appendCancelledPart(parts: MessagePart[]): MessagePart[] {
+  if (parts.some((part) => part.type === "cancelled")) {
+    return parts;
+  }
+  return [...parts, { type: "cancelled" }];
 }
 
 async function handleApprovalRequired(

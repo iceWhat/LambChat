@@ -53,6 +53,21 @@ function parseEventTimestamp(
   return timestamp ? parseDate(timestamp) : new Date(fallbackMs);
 }
 
+function shouldAttachToPreviousAssistant(eventType: string): boolean {
+  return eventType === "token:usage";
+}
+
+function canAttachToPreviousAssistant(
+  event: HistoryEvent,
+  message: Message | undefined,
+): message is Message {
+  return (
+    message?.role === "assistant" &&
+    Boolean(event.run_id) &&
+    message.runId === event.run_id
+  );
+}
+
 /**
  * Process a single history event and update message state.
  * Returns updated currentAssistantMessage or new message.
@@ -271,6 +286,26 @@ export function reconstructMessagesFromEvents(
       }
       currentAssistantMessage = null;
       continue;
+    }
+
+    if (
+      !currentAssistantMessage &&
+      shouldAttachToPreviousAssistant(eventType)
+    ) {
+      const lastMessageIndex = reconstructedMessages.length - 1;
+      const lastMessage = reconstructedMessages[lastMessageIndex];
+      if (canAttachToPreviousAssistant(event, lastMessage)) {
+        const updatedMessage = processHistoryEvent(
+          event,
+          lastMessage,
+          processedEventIds,
+          opts,
+        );
+        if (updatedMessage) {
+          reconstructedMessages[lastMessageIndex] = updatedMessage;
+        }
+        continue;
+      }
     }
 
     // Process other events

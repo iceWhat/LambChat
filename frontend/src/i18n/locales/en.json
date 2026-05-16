@@ -1468,6 +1468,7 @@
     "uploadAvatar": "Upload Avatar",
     "usageCount": "uses",
     "use": "Use",
+    "applying": "Applying...",
     "useFailed": "Failed to use persona preset",
     "useSuccess": "Switched to persona \"{{name}}\"",
     "using": "In Use"

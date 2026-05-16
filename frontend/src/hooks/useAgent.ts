@@ -722,19 +722,10 @@ export function useAgent(options?: UseAgentOptions): UseAgentReturn {
   );
 
   const stopGeneration = useCallback(async () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    setConnectionStatus("disconnected");
-    streamingMessageIdRef.current = null;
     isSendingRef.current = false;
-    isConnectingRef.current = false;
     setIsLoading(false);
     setIsInitializingSandbox(false);
     setSandboxError(null);
-    clearReconnectTimeout(reconnectTimeoutRef);
-    activeSubagentStackRef.current = [];
-    retryCountRef.current = 0;
 
     // Clear approvals immediately (don't wait for SSE cancel event which may never arrive)
     options?.onClearApprovals?.();

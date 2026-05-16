@@ -4,11 +4,15 @@ from typing import Any
 import pytest
 
 from src.agents.core import base as base_module
+from src.infra.task.exceptions import TaskInterruptedError
 
 
 class _FakePresenter:
     run_id = "run-usage-cancel"
     trace_id = "trace-usage-cancel"
+
+    def __init__(self) -> None:
+        self.emitted_events: list[dict[str, Any]] = []
 
     async def _ensure_trace(self) -> None:
         return None
@@ -21,6 +25,10 @@ class _FakePresenter:
 
     def done(self) -> dict[str, Any]:
         return {"event": "done", "data": {}}
+
+    async def emit(self, event: dict[str, Any]) -> dict[str, Any]:
+        self.emitted_events.append(event)
+        return event
 
 
 class _FakeGraph:
@@ -61,6 +69,7 @@ async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -
 
         async def emit_token_usage(self, **kwargs) -> bool:
             self.usage_calls.append(kwargs)
+            await self.presenter.emit({"event": "token:usage", "data": kwargs})
             return True
 
     async def no_interrupt(_run_id: str) -> None:
@@ -80,11 +89,12 @@ async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -
     agent._initialized = True
     agent._graph = _FakeGraph()
 
+    presenter = _FakePresenter()
     stream = agent._stream(
         "hello",
         "session-1",
         "user-1",
-        presenter=_FakePresenter(),
+        presenter=presenter,
         agent_options={"model_id": "model-config-1", "model": "openai/gpt-4.1"},
     )
 
@@ -103,3 +113,111 @@ async def test_cancelled_base_agent_emits_accumulated_token_usage(monkeypatch) -
             "model": "openai/gpt-4.1",
         }
     ]
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage", "done"]
+
+
+@pytest.mark.asyncio
+async def test_closed_inner_stream_persists_done_before_yielding_terminal_event(
+    monkeypatch,
+) -> None:
+    processed = asyncio.Event()
+
+    class FakeProcessor:
+        def __init__(self, presenter, base_url: str = "") -> None:
+            self.presenter = presenter
+            self.total_input_tokens = 0
+            self.total_output_tokens = 0
+            self.total_tokens = 0
+
+        async def process_event(self, event: dict[str, Any]) -> None:
+            self.total_input_tokens = 11
+            self.total_output_tokens = 4
+            processed.set()
+
+        async def finalize(self) -> None:
+            return None
+
+        async def emit_token_usage(self, **kwargs) -> bool:
+            await self.presenter.emit({"event": "token:usage", "data": kwargs})
+            return True
+
+    async def no_interrupt(_run_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(base_module, "AgentEventProcessor", FakeProcessor)
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt",
+        no_interrupt,
+    )
+
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = _FakeGraph()
+
+    presenter = _FakePresenter()
+    stream = agent._stream("hello", "session-1", "user-1", presenter=presenter)
+
+    assert await stream.__anext__() == {"event": "metadata", "data": {"run_id": "run-usage-cancel"}}
+
+    next_event = asyncio.create_task(stream.__anext__())
+    await asyncio.wait_for(processed.wait(), timeout=1)
+    await agent.close(presenter.run_id)
+
+    assert await next_event == {"event": "done", "data": {}}
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage", "done"]
+
+
+@pytest.mark.asyncio
+async def test_interrupted_inner_done_raises_after_persisting_terminal_events(
+    monkeypatch,
+) -> None:
+    processed = asyncio.Event()
+
+    class FakeProcessor:
+        def __init__(self, presenter, base_url: str = "") -> None:
+            self.presenter = presenter
+            self.total_input_tokens = 0
+            self.total_output_tokens = 0
+            self.total_tokens = 0
+
+        async def process_event(self, event: dict[str, Any]) -> None:
+            self.total_input_tokens = 11
+            self.total_output_tokens = 4
+            processed.set()
+
+        async def finalize(self) -> None:
+            return None
+
+        async def emit_token_usage(self, **kwargs) -> bool:
+            await self.presenter.emit({"event": "token:usage", "data": kwargs})
+            return True
+
+    async def no_interrupt(_run_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(base_module, "AgentEventProcessor", FakeProcessor)
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt",
+        no_interrupt,
+    )
+    monkeypatch.setattr(
+        "src.infra.task.manager.BackgroundTaskManager.check_interrupt_fast",
+        lambda _run_id: True,
+    )
+
+    agent = _TestAgent()
+    agent._initialized = True
+    agent._graph = _FakeGraph()
+
+    presenter = _FakePresenter()
+    stream = agent._stream("hello", "session-1", "user-1", presenter=presenter)
+
+    assert await stream.__anext__() == {"event": "metadata", "data": {"run_id": "run-usage-cancel"}}
+
+    next_event = asyncio.create_task(stream.__anext__())
+    await asyncio.wait_for(processed.wait(), timeout=1)
+    await agent.close(presenter.run_id)
+
+    with pytest.raises(TaskInterruptedError):
+        await next_event
+    assert [event["event"] for event in presenter.emitted_events] == ["token:usage", "done"]

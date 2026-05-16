@@ -29,6 +29,7 @@ _interrupted_runs: Dict[str, float] = {}
 # 清理参数
 _INTERRUPT_MAX_AGE = 600  # 10 分钟
 _INTERRUPT_CLEANUP_INTERVAL = 1000  # 每 1000 次检查触发一次清理
+_GRACEFUL_CANCEL_TIMEOUT = 2.0
 _interrupt_check_counter = 0
 
 
@@ -104,6 +105,7 @@ class TaskCancellation:
                         trace_id,
                         status="error",
                         metadata={"cancel_reason": "Task cancelled by user"},
+                        ensure_token_usage=False,
                     )
                     logger.info(
                         f"MongoDB trace status updated: trace_id={trace_id}, success={success}"
@@ -161,13 +163,32 @@ class TaskCancellation:
                 except Exception as e:
                     logger.warning(f"Failed to call agent.close: {e}")
 
+        task_to_cancel: asyncio.Task | None = None
         async with self._lock:
             if run_id in self._tasks:
                 task = self._tasks[run_id]
                 if not task.done():
+                    task_to_cancel = task
+
+        if task_to_cancel is not None:
+            try:
+                await asyncio.wait_for(
+                    asyncio.shield(task_to_cancel),
+                    timeout=_GRACEFUL_CANCEL_TIMEOUT,
+                )
+                logger.info(f"Task completed during graceful cancel: run_id={run_id}")
+            except asyncio.TimeoutError:
+                task = task_to_cancel
+                if not task.done():
                     task.cancel()
                     cancelled_locally = True
                     logger.info(f"Task cancelled locally: run_id={run_id}")
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # The task may finish with TaskInterruptedError or another terminal error
+                # during the graceful window; run_task handles persistence and status.
+                logger.info(f"Task finished during graceful cancel: run_id={run_id}")
 
         # 如果本地没有这个任务，或者需要广播给其他实例
         if publish:

@@ -459,6 +459,10 @@ class BaseGraphAgent(ABC):
                     item_type, item_data = item
 
                     if item_type == "done":
+                        if BackgroundTaskManager.check_interrupt_fast(presenter.run_id):
+                            raise TaskInterruptedError(
+                                f"Task interrupted: run_id={presenter.run_id}"
+                            )
                         break
 
                     if item_type == "error":
@@ -467,7 +471,10 @@ class BaseGraphAgent(ABC):
                     # 使用 AgentEventProcessor 处理事件
                     await event_processor.process_event(item_data)
 
-            except (asyncio.CancelledError, Exception):
+            except (asyncio.CancelledError, TaskInterruptedError):
+                await drain_event_queue()
+                raise
+            except Exception:
                 await drain_event_queue()
                 raise
             finally:
@@ -482,6 +489,7 @@ class BaseGraphAgent(ABC):
                 # Flush pending chunks and clear event_processor memory
                 await event_processor.finalize()
                 await emit_usage_once()
+                await presenter.emit(presenter.done())
 
             # 发送完成
             yield presenter.done()

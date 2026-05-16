@@ -11,11 +11,11 @@ test("retries an SSE close that arrives before a terminal stream event", () => {
   );
 });
 
-test("treats SSE close as terminal only after done, cancel, or error", () => {
+test("treats SSE close as terminal only after done or task error", () => {
   assert.equal(isTerminalSSEEvent("message:chunk"), false);
   assert.equal(isTerminalSSEEvent("done"), true);
   assert.equal(isTerminalSSEEvent("complete"), true);
-  assert.equal(isTerminalSSEEvent("user:cancel"), true);
+  assert.equal(isTerminalSSEEvent("user:cancel"), false);
   assert.equal(isTerminalSSEEvent("error", { type: "ValueError" }), true);
 
   assert.equal(

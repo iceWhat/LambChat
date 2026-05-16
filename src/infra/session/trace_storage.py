@@ -298,6 +298,7 @@ class TraceStorage:
         trace_id: str,
         status: str = "completed",
         metadata: Optional[Dict[str, Any]] = None,
+        ensure_token_usage: bool = True,
     ) -> bool:
         """
         标记 trace 完成
@@ -322,7 +323,8 @@ class TraceStorage:
                 update["$set"][f"metadata.{key}"] = value
 
         try:
-            await self._ensure_token_usage_event(trace_id)
+            if ensure_token_usage:
+                await self._ensure_token_usage_event(trace_id)
             result = await self.collection.update_one(
                 {"trace_id": trace_id},
                 update,

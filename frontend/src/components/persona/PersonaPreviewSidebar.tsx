@@ -1,4 +1,4 @@
-import { Sparkles, Copy, Tag, FileText, Zap } from "lucide-react";
+import { Sparkles, Copy, Tag, FileText, Zap, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
@@ -14,8 +14,9 @@ interface PersonaPreviewSidebarProps {
   preset: PersonaPreset;
   isSelected: boolean;
   isMutating: boolean;
+  isUsingPreset: boolean;
   onClose: () => void;
-  onUsePreset: (preset: PersonaPreset) => void;
+  onUsePreset: (preset: PersonaPreset) => Promise<void>;
   onCopyPreset: (preset: PersonaPreset) => void;
 }
 
@@ -23,6 +24,7 @@ export function PersonaPreviewSidebar({
   preset,
   isSelected,
   isMutating,
+  isUsingPreset,
   onClose,
   onUsePreset,
   onCopyPreset,
@@ -80,18 +82,25 @@ export function PersonaPreviewSidebar({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            disabled={isMutating || isSelected}
+            disabled={isMutating || isSelected || isUsingPreset}
+            aria-busy={isUsingPreset}
             onClick={() => onUsePreset(preset)}
             className={`pps-card__action flex-1 justify-center py-2.5 text-xs font-semibold ${
               isSelected
                 ? "pps-card__action--active"
                 : "pps-card__action--primary"
-            }`}
+            } ${isUsingPreset ? "pps-card__action--loading" : ""}`}
           >
-            <Sparkles size={14} />
-            {isSelected
-              ? t("personaPresets.using", "使用中")
-              : t("personaPresets.use", "使用")}
+            {isUsingPreset ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            {isUsingPreset
+              ? t("personaPresets.applying", "使用中...")
+              : isSelected
+                ? t("personaPresets.using", "使用中")
+                : t("personaPresets.use", "使用")}
           </button>
           {preset.scope === "global" && (
             <button

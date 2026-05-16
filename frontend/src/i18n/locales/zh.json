@@ -1469,6 +1469,7 @@
     "uploadAvatar": "上传头像",
     "usageCount": "次使用",
     "use": "使用",
+    "applying": "使用中...",
     "useFailed": "使用角色预设失败",
     "useSuccess": "已切换到角色「{{name}}」",
     "using": "使用中"
