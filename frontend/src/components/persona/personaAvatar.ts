@@ -1,3 +1,5 @@
+import { getFluentEmojiCDN } from "@lobehub/fluent-emoji";
+
 export type PersonaAvatarIconKey =
   | "sparkles"
   | "academic"
@@ -55,4 +57,23 @@ export function isPersonaImageAvatar(
   avatar: string | null | undefined,
 ): avatar is string {
   return !!avatar && !avatar.startsWith(PERSONA_AVATAR_ICON_PREFIX);
+}
+
+const EMOJI_RE = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/u;
+
+export function isEmojiAvatar(
+  avatar: string | null | undefined,
+): avatar is string {
+  if (
+    !avatar ||
+    avatar.startsWith(PERSONA_AVATAR_ICON_PREFIX) ||
+    avatar.startsWith("/") ||
+    avatar.startsWith("http")
+  )
+    return false;
+  return EMOJI_RE.test(avatar) && avatar.length <= 8;
+}
+
+export function getEmojiAvatarUrl(emoji: string): string {
+  return getFluentEmojiCDN(emoji, { type: "anim" });
 }

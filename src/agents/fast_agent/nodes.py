@@ -245,7 +245,7 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     logger.info("[FastAgent] Starting astream_events")
     # 流式处理事件（不重试，直接调用）
     async for event in inner_graph.astream_events(
-        {"messages": [new_message], "files": {}},
+        {"messages": [new_message]},
         inner_config,
         version="v2",
     ):

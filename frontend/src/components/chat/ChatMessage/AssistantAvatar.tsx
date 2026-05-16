@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import {
   getPersonaAvatarIcon,
   isPersonaImageAvatar,
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
   type PersonaAvatarIconKey,
 } from "../../persona/personaAvatar";
 import {
@@ -86,6 +88,18 @@ export function AssistantAvatar({
       >
         <Icon size={personaSize} style={{ color: builtInIcon.color }} />
       </div>
+    );
+  }
+
+  if (isEmojiAvatar(personaAvatar)) {
+    return (
+      <img
+        src={getEmojiAvatarUrl(personaAvatar)}
+        alt="Assistant"
+        width={personaSize + 6}
+        height={personaSize + 6}
+        className={className}
+      />
     );
   }
 

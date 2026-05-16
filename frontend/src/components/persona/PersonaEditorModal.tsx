@@ -35,6 +35,8 @@ import {
   getPersonaAvatarIconValue,
   getPersonaAvatarIcons,
   isPersonaImageAvatar,
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
   type PersonaAvatarIconKey,
 } from "./personaAvatar";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
@@ -373,6 +375,25 @@ export function PersonaEditorModal({
                     onError={() =>
                       setDraft((prev) => ({ ...prev, avatar: "" }))
                     }
+                  />
+                  <button
+                    type="button"
+                    className="ppe-avatar-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDraft((prev) => ({ ...prev, avatar: "" }));
+                    }}
+                    title={t("common.remove", "移除")}
+                  >
+                    <X size={12} />
+                  </button>
+                </>
+              ) : isEmojiAvatar(draft.avatar) ? (
+                <>
+                  <PersonaAvatarImage
+                    avatar={getEmojiAvatarUrl(draft.avatar)}
+                    alt=""
+                    className="ppe-avatar-img"
                   />
                   <button
                     type="button"

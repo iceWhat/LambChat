@@ -288,11 +288,13 @@ class PersonaPresetStorage:
     @staticmethod
     def _preference_sort_key(doc: dict[str, Any]) -> tuple:
         updated = doc.get("updated_at")
+        created = doc.get("created_at")
         return (
             0 if doc.get("is_pinned") else 1,
             0 if doc.get("is_favorite") else 1,
-            -int(doc.get("usage_count", 0) or 0),
             -(updated.timestamp() if updated else 0),
+            -(created.timestamp() if created else 0),
+            -int(doc.get("usage_count", 0) or 0),
         )
 
     @staticmethod

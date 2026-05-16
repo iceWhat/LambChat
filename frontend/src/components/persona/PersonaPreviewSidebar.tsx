@@ -2,7 +2,11 @@ import { Sparkles, Copy, Tag, FileText, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
-import { isPersonaImageAvatar } from "./personaAvatar";
+import {
+  isPersonaImageAvatar,
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
+} from "./personaAvatar";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset } from "../../types";
 
@@ -51,9 +55,14 @@ export function PersonaPreviewSidebar({
             background: `linear-gradient(135deg, ${gradient[0]}, ${gradient[1]})`,
           }}
         >
-          {isPersonaImageAvatar(preset.avatar) ? (
+          {isPersonaImageAvatar(preset.avatar) ||
+          isEmojiAvatar(preset.avatar) ? (
             <PersonaAvatarImage
-              avatar={preset.avatar}
+              avatar={
+                isEmojiAvatar(preset.avatar)
+                  ? getEmojiAvatarUrl(preset.avatar)
+                  : preset.avatar
+              }
               alt=""
               className="h-5 w-5 rounded object-cover"
             />
@@ -109,9 +118,14 @@ export function PersonaPreviewSidebar({
           />
           <div className="absolute -bottom-7 left-5 sm:left-6 flex items-end gap-3">
             <div className="pps-card__avatar relative z-10 !w-14 !h-14 !rounded-2xl !border-[2.5px] border-white dark:border-[var(--theme-bg-card)] shadow-lg">
-              {isPersonaImageAvatar(preset.avatar) ? (
+              {isPersonaImageAvatar(preset.avatar) ||
+              isEmojiAvatar(preset.avatar) ? (
                 <PersonaAvatarImage
-                  avatar={preset.avatar}
+                  avatar={
+                    isEmojiAvatar(preset.avatar)
+                      ? getEmojiAvatarUrl(preset.avatar)
+                      : preset.avatar
+                  }
                   alt=""
                   className="pps-card__avatar-img"
                 />

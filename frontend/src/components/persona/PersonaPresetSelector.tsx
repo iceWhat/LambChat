@@ -13,7 +13,11 @@ import {
 import { useTranslation } from "react-i18next";
 import { nameToGradient } from "../panels/MarketplacePanel/constants";
 import type { PersonaPreset, PersonaPresetSnapshot } from "../../types";
-import { isPersonaImageAvatar } from "./personaAvatar";
+import {
+  isPersonaImageAvatar,
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
+} from "./personaAvatar";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
 import { PersonaPreviewSidebar } from "./PersonaPreviewSidebar";
 import { Pagination } from "../common/Pagination";
@@ -334,9 +338,14 @@ export function PersonaPresetSelector({
                       {/* Title row */}
                       <div className="flex items-start gap-2.5">
                         <div className="pps-card__avatar shrink-0">
-                          {isPersonaImageAvatar(preset.avatar) ? (
+                          {isPersonaImageAvatar(preset.avatar) ||
+                          isEmojiAvatar(preset.avatar) ? (
                             <PersonaAvatarImage
-                              avatar={preset.avatar}
+                              avatar={
+                                isEmojiAvatar(preset.avatar)
+                                  ? getEmojiAvatarUrl(preset.avatar)
+                                  : preset.avatar
+                              }
                               alt=""
                               className="pps-card__avatar-img"
                               onError={(e) => {

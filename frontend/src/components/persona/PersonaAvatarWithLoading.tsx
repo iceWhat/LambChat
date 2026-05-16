@@ -4,7 +4,11 @@ import {
   PersonaAvatarIcon,
   PersonaAvatarImage,
 } from "../persona/PersonaAvatarIcon";
-import { isPersonaImageAvatar } from "../persona/personaAvatar";
+import {
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
+  isPersonaImageAvatar,
+} from "../persona/personaAvatar";
 
 interface PersonaAvatarWithLoadingProps {
   preset: PersonaPreset;
@@ -24,6 +28,8 @@ export function PersonaAvatarWithLoading({
   style,
 }: PersonaAvatarWithLoadingProps) {
   const isImage = isPersonaImageAvatar(preset.avatar);
+  const emojiAvatar = isEmojiAvatar(preset.avatar) ? preset.avatar : null;
+  const isEmoji = !!emojiAvatar;
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -32,14 +38,30 @@ export function PersonaAvatarWithLoading({
       className={className}
       style={style}
       data-avatar-state={
-        isImage && !imgLoaded && !imgError
+        (isImage || isEmoji) && !imgLoaded && !imgError
           ? "loading"
-          : isImage && imgLoaded
+          : (isImage || isEmoji) && imgLoaded
             ? "loaded"
             : "ready"
       }
     >
-      {isImage ? (
+      {isEmoji ? (
+        !imgError ? (
+          <PersonaAvatarImage
+            avatar={getEmojiAvatarUrl(emojiAvatar!)}
+            alt=""
+            className={imgClassName}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <PersonaAvatarIcon
+            avatar={null}
+            primaryTag={preset.tags?.[0]}
+            size={iconSize}
+          />
+        )
+      ) : isImage ? (
         !imgError ? (
           <PersonaAvatarImage
             avatar={preset.avatar}

@@ -8,6 +8,7 @@ interface WelcomePersonaLike {
   last_used_at?: string | null;
   usage_count?: number;
   updated_at?: string;
+  created_at?: string;
   starter_prompts?: PersonaStarterPrompt[];
 }
 
@@ -107,9 +108,10 @@ export function compareWelcomePersonas<T extends WelcomePersonaLike>(
   return (
     Number(Boolean(b.is_pinned)) - Number(Boolean(a.is_pinned)) ||
     Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite)) ||
+    timeValue(b.updated_at) - timeValue(a.updated_at) ||
+    timeValue(b.created_at) - timeValue(a.created_at) ||
     timeValue(b.last_used_at) - timeValue(a.last_used_at) ||
-    Number(b.usage_count || 0) - Number(a.usage_count || 0) ||
-    timeValue(b.updated_at) - timeValue(a.updated_at)
+    Number(b.usage_count || 0) - Number(a.usage_count || 0)
   );
 }
 

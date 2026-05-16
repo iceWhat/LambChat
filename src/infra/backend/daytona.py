@@ -10,6 +10,8 @@
 - 所有同步 SDK 调用通过 asyncio.to_thread 在线程池中执行，避免阻塞事件循环。
 """
 
+from __future__ import annotations
+
 import asyncio
 import os
 import shlex

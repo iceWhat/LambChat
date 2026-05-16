@@ -2,7 +2,11 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Check, Copy, Pencil, Trash2, Pin, Star } from "lucide-react";
 import type { PersonaPreset } from "../../types";
 import { PersonaAvatarIcon, PersonaAvatarImage } from "./PersonaAvatarIcon";
-import { isPersonaImageAvatar } from "./personaAvatar";
+import {
+  isPersonaImageAvatar,
+  isEmojiAvatar,
+  getEmojiAvatarUrl,
+} from "./personaAvatar";
 import { getPersonaPresetCapabilities } from "./personaPresetAccess";
 import { getCategoryIcon, nameToGradient } from "../common/cardUtils";
 
@@ -99,10 +103,15 @@ export function PersonaPresetCard({
       <div className="flex flex-1 flex-col p-4 pt-5">
         {/* Title row with avatar or icon */}
         <div className="flex items-start gap-3">
-          {isPersonaImageAvatar(preset.avatar) ? (
+          {isPersonaImageAvatar(preset.avatar) ||
+          isEmojiAvatar(preset.avatar) ? (
             <div className="scb__avatar-ring shrink-0">
               <PersonaAvatarImage
-                avatar={preset.avatar}
+                avatar={
+                  isEmojiAvatar(preset.avatar)
+                    ? getEmojiAvatarUrl(preset.avatar)
+                    : preset.avatar
+                }
                 alt=""
                 className="scb__avatar-img"
                 onError={(e) => {

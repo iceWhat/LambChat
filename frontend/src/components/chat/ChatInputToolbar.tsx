@@ -6,6 +6,7 @@ import {
   PersonaAvatarIcon,
   PersonaAvatarImage,
 } from "../persona/PersonaAvatarIcon";
+import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
 import type { FileCategory } from "../../types";
 import type { UploadLimits } from "../../hooks/useFileUpload";
 
@@ -131,9 +132,16 @@ export function ChatInputToolbar({
           >
             <div className="flex flex-row items-center gap-1.5 min-w-0">
               <span className="relative w-[18px] h-[18px] shrink-0 inline-flex items-center justify-center">
-                {personaAvatar?.avatar ? (
+                {personaAvatar?.avatar &&
+                (personaAvatar.avatar.startsWith("http") ||
+                  personaAvatar.avatar.startsWith("/") ||
+                  isEmojiAvatar(personaAvatar.avatar)) ? (
                   <PersonaAvatarImage
-                    avatar={personaAvatar.avatar}
+                    avatar={
+                      isEmojiAvatar(personaAvatar.avatar)
+                        ? getEmojiAvatarUrl(personaAvatar.avatar)
+                        : personaAvatar.avatar
+                    }
                     alt=""
                     className="w-[18px] h-[18px] rounded-full object-cover group-hover:opacity-0 transition-opacity"
                     onError={(e) => {
