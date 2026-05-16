@@ -117,3 +117,27 @@ test("conversation image entry points use the session gallery when available", (
   assert.match(fileRevealSource, /useSessionImageGallery/);
   assert.match(fileRevealSource, /sessionImageGallery\?\.openImage/);
 });
+
+test("session image gallery is independent from RevealArtifactsSummary", () => {
+  const sessionGallerySource = readFileSync(
+    new URL("../sessionImageGallery.tsx", import.meta.url),
+    "utf8",
+  );
+  const revealSummarySource = readFileSync(
+    new URL("../RevealArtifactsSummary.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.doesNotMatch(sessionGallerySource, /RevealArtifactsSummary/);
+  assert.doesNotMatch(sessionGallerySource, /collectRevealArtifacts/);
+  assert.doesNotMatch(sessionGallerySource, /buildRevealArtifactTree/);
+  assert.doesNotMatch(
+    sessionGallerySource,
+    /getRevealArtifactImagePreviewItems/,
+  );
+  assert.doesNotMatch(sessionGallerySource, /from "\.\/revealArtifacts"/);
+
+  assert.doesNotMatch(revealSummarySource, /useSessionImageGallery/);
+  assert.doesNotMatch(revealSummarySource, /SessionImageGalleryProvider/);
+  assert.doesNotMatch(revealSummarySource, /sessionImageGallery/);
+});
