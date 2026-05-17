@@ -533,16 +533,18 @@ def create_feishu_message_handler(
             flush=True,
         )
 
+        original_message_id = metadata.get("message_id")
+        received_reaction_id = metadata.get("reaction_id")
+        instance_id = metadata.get("instance_id")
+        delivery_chat_id = chat_id
+
         try:
             logger.info(
                 f"[Feishu] Processing message from {sender_id} for user {user_id}: {content[:50]}..."
             )
 
-            original_message_id = metadata.get("message_id")
             sender_id_from_msg = metadata.get("sender_id")
             chat_type_from_msg = metadata.get("chat_type")
-            instance_id = metadata.get("instance_id")
-            delivery_chat_id = chat_id
             reply_to_message_id = original_message_id
             if chat_type_from_msg == "p2p":
                 delivery_chat_id = metadata.get("reply_chat_id") or chat_id
@@ -753,6 +755,17 @@ def create_feishu_message_handler(
                 )
             except Exception:
                 pass
+        finally:
+            if original_message_id and received_reaction_id:
+                try:
+                    await manager.delete_reaction(
+                        user_id,
+                        original_message_id,
+                        received_reaction_id,
+                        instance_id,
+                    )
+                except Exception as e:
+                    logger.debug(f"[Feishu] Failed to remove received reaction: {e}")
 
     return feishu_message_handler
 

@@ -22,10 +22,15 @@
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.webp" width="280" alt="登录"><br>**登录** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="聊天"><br>**聊天** | <img src="docs/images/best-practice/chat-response.webp" width="280" alt="流式"><br>**流式输出** |
-| <img src="docs/images/best-practice/skills-page.webp" width="280" alt="技能"><br>**技能** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP 配置** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="分享"><br>**分享** |
-| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="角色"><br>**角色管理** | <img src="docs/images/best-practice/settings-page.webp" width="280" alt="设置"><br>**系统设置** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="反馈"><br>**反馈** |
-| <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="移动端"><br>**移动端** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="平板"><br>**平板端** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="分享页"><br>**会话分享** |
+| <img src="docs/images/best-practice/login-page.webp" width="280" alt="登录"><br>**登录** | <img src="docs/images/best-practice/register-page.webp" width="280" alt="注册"><br>**注册** | <img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="重置密码"><br>**重置密码** |
+| <img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="邮箱验证"><br>**邮箱验证** | <img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="注册待审核"><br>**注册待审核** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="聊天"><br>**聊天** |
+| <img src="docs/images/best-practice/chat-response.webp" width="280" alt="流式"><br>**流式输出** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="分享"><br>**分享** | <img src="docs/images/best-practice/skills-page.webp" width="280" alt="技能"><br>**技能** |
+| <img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="技能市场"><br>**技能市场** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP 配置** | <img src="docs/images/best-practice/agents-page.webp" width="280" alt="智能体"><br>**智能体** |
+| <img src="docs/images/best-practice/models-page.webp" width="280" alt="模型"><br>**模型** | <img src="docs/images/best-practice/channels-page.webp" width="280" alt="渠道"><br>**渠道** | <img src="docs/images/best-practice/files-page.webp" width="280" alt="文件"><br>**文件** |
+| <img src="docs/images/best-practice/persona-page.webp" width="280" alt="人格"><br>**人格** | <img src="docs/images/best-practice/memory-page.webp" width="280" alt="记忆"><br>**记忆** | <img src="docs/images/best-practice/notifications-page.webp" width="280" alt="通知"><br>**通知** |
+| <img src="docs/images/best-practice/settings-page.webp" width="280" alt="设置"><br>**系统设置** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="反馈"><br>**反馈** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="分享页"><br>**会话分享** |
+| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="角色"><br>**角色管理** | <img src="docs/images/best-practice/users-page.webp" width="280" alt="用户"><br>**用户管理** | <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="移动端"><br>**移动端** |
+| <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="平板"><br>**平板端** |  |  |
 
 ## 🌟 为什么选择 LambChat
 

@@ -22,10 +22,15 @@
 
 | | | |
 |:---:|:---:|:---:|
-| <img src="docs/images/best-practice/login-page.webp" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="Chat"><br>**Chat** | <img src="docs/images/best-practice/chat-response.webp" width="280" alt="Streaming"><br>**Streaming** |
-| <img src="docs/images/best-practice/skills-page.webp" width="280" alt="Skills"><br>**Skills** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="Share"><br>**Share** |
-| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/settings-page.webp" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="Feedback"><br>**Feedback** |
-| <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="Mobile"><br>**Mobile** | <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="Tablet"><br>**Tablet** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="Shared"><br>**Shared Session** |
+| <img src="docs/images/best-practice/login-page.webp" width="280" alt="Login"><br>**Login** | <img src="docs/images/best-practice/register-page.webp" width="280" alt="Register"><br>**Register** | <img src="docs/images/best-practice/reset-request-page.webp" width="280" alt="Password Reset"><br>**Password Reset** |
+| <img src="docs/images/best-practice/verify-email-page.webp" width="280" alt="Email Verification"><br>**Email Verification** | <img src="docs/images/best-practice/registration-pending-page.webp" width="280" alt="Registration Pending"><br>**Registration Pending** | <img src="docs/images/best-practice/chat-home.webp" width="280" alt="Chat"><br>**Chat** |
+| <img src="docs/images/best-practice/chat-response.webp" width="280" alt="Streaming"><br>**Streaming** | <img src="docs/images/best-practice/share-dialog.webp" width="280" alt="Share"><br>**Share** | <img src="docs/images/best-practice/skills-page.webp" width="280" alt="Skills"><br>**Skills** |
+| <img src="docs/images/best-practice/marketplace-page.webp" width="280" alt="Marketplace"><br>**Marketplace** | <img src="docs/images/best-practice/mcp-page.webp" width="280" alt="MCP"><br>**MCP Config** | <img src="docs/images/best-practice/agents-page.webp" width="280" alt="Agents"><br>**Agents** |
+| <img src="docs/images/best-practice/models-page.webp" width="280" alt="Models"><br>**Models** | <img src="docs/images/best-practice/channels-page.webp" width="280" alt="Channels"><br>**Channels** | <img src="docs/images/best-practice/files-page.webp" width="280" alt="Files"><br>**Files** |
+| <img src="docs/images/best-practice/persona-page.webp" width="280" alt="Persona"><br>**Persona** | <img src="docs/images/best-practice/memory-page.webp" width="280" alt="Memory"><br>**Memory** | <img src="docs/images/best-practice/notifications-page.webp" width="280" alt="Notifications"><br>**Notifications** |
+| <img src="docs/images/best-practice/settings-page.webp" width="280" alt="Settings"><br>**Settings** | <img src="docs/images/best-practice/feedback-page.webp" width="280" alt="Feedback"><br>**Feedback** | <img src="docs/images/best-practice/shared-page.webp" width="280" alt="Shared"><br>**Shared Session** |
+| <img src="docs/images/best-practice/roles-page.webp" width="280" alt="Roles"><br>**Roles** | <img src="docs/images/best-practice/users-page.webp" width="280" alt="Users"><br>**Users** | <img src="docs/images/best-practice/mobile-view.webp" width="200" alt="Mobile"><br>**Mobile** |
+| <img src="docs/images/best-practice/tablet-view.webp" width="280" alt="Tablet"><br>**Tablet** |  |  |
 
 ## 🌟 Why LambChat
 

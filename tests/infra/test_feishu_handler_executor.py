@@ -415,6 +415,59 @@ async def test_feishu_handler_applies_channel_persona_preset(
 
 
 @pytest.mark.asyncio
+async def test_feishu_handler_deletes_received_reaction_when_processing_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_task_manager = _FakeTaskManager()
+    fake_manager = _FakeReactionManager()
+
+    async def _fake_execute_feishu_agent(**kwargs: Any):
+        yield {"event": "done", "data": {}}
+
+    async def _no_op_process_events(**kwargs: Any) -> None:
+        return None
+
+    class _CaptureCollector:
+        def __init__(self, **_kwargs: Any) -> None:
+            return None
+
+        async def finalize_stream_message(self) -> bool:
+            return False
+
+        async def send_card_message(self) -> bool:
+            return True
+
+        async def upload_and_send_files(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        feishu_handler,
+        "_get_feishu_session_id",
+        lambda chat_id: _async_return(f"feishu_{chat_id}"),
+    )
+    _install_fake_task_manager_module(monkeypatch, fake_task_manager)
+    monkeypatch.setattr(feishu_handler, "execute_feishu_agent", _fake_execute_feishu_agent)
+    monkeypatch.setattr(feishu_handler, "_process_events", _no_op_process_events)
+    monkeypatch.setattr(feishu_handler, "FeishuResponseCollector", _CaptureCollector)
+
+    handler = feishu_handler.create_feishu_message_handler(fake_manager, default_agent="search")
+
+    await handler(
+        user_id="user-1",
+        sender_id="ou_sender",
+        chat_id="oc_chat",
+        content="hello",
+        metadata={
+            "message_id": "om_original",
+            "reaction_id": "reaction-1",
+            "instance_id": "instance-1",
+        },
+    )
+
+    assert fake_manager.delete_calls == [("user-1", "om_original", "reaction-1")]
+
+
+@pytest.mark.asyncio
 async def test_feishu_handler_uses_event_chat_id_for_p2p_delivery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

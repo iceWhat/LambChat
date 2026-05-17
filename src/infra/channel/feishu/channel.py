@@ -595,8 +595,9 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
                 )
                 return
 
-            # Add reaction to indicate "seen"
-            await self._add_reaction(message_id, self.config.react_emoji)
+            # Add reaction to indicate the message is being handled; the handler
+            # receives the reaction id so it can remove it after processing.
+            reaction_id = await self._add_reaction(message_id, self.config.react_emoji)
 
             # Parse content and extract attachments
             content_parts = []
@@ -720,6 +721,8 @@ class FeishuChannel(FeishuSenderMixin, BaseChannel):
                 "sender_id": sender_id,
                 "reply_chat_id": chat_id,
             }
+            if reaction_id:
+                metadata["reaction_id"] = reaction_id
             if root_id:
                 metadata["root_id"] = root_id
             if attachments:

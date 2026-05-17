@@ -151,6 +151,36 @@ async def test_mark_message_processed_skips_redis_after_local_cache_hit(
 
 
 @pytest.mark.asyncio
+async def test_message_metadata_includes_received_reaction_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    channel = _build_channel()
+    captured: dict[str, object] = {}
+
+    async def _mark_processed(_message_id: str) -> bool:
+        return True
+
+    async def _add_reaction(_message_id: str, _emoji: str) -> str:
+        return "reaction-1"
+
+    async def _handle_message(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(channel, "_mark_message_processed", _mark_processed)
+    monkeypatch.setattr(channel, "_add_reaction", _add_reaction)
+    monkeypatch.setattr(channel, "_handle_message", _handle_message)
+
+    await channel._on_message(
+        _build_message_event(
+            message_type="text",
+            content='{"text":"hello"}',
+        )
+    )
+
+    assert captured["metadata"]["reaction_id"] == "reaction-1"
+
+
+@pytest.mark.asyncio
 async def test_start_imports_lark_sdk_off_event_loop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
