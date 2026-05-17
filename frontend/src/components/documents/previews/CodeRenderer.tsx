@@ -31,7 +31,7 @@ const CodeRenderer = memo(function CodeRenderer({
   }, [content, t]);
 
   return (
-    <div className="relative h-full overflow-auto bg-stone-100 dark:bg-[#1e1e1e] [&_.cm-editor]:h-full [&_.cm-scroller]:!overflow-auto">
+    <div className="relative h-full overflow-auto bg-white dark:bg-[#282c34]">
       <DeferredCodeMirrorViewer
         value={displayContent}
         language={language}

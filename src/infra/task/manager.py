@@ -93,6 +93,7 @@ class BackgroundTaskManager:
             heartbeat=self._heartbeat,
             ensure_executor=self._ensure_executor,
             submit_task=self.submit,
+            submit_recovery_task=self._submit_recovery_task,
             mark_run_failed=self._mark_run_failed,
         )
 
@@ -121,6 +122,18 @@ class BackgroundTaskManager:
             error_message,
             error_code=error_code,
         )
+
+    async def _submit_recovery_task(self, **kwargs: Any) -> Tuple[str, str]:
+        executor_key = str(kwargs.pop("executor_key", "agent_stream"))
+        if settings.TASK_BACKEND == "arq":
+            kwargs.pop("executor", None)
+            return await self.submit_arq(
+                executor_key=executor_key,
+                **kwargs,
+            )
+        kwargs.pop("trace_id", None)
+        kwargs.pop("user_message_written", None)
+        return await self.submit(**kwargs)
 
     async def _submit_recovery_run(
         self,

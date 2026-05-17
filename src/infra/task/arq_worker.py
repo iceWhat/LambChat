@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from src.infra.logging import get_logger
@@ -53,7 +54,18 @@ async def run_agent_task(ctx: dict[str, Any], run_id: str) -> None:
             disabled_mcp_tools=payload.get("disabled_mcp_tools"),
             display_message=payload.get("display_message"),
         )
-    finally:
+    except asyncio.CancelledError:
+        await task_manager._mark_run_recoverable_failure(
+            payload["session_id"],
+            run_id,
+            "Server shutdown",
+        )
+        await payload_store.delete(run_id)
+        raise
+    except Exception:
+        logger.warning("Keeping arq task payload for retry: run_id=%s", run_id)
+        raise
+    else:
         await payload_store.delete(run_id)
 
 

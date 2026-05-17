@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { useInView } from "react-intersection-observer";
 import { sessionApi } from "../../services/api/session";
 import { getSessionTitle } from "../panels/sessionHelpers";
 import { APP_NAME } from "../../constants";
 import type { BackendSession } from "../../services/api/session";
 import { formatDateTime } from "../../utils/datetime";
+import {
+  getNextRecentChatsState,
+  type RecentChatsPaginationState,
+} from "./recentChatsPagination";
 
 interface RecentChatsDialogProps {
   isOpen: boolean;
@@ -14,6 +19,14 @@ interface RecentChatsDialogProps {
   currentSessionId?: string | null;
   anchorEl: HTMLElement | null;
 }
+
+const PAGE_SIZE = 20;
+
+const initialPaginationState: RecentChatsPaginationState = {
+  sessions: [],
+  skip: 0,
+  hasMore: false,
+};
 
 export function RecentChatsDialog({
   isOpen,
@@ -24,28 +37,114 @@ export function RecentChatsDialog({
 }: RecentChatsDialogProps) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<BackendSession[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({
     top: 0,
     left: 0,
   });
+  const paginationRef = useRef<RecentChatsPaginationState>(
+    initialPaginationState,
+  );
+  const isFetchingRef = useRef(false);
 
-  const loadSessions = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await sessionApi.list({ limit: 20 });
-      const list = Array.isArray(response) ? response : response.sessions;
-      setSessions(list);
-    } catch (error) {
-      console.error("Failed to load recent sessions:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const { ref: loadMoreRef, inView } = useInView({
+    root: scrollRoot ?? undefined,
+    rootMargin: "80px 0px",
+    threshold: 0.1,
+  });
+
+  const applyPaginationState = useCallback(
+    (next: RecentChatsPaginationState) => {
+      paginationRef.current = next;
+      setSessions(next.sessions);
+      setHasMore(next.hasMore);
+    },
+    [],
+  );
+
+  const loadSessions = useCallback(
+    async (reset = false) => {
+      if (isFetchingRef.current) return;
+
+      const current = reset ? initialPaginationState : paginationRef.current;
+      if (!reset && !current.hasMore) return;
+
+      isFetchingRef.current = true;
+      if (reset) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
+      }
+
+      try {
+        const response = await sessionApi.list({
+          limit: PAGE_SIZE,
+          skip: reset ? 0 : current.skip,
+        });
+        const list = Array.isArray(response) ? response : response.sessions;
+        const next = getNextRecentChatsState({
+          previousSessions: current.sessions,
+          pageSessions: list,
+          previousSkip: current.skip,
+          reset,
+          hasMore: Array.isArray(response) ? false : response.has_more,
+        });
+        applyPaginationState(next);
+      } catch (error) {
+        console.error("Failed to load recent sessions:", error);
+      } finally {
+        isFetchingRef.current = false;
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
+    },
+    [applyPaginationState],
+  );
+
+  const resetSessions = useCallback(() => {
+    applyPaginationState(initialPaginationState);
+    void loadSessions(true);
+  }, [applyPaginationState, loadSessions]);
 
   useEffect(() => {
-    if (isOpen) loadSessions();
-  }, [isOpen, loadSessions]);
+    if (isOpen) resetSessions();
+  }, [isOpen, resetSessions]);
+
+  useEffect(() => {
+    if (isOpen && inView && hasMore && !isLoading && !isLoadingMore) {
+      void loadSessions(false);
+    }
+  }, [hasMore, inView, isLoading, isLoadingMore, isOpen, loadSessions]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      isFetchingRef.current = false;
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [isOpen]);
+
+  const renderLoadingRows = (count: number) => (
+    <div className="px-4 py-2 space-y-1">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-0 py-2.5">
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div
+              className="skeleton-line h-[13px] rounded-md"
+              style={{ width: i % 2 === 0 ? "75%" : "60%" }}
+            />
+            <div
+              className="skeleton-line h-[11px] rounded-md !opacity-50"
+              style={{ width: "40%" }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   useEffect(() => {
     if (!isOpen || !anchorEl) return;
@@ -121,63 +220,55 @@ export function RecentChatsDialog({
       </div>
 
       {/* Session list */}
-      <div className="overflow-y-auto max-h-[420px] py-1">
+      <div ref={setScrollRoot} className="overflow-y-auto max-h-[420px] py-1">
         {isLoading ? (
-          <div className="px-4 py-2 space-y-1">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 px-0 py-2.5">
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div
-                    className="skeleton-line h-[13px] rounded-md"
-                    style={{ width: i % 2 === 0 ? "75%" : "60%" }}
-                  />
-                  <div
-                    className="skeleton-line h-[11px] rounded-md !opacity-50"
-                    style={{ width: "40%" }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          renderLoadingRows(6)
         ) : sessions.length === 0 ? (
           <div className="text-center py-10 text-xs text-stone-400 dark:text-stone-500">
             {t("sidebar.noSessions") || "No recent chats"}
           </div>
         ) : (
-          sessions.map((session) => (
-            <button
-              key={session.id}
-              onClick={() => {
-                onSelectSession(session.id);
-                onClose();
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group ${
-                session.id === currentSessionId
-                  ? "bg-stone-100 dark:bg-stone-800/60"
-                  : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
-              }`}
-            >
-              <div className="min-w-0 flex-1">
-                <div
-                  className={`truncate text-[13px] ${
-                    session.id === currentSessionId
-                      ? "text-stone-800 dark:text-stone-100 font-medium"
-                      : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
-                  }`}
-                >
-                  {getSessionTitle(session, t)}
+          <>
+            {sessions.map((session) => (
+              <button
+                key={session.id}
+                onClick={() => {
+                  onSelectSession(session.id);
+                  onClose();
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 transition-colors text-left group ${
+                  session.id === currentSessionId
+                    ? "bg-stone-100 dark:bg-stone-800/60"
+                    : "hover:bg-stone-100 dark:hover:bg-stone-800/40"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`truncate text-[13px] ${
+                      session.id === currentSessionId
+                        ? "text-stone-800 dark:text-stone-100 font-medium"
+                        : "text-stone-600 dark:text-stone-300 group-hover:text-stone-700 dark:group-hover:text-stone-200"
+                    }`}
+                  >
+                    {getSessionTitle(session, t)}
+                  </div>
+                  <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
+                    {formatDateTime(session.updated_at)}
+                  </div>
                 </div>
-                <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-0.5">
-                  {formatDateTime(session.updated_at)}
-                </div>
+                {session.unread_count != null && session.unread_count > 0 && (
+                  <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+                    {session.unread_count}
+                  </span>
+                )}
+              </button>
+            ))}
+            {hasMore && (
+              <div ref={loadMoreRef} className="min-h-8">
+                {isLoadingMore && renderLoadingRows(2)}
               </div>
-              {session.unread_count != null && session.unread_count > 0 && (
-                <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
-                  {session.unread_count}
-                </span>
-              )}
-            </button>
-          ))
+            )}
+          </>
         )}
       </div>
     </div>,

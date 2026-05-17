@@ -1,6 +1,6 @@
 import { Wrench, Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, LoadingSpinner } from "../../common";
+import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import { ToolResultContent } from "./items/McpBlockPreview";
 import { openPersistentToolPanel } from "./items/persistentToolPanelState";
@@ -57,6 +57,7 @@ export function ToolCallItem({
   })();
 
   const hasArgs = Object.keys(displayArgs).length > 0;
+  const argsJson = JSON.stringify(displayArgs, null, 2);
 
   let status: CollapsibleStatus = "idle";
   if (isPending) {
@@ -74,22 +75,35 @@ export function ToolCallItem({
   const panelContent = canExpand && (
     <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
       {hasArgs && (
-        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
+        <div className="group/args relative p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.args")}
           </div>
           <pre className="text-sm text-stone-600 dark:text-stone-300 overflow-x-auto overflow-y-auto min-w-0 font-mono">
-            {JSON.stringify(displayArgs, null, 2)}
+            {argsJson}
           </pre>
+          <div className="absolute top-2 right-2 opacity-0 group-hover/args:opacity-100 transition-opacity">
+            <CopyButton text={argsJson} size={12} />
+          </div>
         </div>
       )}
 
       {hasResult && (
-        <div className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
+        <div className="group/result relative p-3 sm:p-4 rounded-lg sm:rounded-xl bg-stone-100 dark:bg-stone-700/50">
           <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-2 font-medium">
             {t("chat.message.result")}
           </div>
-          <ToolResultContent result={result} />
+          <ToolResultContent result={result} hideCopyButton />
+          <div className="absolute top-2 right-2 opacity-0 group-hover/result:opacity-100 transition-opacity">
+            <CopyButton
+              text={
+                typeof result === "string"
+                  ? result
+                  : JSON.stringify(result, null, 2)
+              }
+              size={12}
+            />
+          </div>
         </div>
       )}
 
@@ -137,22 +151,35 @@ export function ToolCallItem({
         {canExpand && (
           <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-96 overflow-y-auto min-w-0">
             {hasArgs && (
-              <div className="p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
+              <div className="group/args relative p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
                 <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                   {t("chat.message.args")}
                 </div>
                 <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto min-w-0">
-                  {JSON.stringify(displayArgs, null, 2)}
+                  {argsJson}
                 </pre>
+                <div className="absolute top-1 right-1 opacity-0 group-hover/args:opacity-100 transition-opacity">
+                  <CopyButton text={argsJson} size={10} />
+                </div>
               </div>
             )}
 
             {hasResult && (
-              <div className="p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
+              <div className="group/result relative p-2 rounded-md bg-stone-50/80 dark:bg-stone-800/50">
                 <div className="text-xs uppercase tracking-wider text-stone-400 dark:text-stone-500 mb-1 font-medium">
                   {t("chat.message.result")}
                 </div>
-                <ToolResultContent result={result} />
+                <ToolResultContent result={result} hideCopyButton />
+                <div className="absolute top-1 right-1 opacity-0 group-hover/result:opacity-100 transition-opacity">
+                  <CopyButton
+                    text={
+                      typeof result === "string"
+                        ? result
+                        : JSON.stringify(result, null, 2)
+                    }
+                    size={10}
+                  />
+                </div>
               </div>
             )}
 

@@ -43,12 +43,14 @@ class TaskRecoveryService:
         ensure_executor: Callable[[], Any],
         submit_task: Callable[..., Awaitable[tuple[str, str]]],
         mark_run_failed: Callable[[str, str, Any], Awaitable[None]],
+        submit_recovery_task: Callable[..., Awaitable[tuple[str, str]]] | None = None,
     ) -> None:
         self._storage = storage
         self._run_info = run_info
         self._heartbeat = heartbeat
         self._ensure_executor = ensure_executor
         self._submit_task = submit_task
+        self._submit_recovery_task = submit_recovery_task or submit_task
         self._mark_run_failed = mark_run_failed
         self._state_machine = TaskStateMachine()
 
@@ -214,16 +216,18 @@ class TaskRecoveryService:
 
         if concurrency_result.result == ConcurrencyResult.STARTED:
             try:
-                await self._submit_task(
+                await self._submit_recovery_task(
                     session_id=session.id,
                     agent_id=agent_id,
                     message=recovery_message,
                     user_id=session.user_id,
                     executor=executor_fn,
+                    executor_key=executor_key,
                     disabled_tools=session_metadata.get("disabled_tools") or None,
                     agent_options=session_metadata.get("agent_options") or None,
                     attachments=None,
                     run_id=new_run_id,
+                    trace_id=recovery_trace_id,
                     project_id=session_metadata.get("project_id"),
                     disabled_skills=session_metadata.get("disabled_skills") or None,
                     enabled_skills=enabled_skills,
@@ -308,6 +312,26 @@ class TaskRecoveryService:
             else "任务恢复已加入队列",
         }
 
+    async def _restore_recoverable_failure(
+        self,
+        session_id: str,
+        run_id: str,
+        error_message: str,
+    ) -> None:
+        """Restore a failed run to a recoverable failed state after recovery submission fails."""
+        await self._storage.update(
+            session_id,
+            SessionUpdate(
+                metadata=self._state_machine.build_metadata(
+                    TaskStatus.FAILED,
+                    run_id=run_id,
+                    error=error_message,
+                    error_code="server_restart",
+                    recoverable=True,
+                )
+            ),
+        )
+
     async def resume_interrupted_run(
         self,
         session: Any,
@@ -365,9 +389,21 @@ class TaskRecoveryService:
                     )
                 ),
             )
-            return await self.submit_recovery_run(session, source_run_id, reason)
+            recovery_result = await self.submit_recovery_run(session, source_run_id, reason)
+            if not recovery_result.get("success"):
+                await self._restore_recoverable_failure(
+                    session.id,
+                    source_run_id,
+                    recovery_result.get("message") or "恢复任务失败",
+                )
+            return recovery_result
         except Exception as e:
             await self.release_recovery_lock(lock_key)
+            await self._restore_recoverable_failure(
+                session.id,
+                source_run_id,
+                f"恢复任务失败: {e}",
+            )
             logger.error("Failed to resume interrupted run %s: %s", source_run_id, e)
             return {
                 "success": False,

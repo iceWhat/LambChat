@@ -136,6 +136,82 @@ async def test_resume_session_submits_localized_recovery_message(
 
 
 @pytest.mark.asyncio
+async def test_resume_session_uses_arq_submission_when_task_backend_is_arq(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        name="Arq Recovery Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "failed",
+            "agent_id": "search",
+            "executor_key": "agent_stream",
+            "agent_options": {"model": "gpt-test"},
+            "disabled_tools": ["bash"],
+            "project_id": "project-1",
+        },
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+    manager._heartbeat = _FakeHeartbeat(exists=False)
+
+    redis = _FakeRedis(acquired=True)
+    local_submit_calls = []
+    arq_submit_calls = []
+
+    async def _fake_submit(**kwargs):
+        local_submit_calls.append(kwargs)
+        return kwargs["run_id"], ""
+
+    async def _fake_submit_arq(**kwargs):
+        arq_submit_calls.append(kwargs)
+        return kwargs["run_id"], kwargs.get("trace_id") or ""
+
+    async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
+        assert run_id == "run-old"
+        assert loaded_session.id == "session-1"
+
+    class _FakeUserStorage:
+        async def get_by_id(self, user_id: str):
+            assert user_id == "user-1"
+            return SimpleNamespace(metadata={"language": "zh-CN"}, roles=["admin"])
+
+    async def _fake_executor(*args, **kwargs):
+        if False:
+            yield None
+
+    class _FakeLimiter:
+        async def claim_recovery_slot(self, **kwargs):
+            return SimpleNamespace(result=recovery_module.ConcurrencyResult.STARTED)
+
+        async def release(self, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "arq")
+    monkeypatch.setattr(manager, "submit", _fake_submit)
+    monkeypatch.setattr(manager, "submit_arq", _fake_submit_arq)
+    monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
+
+    result = await manager.resume_session("session-1")
+
+    assert result["success"] is True
+    assert local_submit_calls == []
+    assert len(arq_submit_calls) == 1
+    assert arq_submit_calls[0]["executor_key"] == "agent_stream"
+    assert arq_submit_calls[0]["trace_id"]
+    assert arq_submit_calls[0].get("user_message_written") is not True
+    assert arq_submit_calls[0]["message"] == "请继续处理当前会话中未完成的内容。"
+
+
+@pytest.mark.asyncio
 async def test_resume_session_rejects_user_cancelled_tasks() -> None:
     session = SimpleNamespace(
         id="session-1",
@@ -338,6 +414,84 @@ async def test_resume_interrupted_run_releases_lock_after_failed_recovery(
 
     assert result["success"] is False
     assert redis.deleted_keys == ["task:recovery:session-1:run-old"]
+
+
+@pytest.mark.asyncio
+async def test_resume_interrupted_run_skips_when_recovery_lock_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        metadata={"current_run_id": "run-old"},
+    )
+    manager = BackgroundTaskManager()
+    manager._storage = _FakeStorage(session)
+
+    redis = _FakeRedis(acquired=False)
+    mark_failed_calls = []
+    submit_calls = []
+
+    async def _fake_mark_failed(*args, **kwargs):
+        mark_failed_calls.append((args, kwargs))
+
+    async def _fake_submit_recovery_run(*args, **kwargs):
+        submit_calls.append((args, kwargs))
+        return {"success": True}
+
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
+    monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
+
+    result = await manager._resume_interrupted_run(session, "run-old", "server_restart")
+
+    assert result["success"] is False
+    assert "已在其他实例中启动" in result["message"]
+    assert mark_failed_calls == []
+    assert submit_calls == []
+    assert len(redis.set_calls) == 1
+    assert redis.set_calls[0][0] == "task:recovery:session-1:run-old"
+    assert redis.set_calls[0][2:] == (300, True)
+
+
+@pytest.mark.asyncio
+async def test_resume_interrupted_run_restores_recoverable_failure_when_submission_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        metadata={"current_run_id": "run-old"},
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+
+    redis = _FakeRedis(acquired=True)
+    recoverable_failures = []
+
+    async def _fake_mark_failed(run_id: str, reason: str, loaded_session) -> None:
+        recoverable_failures.append((run_id, reason, loaded_session.id))
+
+    async def _fake_submit_recovery_run(*args, **kwargs):
+        return {"success": False, "message": "恢复任务失败：当前恢复队列已满"}
+
+    monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
+    monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
+
+    result = await manager._resume_interrupted_run(session, "run-old", "server_restart")
+
+    assert result["success"] is False
+    assert recoverable_failures == [
+        ("run-old", "Task interrupted (instance unavailable)", "session-1")
+    ]
+    assert storage.updates[-1][0] == "session-1"
+    assert storage.updates[-1][1].metadata["task_status"] == "failed"
+    assert storage.updates[-1][1].metadata["task_recoverable"] is True
+    assert storage.updates[-1][1].metadata["task_error_code"] == "server_restart"
 
 
 @pytest.mark.asyncio

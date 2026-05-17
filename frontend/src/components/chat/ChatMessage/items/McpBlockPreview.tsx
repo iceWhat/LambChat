@@ -181,8 +181,10 @@ export function McpBlockPreview({ block }: { block: McpContentBlock }) {
 // 工具结果渲染组件 — 支持 str / dict / MCP 多模态
 export function ToolResultContent({
   result,
+  hideCopyButton,
 }: {
   result?: string | Record<string, unknown>;
+  hideCopyButton?: boolean;
 }) {
   const personaMutationDetail = useMemo(
     () => getPersonaPresetMutationDetail(result),
@@ -225,7 +227,7 @@ export function ToolResultContent({
               combinedText
             )}
             <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-              <CopyButton text={combinedText} size={12} />
+              {!hideCopyButton && <CopyButton text={combinedText} size={12} />}
             </div>
           </div>
         )}
@@ -254,14 +256,14 @@ export function ToolResultContent({
             <div className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto">
               <MarkdownContent content={mcp.text} />
               <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                <CopyButton text={mcp.text} size={12} />
+                {!hideCopyButton && <CopyButton text={mcp.text} size={12} />}
               </div>
             </div>
           ) : (
             <pre className="group/result relative text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
               {mcp.text}
               <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                <CopyButton text={mcp.text} size={12} />
+                {!hideCopyButton && <CopyButton text={mcp.text} size={12} />}
               </div>
             </pre>
           ))}
@@ -316,7 +318,7 @@ export function ToolResultContent({
         <div className="group/rich relative p-3 text-xs text-stone-600 dark:text-stone-300 max-h-96 overflow-y-auto">
           <MarkdownContent content={result.content} />
           <div className="absolute top-1 right-1 opacity-0 group-hover/rich:opacity-100 transition-opacity">
-            <CopyButton text={result.content} size={12} />
+            {!hideCopyButton && <CopyButton text={result.content} size={12} />}
           </div>
         </div>
       </div>
@@ -325,14 +327,14 @@ export function ToolResultContent({
 
   // Plain object or JSON-parseable string — render as JSON
   if (typeof result === "object" && result !== null) {
-    return <JsonFallback data={result} />;
+    return <JsonFallback data={result} hideCopyButton={hideCopyButton} />;
   }
 
   if (textContent && typeof result === "string") {
     try {
       const parsed = JSON.parse(textContent);
       if (typeof parsed === "object" && parsed !== null) {
-        return <JsonFallback data={parsed} />;
+        return <JsonFallback data={parsed} hideCopyButton={hideCopyButton} />;
       }
     } catch {
       // not JSON, fall through
@@ -344,25 +346,31 @@ export function ToolResultContent({
       <div className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto">
         <MarkdownContent content={textContent} />
         <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-          <CopyButton text={textContent} size={12} />
+          {!hideCopyButton && <CopyButton text={textContent} size={12} />}
         </div>
       </div>
     ) : (
       <pre className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto whitespace-pre-wrap break-words">
         {textContent}
         <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-          <CopyButton text={textContent} size={12} />
+          {!hideCopyButton && <CopyButton text={textContent} size={12} />}
         </div>
       </pre>
     );
   }
 
-  return <JsonFallback data={result} />;
+  return <JsonFallback data={result} hideCopyButton={hideCopyButton} />;
 }
 
 const MAX_JSON_COLLAPSED = 640;
 
-function JsonFallback({ data }: { data: unknown }) {
+function JsonFallback({
+  data,
+  hideCopyButton,
+}: {
+  data: unknown;
+  hideCopyButton?: boolean;
+}) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const str = JSON.stringify(data, null, 2);
@@ -375,7 +383,7 @@ function JsonFallback({ data }: { data: unknown }) {
   return (
     <div className="group/json relative">
       <div className="absolute top-1 right-1 opacity-0 group-hover/json:opacity-100 transition-opacity z-10">
-        <CopyButton text={str} size={12} />
+        {!hideCopyButton && <CopyButton text={str} size={12} />}
       </div>
       <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-y-auto whitespace-pre-wrap break-words min-w-0">
         {display}

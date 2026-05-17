@@ -11,6 +11,7 @@ import {
 import { RangeSetBuilder } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { CopyButton } from "./CopyButton";
 import { getLangSupport } from "./getLangSupport";
 
 const githubLight = EditorView.theme(
@@ -104,6 +105,8 @@ export interface CodeMirrorViewerProps {
   startLine?: number;
   /** Highlight a range of lines with a subtle background */
   highlightLineRange?: HighlightLineRange;
+  /** Show a copy button overlay on hover (default: false) */
+  copyable?: boolean;
 }
 
 /** ViewPlugin that decorates highlighted lines with a background color */
@@ -162,9 +165,11 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   fontSize = "0.75rem",
   startLine,
   highlightLineRange,
+  copyable,
 }: CodeMirrorViewerProps) {
   const isDark = useIsDark();
   const viewRef = useRef<EditorView | null>(null);
+  const wrapperClassName = ["h-full", className].filter(Boolean).join(" ");
 
   const handleCreateEditor = useCallback(
     (view: EditorView) => {
@@ -203,14 +208,27 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
       EditorView.editable.of(false),
       EditorView.theme({
         "&": {
+          height: "100%",
           fontSize,
-          backgroundColor: "transparent",
+          backgroundColor: `${isDark ? "#282c34" : "#ffffff"} !important`,
+        },
+        ".cm-editor": {
+          height: "100%",
+          backgroundColor: `${isDark ? "#282c34" : "#ffffff"} !important`,
         },
         ".cm-scroller": {
-          ...(maxHeight ? { maxHeight, overflow: "auto" } : {}),
+          height: "100%",
+          overflow: "auto",
+          backgroundColor: `${isDark ? "#282c34" : "#ffffff"} !important`,
+          ...(maxHeight ? { maxHeight } : {}),
         },
-        ".cm-gutters": {
-          backgroundColor: isDark ? "#1e1e1e" : "#fafafa",
+        ".cm-content": {
+          minHeight: "100% !important",
+          backgroundColor: `${isDark ? "#282c34" : "#ffffff"} !important`,
+        },
+        ".cm-gutters, .cm-gutter": {
+          minHeight: "100% !important",
+          backgroundColor: `${isDark ? "#282c34" : "#fafafa"} !important`,
           borderRight: isDark ? "1px solid #333" : "1px solid #e7e5e4",
         },
         ".cm-lineNumbers .cm-gutterElement": {
@@ -244,22 +262,35 @@ export const CodeMirrorViewer = memo(function CodeMirrorViewer({
   }, [startLine]);
 
   return (
-    <div className={className}>
-      <CodeMirror
-        value={value}
-        theme={isDark ? oneDark : githubLight}
-        extensions={[...extensions, ...lineOffsetExtensions]}
-        onCreateEditor={handleCreateEditor}
-        basicSetup={{
-          lineNumbers: !startLine || startLine <= 1 ? lineNumbers : false,
-          highlightActiveLineGutter: false,
-          highlightActiveLine: false,
-          foldGutter: false,
-          bracketMatching: false,
-          closeBrackets: false,
-          indentOnInput: false,
-        }}
-      />
+    <div className={copyable ? "group relative h-full" : wrapperClassName}>
+      <div className={copyable ? wrapperClassName : undefined}>
+        <CodeMirror
+          className="h-full"
+          height="100%"
+          value={value}
+          theme={isDark ? oneDark : githubLight}
+          extensions={[...extensions, ...lineOffsetExtensions]}
+          onCreateEditor={handleCreateEditor}
+          basicSetup={{
+            lineNumbers: !startLine || startLine <= 1 ? lineNumbers : false,
+            highlightActiveLineGutter: false,
+            highlightActiveLine: false,
+            foldGutter: false,
+            bracketMatching: false,
+            closeBrackets: false,
+            indentOnInput: false,
+          }}
+        />
+      </div>
+      {copyable && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <CopyButton
+            text={value}
+            size={14}
+            className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
+          />
+        </div>
+      )}
     </div>
   );
 });
