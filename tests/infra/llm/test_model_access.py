@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 from src.infra.llm.client import LLMClient
@@ -88,3 +90,23 @@ async def test_get_model_uses_cached_key_for_sanitized_google_model_config(
 
     clear_api_key_cache()
     LLMClient.clear_cache_by_model()
+
+
+def test_create_model_does_not_forward_app_only_profile_keys() -> None:
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+
+        model = LLMClient._create_model(
+            "openai",
+            "gpt-4.1",
+            temperature=0.7,
+            api_key="sk-test",
+            profile={"max_input_tokens": 128000, "supports_vision": True},
+        )
+
+    assert model.profile == {"max_input_tokens": 128000}
+    assert not [
+        warning
+        for warning in caught
+        if "Unrecognized keys in model profile" in str(warning.message)
+    ]

@@ -11,6 +11,7 @@ from typing import Any, Optional
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.language_models.model_profile import ModelProfile as LangChainModelProfile
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
@@ -124,6 +125,15 @@ def _prompt_cache_key(provider: str, model_name: str) -> str:
     return f"lambchat:{provider}:{safe_model}"
 
 
+def _langchain_profile(profile: Optional[dict]) -> Optional[dict]:
+    """Return only profile keys understood by langchain-core."""
+    if not profile:
+        return None
+
+    allowed_keys = set(LangChainModelProfile.__annotations__)
+    return {key: value for key, value in profile.items() if key in allowed_keys}
+
+
 def _safe_close_client(model_instance: BaseChatModel) -> None:
     """Safely close HTTP client with error logging."""
     try:
@@ -170,6 +180,7 @@ class LLMClient:
         """根据 provider 创建对应的 LangChain 模型。"""
 
         kwargs.pop("max_retries", None)
+        profile = _langchain_profile(profile)
 
         protocol = _resolve_protocol(provider)
 
