@@ -16,6 +16,7 @@ from src.agents.core.base import get_presenter
 from src.agents.core.node_utils import (
     build_human_message,
     emit_token_usage,
+    inline_image_attachments_as_data_urls,
     resolve_fallback_model,
     resolve_model_supports_vision,
 )
@@ -258,6 +259,8 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
     # 注意：checkpointer + add_messages reducer 会自动维护历史消息，
     # 只需传入新消息，避免与 checkpoint 中的历史消息重复。
     user_input = state.get("input", "")
+    if supports_vision:
+        attachments = await inline_image_attachments_as_data_urls(attachments)
     new_message = build_human_message(user_input, attachments, supports_vision=supports_vision)
 
     # 创建事件处理器（使用 AgentEventProcessor 处理 astream_events）

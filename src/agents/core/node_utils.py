@@ -6,6 +6,8 @@ Agent 节点共享工具函数
 
 from __future__ import annotations
 
+import base64
+
 from langchain_core.messages import HumanMessage
 
 from src.infra.agent import AgentEventProcessor
@@ -101,6 +103,45 @@ def _is_image_attachment(attachment: dict) -> bool:
     return file_type == "image" or mime_type.startswith("image/")
 
 
+async def inline_image_attachments_as_data_urls(attachments: list[dict] | None) -> list[dict]:
+    """Return attachments with image bytes inlined as data URLs when storage keys exist."""
+    if not attachments:
+        return []
+
+    from src.infra.storage.s3.service import get_or_init_storage
+
+    storage = await get_or_init_storage()
+    inlined: list[dict] = []
+
+    for attachment in attachments:
+        if not _is_image_attachment(attachment):
+            inlined.append(attachment)
+            continue
+
+        key = attachment.get("key")
+        if not key:
+            inlined.append(attachment)
+            continue
+
+        try:
+            raw = await storage.download_file(key)
+        except Exception as e:
+            logger.warning("Failed to inline image attachment %s: %s", key, e)
+            inlined.append(attachment)
+            continue
+
+        mime_type = attachment.get("mime_type") or attachment.get("mimeType") or "image/jpeg"
+        encoded = base64.b64encode(raw).decode("ascii")
+        inlined.append(
+            {
+                **attachment,
+                "data_url": f"data:{mime_type};base64,{encoded}",
+            }
+        )
+
+    return inlined
+
+
 def _format_attachment_summary(text: str, attachments: list[dict]) -> str:
     enhanced_text = text
     if not attachments:
@@ -167,11 +208,12 @@ def build_human_message(
 
     for attachment in attachments:
         url = attachment.get("url")
-        if supports_vision and _is_image_attachment(attachment) and url:
+        data_url = attachment.get("data_url")
+        if supports_vision and _is_image_attachment(attachment) and data_url:
             multimodal_images.append(
                 {
                     "type": "image_url",
-                    "image_url": {"url": url},
+                    "image_url": {"url": data_url},
                 }
             )
         elif url:

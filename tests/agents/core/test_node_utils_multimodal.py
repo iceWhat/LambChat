@@ -4,7 +4,10 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from src.agents.core import node_utils
-from src.agents.core.node_utils import build_human_message
+from src.agents.core.node_utils import (
+    build_human_message,
+    inline_image_attachments_as_data_urls,
+)
 
 
 def image_attachment(**overrides):
@@ -18,6 +21,10 @@ def image_attachment(**overrides):
         "url": "/api/upload/file/uploads/img.png",
         **overrides,
     }
+
+
+def image_attachment_with_data_url(**overrides):
+    return image_attachment(data_url="data:image/png;base64,aW1hZ2UtYnl0ZXM=", **overrides)
 
 
 def doc_attachment(**overrides):
@@ -34,14 +41,18 @@ def doc_attachment(**overrides):
 
 
 def test_vision_model_sends_image_attachment_as_multimodal_block():
-    message = build_human_message("what is this?", [image_attachment()], supports_vision=True)
+    message = build_human_message(
+        "what is this?",
+        [image_attachment_with_data_url()],
+        supports_vision=True,
+    )
 
     assert isinstance(message, HumanMessage)
     assert isinstance(message.content, list)
     assert message.content[0] == {"type": "text", "text": "what is this?"}
     assert message.content[1] == {
         "type": "image_url",
-        "image_url": {"url": "/api/upload/file/uploads/img.png"},
+        "image_url": {"url": "data:image/png;base64,aW1hZ2UtYnl0ZXM="},
     }
 
 
@@ -57,7 +68,7 @@ def test_non_vision_model_keeps_image_attachment_as_text_summary():
 def test_vision_model_keeps_document_attachments_in_text_summary():
     message = build_human_message(
         "compare these",
-        [image_attachment(), doc_attachment()],
+        [image_attachment_with_data_url(), doc_attachment()],
         supports_vision=True,
     )
 
@@ -72,6 +83,52 @@ def test_vision_model_skips_image_blocks_without_url():
 
     assert isinstance(message.content, str)
     assert message.content == "what is this?"
+
+
+class FakeImageStorage:
+    async def download_file(self, key):
+        assert key == "uploads/img.png"
+        return b"image-bytes"
+
+
+class FailingImageStorage:
+    async def download_file(self, _key):
+        raise FileNotFoundError("missing")
+
+
+@pytest.mark.asyncio
+async def test_inline_image_attachments_as_data_urls_reads_storage_key(monkeypatch):
+    async def fake_get_or_init_storage():
+        return FakeImageStorage()
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        fake_get_or_init_storage,
+    )
+
+    attachments = await inline_image_attachments_as_data_urls([image_attachment()])
+
+    assert attachments[0]["data_url"] == "data:image/png;base64,aW1hZ2UtYnl0ZXM="
+
+
+@pytest.mark.asyncio
+async def test_inline_image_attachments_falls_back_without_data_url_on_download_error(
+    monkeypatch,
+):
+    async def fake_get_or_init_storage():
+        return FailingImageStorage()
+
+    monkeypatch.setattr(
+        "src.infra.storage.s3.service.get_or_init_storage",
+        fake_get_or_init_storage,
+    )
+
+    attachments = await inline_image_attachments_as_data_urls([image_attachment()])
+
+    assert "data_url" not in attachments[0]
+    message = build_human_message("what is this?", attachments, supports_vision=True)
+    assert isinstance(message.content, str)
+    assert "/api/upload/file/uploads/img.png" in message.content
 
 
 class FakeStorage:
