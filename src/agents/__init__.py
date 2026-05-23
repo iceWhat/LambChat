@@ -29,6 +29,7 @@ def discover_agents() -> None:
     # 导入会触发 @register_agent 装饰器
     from src.agents.fast_agent import FastAgent  # noqa: F401
     from src.agents.search_agent import SearchAgent  # noqa: F401
+    from src.agents.team_agent import TeamAgent  # noqa: F401
 
 
 async def get_agent_async(agent_id: str) -> BaseGraphAgent:
