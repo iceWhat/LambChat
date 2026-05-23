@@ -36,6 +36,7 @@ from src.api.routes import (
     session,
     share,
     skill,
+    team,
     upload,
     user,
     version,
@@ -445,6 +446,7 @@ def create_app() -> FastAPI:
         prefix="/api/persona-presets",
         tags=["Persona Presets"],
     )
+    app.include_router(team.router, prefix="/api/teams", tags=["Teams"])
     app.include_router(session.router, prefix="/api/sessions", tags=["Sessions"])
     app.include_router(project.router, prefix="/api/projects", tags=["Projects"])
     app.include_router(share.router, prefix="/api/share", tags=["Share"])

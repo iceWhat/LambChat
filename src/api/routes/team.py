@@ -1,0 +1,88 @@
+"""Team CRUD routes."""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from src.api.deps import get_current_user_required
+from src.infra.team.manager import TeamManager
+from src.kernel.exceptions import NotFoundError
+from src.kernel.schemas.team import (
+    TeamCreate,
+    TeamListResponse,
+    TeamResponse,
+    TeamUpdate,
+)
+from src.kernel.schemas.user import TokenPayload
+
+router = APIRouter()
+
+
+def _get_manager() -> TeamManager:
+    return TeamManager()
+
+
+@router.get("/", response_model=TeamListResponse)
+async def list_teams(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    return await manager.list_teams(owner_user_id=user.sub, skip=skip, limit=limit)
+
+
+@router.post("/", response_model=TeamResponse, status_code=201)
+async def create_team(
+    body: TeamCreate,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    return await manager.create_team(body, owner_user_id=user.sub)
+
+
+@router.get("/{team_id}", response_model=TeamResponse)
+async def get_team(
+    team_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    try:
+        return await manager.get_team(team_id, owner_user_id=user.sub)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="team_not_found")
+
+
+@router.put("/{team_id}", response_model=TeamResponse)
+async def update_team(
+    team_id: str,
+    body: TeamUpdate,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    try:
+        return await manager.update_team(team_id, body, owner_user_id=user.sub)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="team_not_found")
+
+
+@router.delete("/{team_id}", status_code=204)
+async def delete_team(
+    team_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    try:
+        await manager.delete_team(team_id, owner_user_id=user.sub)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="team_not_found")
+
+
+@router.post("/{team_id}/clone", response_model=TeamResponse, status_code=201)
+async def clone_team(
+    team_id: str,
+    user: TokenPayload = Depends(get_current_user_required),
+    manager: TeamManager = Depends(_get_manager),
+):
+    try:
+        return await manager.clone_team(team_id, owner_user_id=user.sub)
+    except NotFoundError:
+        raise HTTPException(status_code=404, detail="team_not_found")
