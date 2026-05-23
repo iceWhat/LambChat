@@ -147,7 +147,21 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
 
     if team:
         team_members_desc = build_team_members_description(team)
-        default_role = team.default_member_id or team.active_members[0].role_name
+        default_role = "general-purpose"
+        if team.default_member_id:
+            default_member = next(
+                (m for m in team.active_members if m.member_id == team.default_member_id),
+                team.active_members[0] if team.active_members else None,
+            )
+            default_role = (
+                (default_member.role_name or default_member.member_id)
+                if default_member
+                else "general-purpose"
+            )
+        else:
+            default_role = (
+                team.active_members[0].role_name if team.active_members else "general-purpose"
+            )
         system_prompt = TEAM_ROUTER_SYSTEM_PROMPT.format(
             team_members_description=team_members_desc,
             default_role=default_role,

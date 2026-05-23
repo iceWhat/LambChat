@@ -170,6 +170,16 @@ class TeamStorage:
                 )
             update["members"] = new_members
 
+            # Prevent stale default_member_id references
+            new_member_ids = {m["member_id"] for m in new_members}
+            if "default_member_id" in update:
+                # User explicitly set default_member_id — validate it
+                if update["default_member_id"] not in new_member_ids:
+                    update["default_member_id"] = None
+            else:
+                # Members replaced without explicit default — clear stale reference
+                update.setdefault("default_member_id", None)
+
         if not update:
             return await self.get_team(team_id, owner_user_id=owner_user_id)
 
@@ -228,6 +238,6 @@ class TeamStorage:
             name=new_name or f"{original.name} (copy)",
             description=original.description,
             members=members_data,
-            default_member_id=original.default_member_id,
+            default_member_id=None,
             team_instructions=original.team_instructions,
         )

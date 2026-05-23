@@ -33,10 +33,7 @@ def build_team_members_description(team) -> str:
     """Build a text description of team members for the router prompt."""
     lines = []
     for m in team.active_members:
-        lines.append(
-            f"- **{m.role_name}** (member_id: {m.member_id}): "
-            f"persona_preset_id={m.persona_preset_id}"
-        )
+        lines.append(f"- **{m.role_name}** (member_id: {m.member_id})")
         if m.role_instructions:
             lines.append(f"  Instructions: {m.role_instructions}")
     return "\n".join(lines)
