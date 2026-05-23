@@ -1,5 +1,16 @@
-import { GripVertical, X, Star } from "lucide-react";
+import { useState } from "react";
+import { Star, ChevronDown, ChevronRight } from "lucide-react";
 import type { TeamMember } from "../../types/team";
+import { nameToGradient } from "../common/cardUtils";
+import {
+  PersonaAvatarIcon,
+  PersonaAvatarImage,
+} from "../persona/PersonaAvatarIcon";
+import {
+  getEmojiAvatarUrl,
+  isEmojiAvatar,
+  isPersonaImageAvatar,
+} from "../persona/personaAvatar";
 
 interface TeamMemberCardProps {
   member: TeamMember;
@@ -18,68 +29,118 @@ export function TeamMemberCard({
   onToggleEnabled,
   onInstructionsChange,
 }: TeamMemberCardProps) {
+  const [expanded, setExpanded] = useState(!!member.role_instructions);
+  const colors = nameToGradient(member.role_name || "role");
+
   return (
     <div
-      className={`flex items-start gap-2 p-3 rounded-lg border ${
-        member.enabled
-          ? "border-border bg-card"
-          : "border-border/50 bg-muted/30 opacity-60"
+      className={`team-member-card group ${
+        member.enabled ? "" : "team-member-card--disabled"
       }`}
+      style={{ "--team-accent": colors[0] } as React.CSSProperties}
     >
-      <GripVertical className="h-4 w-4 mt-1 text-muted-foreground cursor-grab" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">
+      <div className="team-member-card__body">
+        {/* Top row */}
+        <div className="team-member-card__top">
+          {/* Avatar */}
+          {isPersonaImageAvatar(member.role_avatar) ||
+          isEmojiAvatar(member.role_avatar) ? (
+            <div className="scb__avatar-ring shrink-0">
+              <PersonaAvatarImage
+                avatar={
+                  isEmojiAvatar(member.role_avatar)
+                    ? getEmojiAvatarUrl(member.role_avatar)
+                    : member.role_avatar
+                }
+                alt=""
+                className="scb__avatar-img"
+              />
+            </div>
+          ) : (
+            <div className="scb__icon-ring shrink-0">
+              <PersonaAvatarIcon
+                avatar={member.role_avatar}
+                primaryTag={member.role_tags[0]}
+                size={19}
+                className="text-[var(--theme-primary)]"
+              />
+            </div>
+          )}
+
+          {/* Name + badges */}
+          <span className="team-member-card__name">
             {member.role_name || "Unnamed Role"}
           </span>
           {isDefault && (
-            <span className="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              Default
-            </span>
+            <span className="team-member-card__default-badge">Default</span>
           )}
+
+          {/* Toggle switch */}
+          <button
+            onClick={onToggleEnabled}
+            className={`team-toggle ${member.enabled ? "team-toggle--on" : ""}`}
+            title={member.enabled ? "Disable role" : "Enable role"}
+            type="button"
+            role="switch"
+            aria-checked={member.enabled}
+          />
+        </div>
+
+        {/* Tags */}
+        {member.role_tags.length > 0 && (
+          <div className="team-member-card__tags">
+            {member.role_tags.slice(0, 4).map((tag) => (
+              <span key={tag} className="scb__mini-tag">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Instructions area */}
+        <div className="team-member-card__instructions">
+          <button
+            className="team-member-card__instructions-trigger"
+            onClick={() => setExpanded(!expanded)}
+            type="button"
+          >
+            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            Role instructions
+          </button>
+          {expanded && (
+            <div className="team-member-card__instructions-area">
+              <textarea
+                value={member.role_instructions}
+                onChange={(e) => onInstructionsChange(e.target.value)}
+                placeholder="Role-specific instructions..."
+                className="ppe-textarea min-h-[4rem]"
+                rows={3}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Bottom actions (hover visible) */}
+        <div className="team-member-card__bottom-actions">
           <button
             onClick={onSetDefault}
-            className="p-1 rounded hover:bg-accent"
-            title="Set as default role"
+            className={`scb__action-btn scb__action-btn--ghost ${
+              isDefault ? "text-amber-500" : ""
+            }`}
+            title="Set as default"
+            type="button"
           >
-            <Star
-              className={`h-3 w-3 ${
-                isDefault
-                  ? "fill-amber-400 text-amber-400"
-                  : "text-muted-foreground"
-              }`}
-            />
+            <Star size={12} />
+          </button>
+          <button
+            onClick={onRemove}
+            className="scb__action-btn scb__action-btn--ghost"
+            title="Remove"
+            type="button"
+          >
+            ×
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {member.role_tags.slice(0, 3).join(", ")}
-        </p>
-        <textarea
-          value={member.role_instructions}
-          onChange={(e) => onInstructionsChange(e.target.value)}
-          placeholder="Role-specific instructions..."
-          className="w-full mt-2 p-2 text-xs rounded bg-muted resize-none"
-          rows={2}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <button
-          onClick={onToggleEnabled}
-          className={`px-2 py-0.5 text-[10px] rounded ${
-            member.enabled
-              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {member.enabled ? "ON" : "OFF"}
-        </button>
-        <button
-          onClick={onRemove}
-          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-          title="Remove from team"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
       </div>
     </div>
   );
