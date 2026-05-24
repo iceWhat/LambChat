@@ -11,6 +11,7 @@ def test_build_thinking_config_maps_legacy_boolean_to_medium() -> None:
     assert build_thinking_config({"enable_thinking": True}) == {
         "type": "enabled",
         "level": "medium",
+        "budget_tokens": 8192,
     }
 
 
@@ -18,16 +19,20 @@ def test_build_thinking_config_maps_supported_levels() -> None:
     assert build_thinking_config({"enable_thinking": "low"}) == {
         "type": "enabled",
         "level": "low",
+        "budget_tokens": 1024,
     }
     assert build_thinking_config({"enable_thinking": "medium"}) == {
         "type": "enabled",
         "level": "medium",
+        "budget_tokens": 8192,
     }
     assert build_thinking_config({"enable_thinking": "high"}) == {
         "type": "enabled",
         "level": "high",
+        "budget_tokens": 32768,
     }
     assert build_thinking_config({"enable_thinking": "max"}) == {
         "type": "enabled",
         "level": "max",
+        "budget_tokens": 65536,
     }

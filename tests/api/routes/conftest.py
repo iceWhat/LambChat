@@ -11,7 +11,12 @@ class _FakeBackendModule(types.ModuleType):
         raise AttributeError(name)
 
 
-if "src.infra.backend" not in sys.modules:
-    sys.modules["src.infra.backend"] = _FakeBackendModule("src.infra.backend")
-if "src.infra.backend.context" not in sys.modules:
-    sys.modules["src.infra.backend.context"] = _FakeBackendModule("src.infra.backend.context")
+try:
+    import src.infra.backend.context  # noqa: F401
+except Exception:
+    if "src.infra.backend" not in sys.modules:
+        fake_backend = _FakeBackendModule("src.infra.backend")
+        fake_backend.__path__ = []  # type: ignore[attr-defined]
+        sys.modules["src.infra.backend"] = fake_backend
+    if "src.infra.backend.context" not in sys.modules:
+        sys.modules["src.infra.backend.context"] = _FakeBackendModule("src.infra.backend.context")

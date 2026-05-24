@@ -13,13 +13,19 @@
   [Block 7+]  Memory index / Tool search                              ← 每 turn 变化
 """
 
-try:
-    from deepagents import HarnessProfile, register_harness_profile
-except ImportError:  # pragma: no cover - compatibility with older deepagents builds
-    HarnessProfile = None  # type: ignore[assignment]
+import importlib
+from typing import Any
 
-    def register_harness_profile(*_args, **_kwargs):
-        return None
+_deepagents: Any = None
+try:
+    _deepagents = importlib.import_module("deepagents")
+except ImportError:  # pragma: no cover - compatibility with older deepagents builds
+    pass
+
+_HarnessProfile = getattr(_deepagents, "HarnessProfile", None) if _deepagents is not None else None
+_register_harness_profile = (
+    getattr(_deepagents, "register_harness_profile", None) if _deepagents is not None else None
+)
 
 
 DEFAULT_ROLE = "You are an intelligent assistant with tools and skills."
@@ -82,9 +88,9 @@ Keep working until the task is fully complete. Don't stop partway and explain wh
 
 For longer tasks, provide brief progress updates at reasonable intervals — a concise sentence recapping what you've done and what's next."""
 
-if HarnessProfile is not None:
+if _HarnessProfile is not None and _register_harness_profile is not None:
     # Register on import — this is idempotent (additive merge).
-    register_harness_profile("anthropic", HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE))
+    _register_harness_profile("anthropic", _HarnessProfile(base_system_prompt=_BEHAVIOR_GUIDE))
 
 
 def split_persona_prompt(system_prompt: str) -> tuple[str, str]:

@@ -225,6 +225,53 @@ async def test_team_agent_node_uses_persistent_backend_when_sandbox_disabled(
     assert fake_graph.captured_create_kwargs["backend"] is persistent_backend
 
 
+@pytest.mark.asyncio
+async def test_team_agent_node_rejects_invalid_team_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.agents.team_agent.context import TeamAgentContext
+    from src.infra.team import manager as team_manager_module
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    class _TeamManager:
+        async def resolve_team_for_runtime(self, team_id: str, *, owner_user_id: str):
+            assert team_id == "missing-team"
+            assert owner_user_id == "user-1"
+            return None
+
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(team_manager_module, "get_team_manager", lambda: _TeamManager())
+    monkeypatch.setattr(
+        team_nodes,
+        "create_persistent_backend_factory",
+        lambda **_kwargs: object(),
+    )
+
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+            "team_id": "missing-team",
+        }
+    }
+
+    with pytest.raises(ValueError, match="team_not_found_or_unavailable"):
+        await team_nodes.team_router_node(
+            {"input": "hello", "session_id": "session-1", "attachments": []},
+            config,
+        )
+
+    assert fake_graph.captured_create_kwargs is None
+
+
 def test_team_agent_declares_sandbox_support() -> None:
     from src.agents.team_agent.graph import TeamAgent
 

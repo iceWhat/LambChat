@@ -257,6 +257,7 @@ async def _call_generation_api(
     background: str,
     size: str,
     quality: str,
+    n: int,
     output_format: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
@@ -278,7 +279,7 @@ async def _call_generation_api(
         "background": _enum_value(background),
         "size": _normalize_image_size(size),
         "quality": _enum_value(quality),
-        "n": 1,
+        "n": max(1, min(int(n), 10)),
         "output_format": _enum_value(output_format),
     }
 
@@ -330,6 +331,7 @@ async def _call_edit_api(
     input_fidelity: str,
     size: str,
     quality: str,
+    n: int,
     output_format: str,
     runtime: ToolRuntime | None,
 ) -> dict[str, Any]:
@@ -358,7 +360,7 @@ async def _call_edit_api(
         "input_fidelity": _enum_value(input_fidelity),
         "size": _normalize_image_size(size),
         "quality": _enum_value(quality),
-        "n": 1,
+        "n": max(1, min(int(n), 10)),
         "output_format": _enum_value(output_format),
     }
 
@@ -426,6 +428,10 @@ async def image_generate(
         ImageQuality,
         "Generation quality. Choose auto, low, medium, or high.",
     ] = ImageQuality.AUTO,
+    n: Annotated[
+        int,
+        "Number of images to generate. Values outside 1-10 are clamped.",
+    ] = 1,
     output_format: Annotated[
         ImageOutputFormat,
         "Output file format. Choose png, jpeg, or webp.",
@@ -454,6 +460,7 @@ async def image_generate(
                 input_fidelity=input_fidelity,
                 size=size,
                 quality=quality,
+                n=n,
                 output_format=output_format,
                 runtime=runtime,
             )
@@ -463,6 +470,7 @@ async def image_generate(
                 background=background,
                 size=size,
                 quality=quality,
+                n=n,
                 output_format=output_format,
                 runtime=runtime,
             )

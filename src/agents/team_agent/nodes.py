@@ -138,8 +138,12 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 )
             else:
                 logger.info("[TeamAgent] Team resolved to None (no active members or not found)")
+                raise ValueError("team_not_found_or_unavailable")
         except Exception as e:
+            if isinstance(e, ValueError) and str(e) == "team_not_found_or_unavailable":
+                raise
             logger.warning(f"[TeamAgent] Failed to resolve team: {e}")
+            raise ValueError("team_not_found_or_unavailable") from e
 
     # ── 系统提示 ──
     persona_sections = build_persona_prompt_sections(configurable.get("persona_system_prompt"))

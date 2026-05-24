@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
 import deepagents.backends.protocol as deepagents_protocol
+import deepagents.backends.utils as deepagents_utils
 import pytest
 
 from src.kernel.config import settings
@@ -24,6 +26,14 @@ def _load_module_from_path(module_name: str, relative_path: str):
 for _missing_name in ("GlobResult", "LsResult", "ReadResult", "WriteResult"):
     if not hasattr(deepagents_protocol, _missing_name):
         setattr(deepagents_protocol, _missing_name, dict)
+
+for _missing_name in (
+    "create_file_data",
+    "format_content_with_line_numbers",
+    "slice_read_response",
+):
+    if not hasattr(deepagents_utils, _missing_name):
+        setattr(deepagents_utils, _missing_name, lambda *args, **kwargs: "")
 
 
 daytona_module = _load_module_from_path(
@@ -81,20 +91,50 @@ def test_sandbox_grep_timeout_setting_defaults_to_30_seconds() -> None:
 def test_build_grep_command_prefers_rg_and_excludes_large_directories() -> None:
     command = build_grep_command("needle", path="/workspace")
 
-    assert "command -v rg >/dev/null 2>&1" in command
-    assert "rg --fixed-strings --line-number --with-filename --no-heading --color never" in command
-    assert "--glob '!node_modules/**'" in command
-    assert "--glob '!.git/**'" in command
-    assert "--glob '!dist/**'" in command
-    assert "--glob '!build/**'" in command
-    assert "--glob '!.venv/**'" in command
+    assert "if command -v rg >/dev/null 2>&1; then" in command
+    assert "rg -nH --no-heading --color=never --no-messages -F" in command
+    assert "-g '!node_modules/**'" in command
+    assert "-g '!.git/**'" in command
+    assert "-g '!dist/**'" in command
+    assert "-g '!build/**'" in command
+    assert "-g '!.venv/**'" in command
+    assert "--glob" not in command
     assert "/workspace" in command
 
 
 def test_build_grep_command_passes_user_glob_to_rg() -> None:
     command = build_grep_command("needle", path="/workspace", glob="*.py")
 
-    assert "--glob '*.py'" in command
+    assert "-g '*.py'" in command
+    assert "--glob" not in command
+
+
+def test_build_grep_command_does_not_run_grep_when_rg_finds_no_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bin_path = tmp_path / "bin"
+    bin_path.mkdir()
+    rg_path = bin_path / "rg"
+    grep_path = bin_path / "grep"
+    rg_path.write_text("#!/bin/sh\nexit 1\n")
+    grep_path.write_text("#!/bin/sh\necho fallback-ran\nexit 0\n")
+    rg_path.chmod(0o755)
+    grep_path.chmod(0o755)
+    monkeypatch.setenv("PATH", str(bin_path))
+
+    result = subprocess.run(
+        build_grep_command("missing", path=str(tmp_path)),
+        shell=True,
+        executable="/bin/sh",
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "fallback-ran" not in result.stdout
 
 
 def test_daytona_backend_grep_uses_configured_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

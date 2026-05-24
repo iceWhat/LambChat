@@ -1,7 +1,7 @@
 """Team storage."""
 
 import uuid
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from bson import ObjectId
 
@@ -10,16 +10,19 @@ from src.kernel.config import settings
 from src.kernel.schemas.persona_preset import PersonaStarterPrompt
 from src.kernel.schemas.team import TeamMemberResponse, TeamResponse, TeamVisibility
 
+if TYPE_CHECKING:
+    from motor.motor_asyncio import AsyncIOMotorCollection
+
 
 class TeamStorage:
     """MongoDB storage for teams."""
 
     def __init__(self) -> None:
-        self._collection = None
-        self._user_collection = None
+        self._collection: "AsyncIOMotorCollection[Any] | None" = None
+        self._user_collection: "AsyncIOMotorCollection[Any] | None" = None
 
     @property
-    def collection(self):
+    def collection(self) -> "AsyncIOMotorCollection[Any]":
         """Lazy MongoDB collection."""
         if self._collection is None:
             from src.infra.storage.mongodb import get_mongo_client
@@ -30,7 +33,7 @@ class TeamStorage:
         return self._collection
 
     @property
-    def user_collection(self):
+    def user_collection(self) -> "AsyncIOMotorCollection[Any]":
         """Lazy MongoDB users collection for per-user team preferences."""
         if self._user_collection is None:
             from src.infra.storage.mongodb import get_mongo_client
@@ -201,6 +204,18 @@ class TeamStorage:
             "last_used_at": None,
         }
 
+    async def _remove_team_from_all_user_preferences(self, team_id: str) -> None:
+        """Remove a deleted team id from user preference lists."""
+        await self.user_collection.update_many(
+            {},
+            {
+                "$pull": {
+                    "metadata.pinned_team_ids": team_id,
+                    "metadata.favorite_team_ids": team_id,
+                }
+            },
+        )
+
     async def _apply_user_preferences(
         self,
         user_id: str,
@@ -301,7 +316,7 @@ class TeamStorage:
     ) -> tuple[list[TeamResponse], int]:
         """List teams for an owner, paginated. Returns (teams, total)."""
         query: dict[str, Any] = {"owner_user_id": owner_user_id}
-        if favorite is not None or pinned is not None:
+        if favorite is True or pinned is True:
             pref = await self._get_user_team_preference(owner_user_id)
             target_ids: set[str] = set()
             if pinned:
@@ -398,6 +413,8 @@ class TeamStorage:
         except Exception:
             return False
         result = await self.collection.delete_one({"_id": query_id, "owner_user_id": owner_user_id})
+        if result.deleted_count > 0:
+            await self._remove_team_from_all_user_preferences(team_id)
         return result.deleted_count > 0
 
     async def clone_team(

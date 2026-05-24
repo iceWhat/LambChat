@@ -103,13 +103,17 @@ async def test_llm_batch_consolidate_uses_store_for_long_content(monkeypatch):
     class FakeBackend:
         def __init__(self):
             self._logger = None
-            self._store = None
+            self._store = FakeStore()
 
         @staticmethod
         def _get_memory_model():
             return FakeModel()
 
         async def _maybe_embed(self, _text):
+            return None
+
+    class FakeStore:
+        async def aput(self, _namespace, _key, _value):
             return None
 
     docs = await consolidation_module.llm_batch_consolidate(

@@ -479,7 +479,15 @@ async def test_resume_interrupted_run_restores_recoverable_failure_when_submissi
     async def _fake_submit_recovery_run(*args, **kwargs):
         return {"success": False, "message": "恢复任务失败：当前恢复队列已满"}
 
+    class _FakeLimiter:
+        async def claim_recovery_slot(self, **kwargs):
+            return recovery_module.ConcurrencyResponse(
+                result=recovery_module.ConcurrencyResult.REJECTED_QUEUE
+            )
+
     monkeypatch.setattr(recovery_module, "get_redis_client", lambda: redis)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda _key: object())
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
     monkeypatch.setattr(manager, "_mark_run_failed", _fake_mark_failed)
     monkeypatch.setattr(manager, "_submit_recovery_run", _fake_submit_recovery_run)
 

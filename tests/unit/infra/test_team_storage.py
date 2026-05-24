@@ -145,9 +145,25 @@ def _make_fake_user_collection():
         result.modified_count = 1
         return result
 
+    async def update_many(query: dict, update_doc: dict):
+        modified = 0
+        for user in users.values():
+            for key, value in update_doc.get("$pull", {}).items():
+                if not key.startswith("metadata."):
+                    continue
+                metadata_key = key.removeprefix("metadata.")
+                current = user.setdefault("metadata", {}).get(metadata_key, [])
+                if value in current:
+                    user["metadata"][metadata_key] = [item for item in current if item != value]
+                    modified += 1
+        result = MagicMock()
+        result.modified_count = modified
+        return result
+
     coll = MagicMock()
     coll.find_one = find_one
     coll.update_one = update_one
+    coll.update_many = update_many
     return coll, users
 
 
@@ -473,3 +489,46 @@ async def test_list_teams_filters_favorites(storage):
 
     assert total == 1
     assert [team.id for team in teams] == [favorite.id]
+
+
+@pytest.mark.asyncio
+async def test_list_teams_false_preference_filters_do_not_return_empty(storage):
+    s, store, users = storage
+    owner_user_id = str(ObjectId())
+    normal = await s.create_team(owner_user_id=owner_user_id, name="Normal")
+    favorite = await s.create_team(owner_user_id=owner_user_id, name="Favorite")
+    await s.update_user_preference(
+        user_id=owner_user_id,
+        team_id=favorite.id,
+        update={"is_favorite": True},
+    )
+
+    teams, total = await s.list_teams(
+        owner_user_id=owner_user_id,
+        favorite=False,
+        pinned=False,
+        skip=0,
+        limit=10,
+    )
+
+    assert total == 2
+    assert {team.id for team in teams} == {normal.id, favorite.id}
+
+
+@pytest.mark.asyncio
+async def test_delete_team_removes_deleted_id_from_user_preferences(storage):
+    s, store, users = storage
+    owner_user_id = str(ObjectId())
+    team = await s.create_team(owner_user_id=owner_user_id, name="Pinned")
+    await s.update_user_preference(
+        user_id=owner_user_id,
+        team_id=team.id,
+        update={"is_favorite": True, "is_pinned": True},
+    )
+
+    deleted = await s.delete_team(team.id, owner_user_id=owner_user_id)
+
+    assert deleted is True
+    metadata = users[ObjectId(owner_user_id)]["metadata"]
+    assert team.id not in metadata["favorite_team_ids"]
+    assert team.id not in metadata["pinned_team_ids"]

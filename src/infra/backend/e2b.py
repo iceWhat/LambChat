@@ -438,7 +438,7 @@ class E2BBackend(BaseSandbox):
     async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
         return await asyncio.to_thread(self.glob_info, pattern, path)
 
-    def glob(self, pattern: str, path: str = "/", _max_depth: int = 10) -> GlobResult:
+    def glob(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> GlobResult:
         return GlobResult(matches=self.glob_info(pattern, path, _max_depth=_max_depth))
 
     async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
