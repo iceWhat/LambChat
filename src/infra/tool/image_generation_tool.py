@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import mimetypes
@@ -37,6 +38,8 @@ logger = get_logger(__name__)
 
 DEFAULT_IMAGE_GENERATION_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_IMAGE_GENERATION_MODEL = "gpt-image-2"
+IMAGE_API_MAX_ATTEMPTS = 3
+IMAGE_API_RETRY_BASE_DELAY_SECONDS = 1.0
 
 
 class ImageBackground(str, Enum):
@@ -138,6 +141,60 @@ def _normalize_image_size(size: Any) -> str:
         "1536x1024": 1536 / 1024,
     }
     return min(supported, key=lambda candidate: abs(supported[candidate] - ratio))
+
+
+def _is_retryable_image_api_status(status_code: int | None) -> bool:
+    if status_code is None:
+        return False
+    return status_code == 429 or 500 <= status_code <= 599
+
+
+def _image_api_retry_delay(attempt: int) -> float:
+    return IMAGE_API_RETRY_BASE_DELAY_SECONDS * (2 ** max(0, attempt - 1))
+
+
+async def _post_image_api_with_retries(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    operation: str,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    for attempt in range(1, IMAGE_API_MAX_ATTEMPTS + 1):
+        try:
+            response = await client.post(url, **kwargs)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as exc:
+            status_code = getattr(exc.response, "status_code", None)
+            if attempt >= IMAGE_API_MAX_ATTEMPTS or not _is_retryable_image_api_status(status_code):
+                raise
+            delay = _image_api_retry_delay(attempt)
+            logger.warning(
+                "[image_generate] %s API returned retryable status %s "
+                "(attempt %d/%d), retrying in %.1fs",
+                operation,
+                status_code,
+                attempt,
+                IMAGE_API_MAX_ATTEMPTS,
+                delay,
+            )
+            await asyncio.sleep(delay)
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            if attempt >= IMAGE_API_MAX_ATTEMPTS:
+                raise
+            delay = _image_api_retry_delay(attempt)
+            logger.warning(
+                "[image_generate] %s API request failed with %s (attempt %d/%d), retrying in %.1fs",
+                operation,
+                type(exc).__name__,
+                attempt,
+                IMAGE_API_MAX_ATTEMPTS,
+                delay,
+            )
+            await asyncio.sleep(delay)
+
+    raise RuntimeError("Image API retry loop exhausted")
 
 
 async def _download_image_source(
@@ -284,13 +341,13 @@ async def _call_generation_api(
     }
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(
+        body = await _post_image_api_with_retries(
+            client,
             f"{base_url}/images/generations",
+            operation="generation",
             headers=headers,
             json=payload,
         )
-        response.raise_for_status()
-        body = response.json()
 
     items = []
     if isinstance(body, dict):
@@ -365,14 +422,14 @@ async def _call_edit_api(
     }
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(
+        body = await _post_image_api_with_retries(
+            client,
             f"{base_url}/images/edits",
+            operation="edit",
             headers={"Authorization": f"Bearer {api_key}"},
             data=data,
             files=files,
         )
-        response.raise_for_status()
-        body = response.json()
 
     items = []
     if isinstance(body, dict):

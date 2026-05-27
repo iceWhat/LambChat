@@ -1483,6 +1483,10 @@
     "hidePassword": "Hide password",
     "showPassword": "Show password"
   },
+  "persona": {
+    "addNew": "New Persona",
+    "empty": "No personas available"
+  },
   "personaPresets": {
     "addStarterPrompt": "Add Starter Prompt",
     "all": "All",
@@ -2364,6 +2368,7 @@
     "active": "{{count}} active",
     "activeStatus": "{{count}} active",
     "addAnotherRole": "Add another role",
+    "addNew": "New Team",
     "addRoles": "Add roles to build your team...",
     "addToTeam": "Add to team",
     "buildRoles": "Build roles, defaults, and shared instructions",
@@ -2391,6 +2396,7 @@
     "disableRole": "Disable role",
     "edit": "Edit",
     "editTeam": "Edit team",
+    "empty": "No teams available",
     "enableRole": "Enable role",
     "export": "Export",
     "exportFailed": "Failed to export team",

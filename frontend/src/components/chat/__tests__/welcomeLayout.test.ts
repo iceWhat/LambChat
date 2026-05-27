@@ -123,10 +123,8 @@ test("shows all welcome persona cards with pinned and favorite cards first", () 
   );
 });
 
-test("reserves persona skeleton cards while presets are loading", () => {
-  assert.equal(getWelcomePersonaSkeletonCount(true, 0), 12);
-  assert.equal(getWelcomePersonaSkeletonCount(true, 3), 0);
-  assert.equal(getWelcomePersonaSkeletonCount(false, 0), 0);
+test("always returns 0 for persona skeleton count", () => {
+  assert.equal(getWelcomePersonaSkeletonCount(), 0);
 });
 
 test("uses only the selected persona starter prompts after a welcome persona is selected", () => {

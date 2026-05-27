@@ -1484,6 +1484,10 @@
     "hidePassword": "隐藏密码",
     "showPassword": "显示密码"
   },
+  "persona": {
+    "addNew": "新建角色",
+    "empty": "暂无角色"
+  },
   "personaPresets": {
     "addStarterPrompt": "添加开场提示词",
     "all": "全部",
@@ -2365,6 +2369,7 @@
     "active": "{{count}} 个活跃",
     "activeStatus": "{{count}} 个活跃",
     "addAnotherRole": "添加另一个角色",
+    "addNew": "新建团队",
     "addRoles": "添加角色来构建团队...",
     "addToTeam": "添加到团队",
     "buildRoles": "配置角色、默认值和共享指令",
@@ -2392,6 +2397,7 @@
     "disableRole": "禁用角色",
     "edit": "编辑",
     "editTeam": "编辑团队",
+    "empty": "暂无团队",
     "enableRole": "启用角色",
     "export": "导出",
     "exportFailed": "导出团队失败",

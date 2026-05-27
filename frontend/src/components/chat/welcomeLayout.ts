@@ -53,21 +53,8 @@ export function getWelcomePersonaCardClass(_index: number): string {
     .join(" ");
 }
 
-export function getWelcomePersonaSkeletonCount(
-  loading: boolean,
-  visibleCardCount: number,
-  fallbackCount = 12,
-): number {
-  if (visibleCardCount > 0) return 0;
-  // Show skeletons while loading OR when neither loading nor data have started yet
-  // (i.e. the initial idle state before the fetch effect fires)
-  if (loading) return fallbackCount;
-  // When not loading and no cards: could be initial state or truly empty.
-  // The caller passes `true` for `loading` once the fetch is in progress,
-  // so `!loading && visibleCardCount === 0` here means either the fetch
-  // effect hasn't fired yet (show skeletons) or data loaded but was empty
-  // (the caller ensures showTeamCards/showPersonaCards hides the section).
-  return fallbackCount;
+export function getWelcomePersonaSkeletonCount(): number {
+  return 0;
 }
 
 export function getWelcomeSuggestionButtonClass(_index: number): string {

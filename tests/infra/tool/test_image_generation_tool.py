@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import importlib.util
 import json
@@ -434,6 +435,147 @@ async def test_image_generate_with_input_images_uses_edits_endpoint(
     )
     assert captured["upload"]["filename"] == "generated-20260523_123456-1.png"
     assert "mask_url" not in result
+
+
+@pytest.mark.asyncio
+async def test_image_generate_retries_retryable_api_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    attempts: list[str] = []
+    image_bytes = b"fake-png"
+    b64_image = base64.b64encode(image_bytes).decode("ascii")
+
+    class _FakeResponse:
+        def __init__(self, status_code: int, payload: dict[str, object]) -> None:
+            self.status_code = status_code
+            self._payload = payload
+            self.request = image_generation_tool.httpx.Request(
+                "POST",
+                "https://api.example.com/v1/images/generations",
+            )
+
+        def raise_for_status(self) -> None:
+            if self.status_code >= 400:
+                raise image_generation_tool.httpx.HTTPStatusError(
+                    f"status {self.status_code}",
+                    request=self.request,
+                    response=self,
+                )
+
+        def json(self) -> dict[str, object]:
+            return self._payload
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, request_url: str, **kwargs):
+            attempts.append(request_url)
+            if len(attempts) == 1:
+                return _FakeResponse(429, {"error": {"message": "rate limit"}})
+            return _FakeResponse(200, {"data": [{"b64_json": b64_image}]})
+
+    class _FakeStorage:
+        async def upload_bytes(self, data: bytes, folder: str, filename: str, content_type: str):
+            return SimpleNamespace(
+                key=f"{folder}/{filename}", url="https://oss.example.com/gen.png"
+            )
+
+    async def fake_get_or_init_storage():
+        return _FakeStorage()
+
+    sleep_delays: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleep_delays.append(delay)
+
+    monkeypatch.setattr(
+        image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
+    )
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(image_generation_tool, "get_or_init_storage", fake_get_or_init_storage)
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        image_generation_tool.settings,
+        "IMAGE_GENERATION_BASE_URL",
+        "https://api.example.com/v1",
+    )
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_MODEL", "gpt-image-2")
+
+    result = json.loads(
+        await image_generation_tool.image_generate.coroutine(
+            prompt="draw a cat",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert len(attempts) == 2
+    assert sleep_delays == [1.0]
+
+
+@pytest.mark.asyncio
+async def test_image_generate_does_not_retry_non_retryable_api_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.infra.tool import image_generation_tool
+
+    attempts: list[str] = []
+
+    class _FakeResponse:
+        status_code = 400
+
+        def __init__(self) -> None:
+            self.request = image_generation_tool.httpx.Request(
+                "POST",
+                "https://api.example.com/v1/images/generations",
+            )
+
+        def raise_for_status(self) -> None:
+            raise image_generation_tool.httpx.HTTPStatusError(
+                "bad request",
+                request=self.request,
+                response=self,
+            )
+
+        def json(self) -> dict[str, object]:
+            return {"error": {"message": "bad request"}}
+
+    class _FakeHttpClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, request_url: str, **kwargs):
+            attempts.append(request_url)
+            return _FakeResponse()
+
+    monkeypatch.setattr(
+        image_generation_tool.httpx, "AsyncClient", lambda **kwargs: _FakeHttpClient()
+    )
+    monkeypatch.setattr(image_generation_tool.settings, "IMAGE_GENERATION_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        image_generation_tool.settings,
+        "IMAGE_GENERATION_BASE_URL",
+        "https://api.example.com/v1",
+    )
+
+    result = json.loads(
+        await image_generation_tool.image_generate.coroutine(
+            prompt="draw a cat",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert len(attempts) == 1
+    assert "400" in result["error"] or "bad request" in result["error"]
 
 
 @pytest.mark.asyncio

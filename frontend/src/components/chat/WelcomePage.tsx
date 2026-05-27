@@ -1,5 +1,11 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { RefreshCw, Sparkles, UserRound, ChevronRight } from "lucide-react";
+import {
+  RefreshCw,
+  Sparkles,
+  UserRound,
+  ChevronRight,
+  Plus,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ChatInput } from "./ChatInput";
@@ -289,18 +295,12 @@ export const WelcomePage = memo(function WelcomePage({
   const showStarterPrompts =
     isAgentReady &&
     currentAgent !== "team" &&
-    (selectedPersonaPresetId
-      ? personaStarterPrompts.length > 0
-      : !personaPresetsLoading &&
-        roleCards.length === 0 &&
-        defaultSuggestions.length > 0);
+    !!selectedPersonaPresetId &&
+    personaStarterPrompts.length > 0;
   const showTeamStarterPrompts =
     currentAgent === "team" &&
-    (selectedTeamId
-      ? teamStarterPrompts.length > 0
-      : !teamCardsLoading &&
-        welcomeTeamCards.length === 0 &&
-        defaultSuggestions.length > 0);
+    !!selectedTeamId &&
+    teamStarterPrompts.length > 0;
   const canChangePersona =
     isAgentReady &&
     currentAgent !== "team" &&
@@ -319,25 +319,18 @@ export const WelcomePage = memo(function WelcomePage({
         : defaultSuggestions;
   const displayCards = mentionQuery ? filteredCards : roleCards;
   const displayTeamCards = mentionQuery ? filteredTeamCards : welcomeTeamCards;
-  const personaSkeletonCount = getWelcomePersonaSkeletonCount(
-    personaPresetsLoading,
-    displayCards.length,
-  );
-  const teamSkeletonCount = getWelcomePersonaSkeletonCount(
-    teamCardsLoading,
-    displayTeamCards.length,
-  );
+  const personaSkeletonCount = getWelcomePersonaSkeletonCount();
+  const teamSkeletonCount = getWelcomePersonaSkeletonCount();
   // Whether data has loaded but is empty
   const isTeamEmpty =
     showTeamCards && !teamCardsLoading && displayTeamCards.length === 0;
   const isPersonaEmpty =
     showPersonaCards && !personaPresetsLoading && displayCards.length === 0;
   // Whether to show the choice-card gallery section (persona or team).
-  // Hide when data has finished loading and there are no cards.
-  const showGallerySection =
+  const showGallerySection = showPersonaCards || showTeamCards;
+  // Whether the gallery has real card content (used for container width variant)
+  const showChoiceCards =
     (showPersonaCards && !isPersonaEmpty) || (showTeamCards && !isTeamEmpty);
-  // Whether the gallery has any real content (used for container width variant)
-  const showChoiceCards = showGallerySection;
 
   return (
     <div
@@ -386,7 +379,7 @@ export const WelcomePage = memo(function WelcomePage({
         />
       </div>
 
-      {(showChoiceCards ||
+      {(showGallerySection ||
         showStarterPrompts ||
         showTeamStarterPrompts ||
         showSelectionActions) && (
@@ -406,15 +399,32 @@ export const WelcomePage = memo(function WelcomePage({
               />
               <span>
                 {showTeamCards
-                  ? t("team.plaza", "团队广场")
+                  ? isTeamEmpty
+                    ? t("team.empty", "暂无团队")
+                    : t("team.plaza", "团队广场")
                   : showStarterPrompts || showTeamStarterPrompts
                     ? starterPromptsLabel ||
                       t("personaPresets.starterPrompts", "开始对话")
-                    : personasLabel || t("personaPresets.title", "角色")}
+                    : isPersonaEmpty
+                      ? t("persona.empty", "暂无角色")
+                      : personasLabel || t("personaPresets.title", "角色")}
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {showTeamCards && (
+              {showTeamCards && isTeamEmpty && (
+                <button
+                  onClick={() => navigate("/team")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  style={{
+                    color: "var(--theme-primary)",
+                    backgroundColor: "var(--theme-primary-light)",
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>{t("team.addNew", "新建团队")}</span>
+                </button>
+              )}
+              {showTeamCards && !isTeamEmpty && (
                 <button
                   onClick={() => navigate("/team")}
                   className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
@@ -427,7 +437,20 @@ export const WelcomePage = memo(function WelcomePage({
                   <ChevronRight size={12} />
                 </button>
               )}
-              {showPersonaCards && (
+              {showPersonaCards && isPersonaEmpty && (
+                <button
+                  onClick={() => navigate("/persona")}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
+                  style={{
+                    color: "var(--theme-primary)",
+                    backgroundColor: "var(--theme-primary-light)",
+                  }}
+                >
+                  <Plus size={12} />
+                  <span>{t("persona.addNew", "新建角色")}</span>
+                </button>
+              )}
+              {showPersonaCards && !isPersonaEmpty && (
                 <button
                   onClick={() => navigate("/persona")}
                   className="flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] sm:text-[12px] md:text-[12px] font-medium transition-all duration-300 cursor-pointer font-serif"
@@ -472,10 +495,10 @@ export const WelcomePage = memo(function WelcomePage({
           </div>
           <div
             key={animKey}
-            ref={showChoiceCards ? galleryRef : undefined}
+            ref={showGallerySection ? galleryRef : undefined}
             onScroll={showPersonaCards ? handleGalleryScroll : undefined}
             className={
-              showChoiceCards
+              showGallerySection
                 ? "welcome-persona-gallery relative px-2 pb-1 sm:px-0 sm:pb-0"
                 : "welcome-suggestions-grid-wrapper"
             }

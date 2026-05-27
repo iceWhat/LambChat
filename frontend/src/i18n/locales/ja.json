@@ -1482,6 +1482,10 @@
     "hidePassword": "パスワードを隠す",
     "showPassword": "パスワードを表示"
   },
+  "persona": {
+    "addNew": "新しいペルソナ",
+    "empty": "ペルソナがありません"
+  },
   "personaPresets": {
     "addStarterPrompt": "スタータープロンプトを追加",
     "all": "すべて",
@@ -2361,6 +2365,7 @@
     "active": "{{count}}件アクティブ",
     "activeStatus": "{{count}}件アクティブ",
     "addAnotherRole": "別のロールを追加",
+    "addNew": "新しいチーム",
     "addRoles": "ロールを追加してチームを構築...",
     "addToTeam": "チームに追加",
     "buildRoles": "ロール、デフォルト、共有指示の設定",
@@ -2388,6 +2393,7 @@
     "disableRole": "ロールを無効化",
     "edit": "編集",
     "editTeam": "チームを編集",
+    "empty": "チームがありません",
     "enableRole": "ロールを有効化",
     "export": "エクスポート",
     "exportFailed": "チームのエクスポートに失敗しました",

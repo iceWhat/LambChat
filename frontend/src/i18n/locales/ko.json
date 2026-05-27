@@ -1482,6 +1482,10 @@
     "hidePassword": "비밀번호 숨기기",
     "showPassword": "비밀번호 표시"
   },
+  "persona": {
+    "addNew": "새 페르소나",
+    "empty": "페르소나가 없습니다"
+  },
   "personaPresets": {
     "addStarterPrompt": "스타터 프롬프트 추가",
     "all": "전체",
@@ -2361,6 +2365,7 @@
     "active": "{{count}}개 활성",
     "activeStatus": "{{count}}개 활성",
     "addAnotherRole": "다른 역할 추가",
+    "addNew": "새 팀",
     "addRoles": "역할을 추가하여 팀을 구축...",
     "addToTeam": "팀에 추가",
     "buildRoles": "역할, 기본값, 공유 지시사항 설정",
@@ -2388,6 +2393,7 @@
     "disableRole": "역할 비활성화",
     "edit": "편집",
     "editTeam": "팀 편집",
+    "empty": "팀이 없습니다",
     "enableRole": "역할 활성화",
     "export": "내보내기",
     "exportFailed": "팀 내보내기에 실패했습니다",
