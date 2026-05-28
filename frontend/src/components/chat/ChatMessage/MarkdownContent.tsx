@@ -377,7 +377,10 @@ export const MarkdownContent = memo(function MarkdownContent({
           ),
           // Blockquotes with elegant styling
           blockquote: ({ children }) => (
-            <blockquote className="my-3 pl-3 pr-3 py-2 border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-r-lg">
+            <blockquote
+              className="my-3 pl-4 pr-3 py-2 border-l-[5px] border-amber-400 bg-amber-50 dark:bg-amber-900/20"
+              style={{ borderRadius: "4px" }}
+            >
               <div className="text-stone-600 dark:text-stone-300 text-sm [&>p]:italic [&>p:first-child]:italic">
                 {children}
               </div>

@@ -131,6 +131,48 @@ class FakePresenter:
             data["model"] = model
         return {"event": "token:usage", "data": data}
 
+    def present_tool_start(
+        self,
+        tool_name: str,
+        tool_input: Any,
+        tool_call_id: str | None = None,
+        depth: int = 0,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "event": "tool:start",
+            "data": {
+                "tool": tool_name,
+                "args": tool_input if isinstance(tool_input, dict) else {"input": tool_input},
+                "tool_call_id": tool_call_id,
+                "depth": depth,
+                "agent_id": agent_id,
+            },
+        }
+
+    def present_tool_result(
+        self,
+        tool_name: str,
+        result: Any,
+        tool_call_id: str | None = None,
+        success: bool = True,
+        error: str | None = None,
+        depth: int = 0,
+        agent_id: str | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "event": "tool:result",
+            "data": {
+                "tool": tool_name,
+                "result": result,
+                "tool_call_id": tool_call_id,
+                "success": success,
+                "error": error,
+                "depth": depth,
+                "agent_id": agent_id,
+            },
+        }
+
 
 def chat_stream(content: str, chunk_id: str = "chunk-1", metadata: dict[str, Any] | None = None):
     return {
@@ -304,6 +346,82 @@ def test_text_chunk_buffer_consume_ready_flushes_previous_key_without_losing_cur
 
 def test_detect_tool_error_detects_string_error_prefix() -> None:
     assert detect_tool_error(None, "Error: failed to run") == (True, "Error: failed to run")
+
+
+@pytest.mark.asyncio
+async def test_tool_error_emits_start_and_failed_result_when_start_was_missing() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_tool_error",
+            "name": "mcp_search",
+            "run_id": "tool-run-1",
+            "data": {
+                "input": {"query": "hello"},
+                "error": ValueError("invalid query argument"),
+            },
+            "metadata": {},
+        }
+    )
+
+    assert presenter.emitted == [
+        {
+            "event": "tool:start",
+            "data": {
+                "tool": "mcp_search",
+                "args": {"query": "hello"},
+                "tool_call_id": "tool-run-1",
+                "depth": 0,
+                "agent_id": None,
+            },
+        },
+        {
+            "event": "tool:result",
+            "data": {
+                "tool": "mcp_search",
+                "result": "[MCP Tool Error] mcp_search failed: [ValueError] invalid query argument",
+                "tool_call_id": "tool-run-1",
+                "success": False,
+                "error": "[MCP Tool Error] mcp_search failed: [ValueError] invalid query argument",
+                "depth": 0,
+                "agent_id": None,
+            },
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tool_error_does_not_emit_duplicate_start_after_start_event() -> None:
+    presenter = FakePresenter()
+    processor = AgentEventProcessor(presenter)
+
+    await processor.process_event(
+        {
+            "event": "on_tool_start",
+            "name": "mcp_search",
+            "run_id": "tool-run-1",
+            "data": {"input": {"query": "hello"}},
+            "metadata": {},
+        }
+    )
+    await processor.process_event(
+        {
+            "event": "on_tool_error",
+            "name": "mcp_search",
+            "run_id": "tool-run-1",
+            "data": {
+                "input": {"query": "hello"},
+                "error": TypeError("missing required parameter"),
+            },
+            "metadata": {},
+        }
+    )
+
+    assert [event["event"] for event in presenter.emitted] == ["tool:start", "tool:result"]
+    assert presenter.emitted[1]["data"]["success"] is False
+    assert presenter.emitted[1]["data"]["tool_call_id"] == "tool-run-1"
 
 
 @pytest.mark.asyncio

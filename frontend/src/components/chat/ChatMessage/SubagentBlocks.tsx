@@ -671,13 +671,13 @@ export function SubagentBlock({
         "my-1.5 rounded-xl overflow-hidden min-w-0 group relative",
         "border transition-all duration-200",
         effectiveStatus === "running" &&
-          "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
+          "border-amber-200/60 dark:border-stone-700/40 bg-amber-50/80 dark:bg-stone-800/50",
         effectiveStatus === "complete" &&
-          "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
+          "border-stone-300/60 dark:border-stone-600/40 bg-white dark:bg-stone-700/50",
         effectiveStatus === "error" &&
           "border-red-200/60 dark:border-red-900/40 bg-gradient-to-r from-red-50/60 to-transparent dark:from-red-950/20",
         effectiveStatus === "cancelled" &&
-          "border-stone-200/60 dark:border-stone-700/40 bg-stone-50/50 dark:bg-stone-800/30",
+          "border-stone-300/60 dark:border-stone-600/40 bg-white dark:bg-stone-700/50",
         (!effectiveStatus || effectiveStatus === "pending") &&
           "border-stone-200/60 dark:border-stone-700/40",
       )}

@@ -51,8 +51,8 @@ function UserMessageSkeleton({
   msg: { bubble: string; lines: string[] };
 }) {
   return (
-    <div className="w-full px-2 py-3 sm:py-4 sm:px-4 group">
-      <div className="mx-auto flex max-w-3xl lg:max-w-4xl xl:max-w-5xl justify-end px-2">
+    <div className="w-full px-5 sm:px-6 py-4 group">
+      <div className="mx-auto flex max-w-3xl lg:max-w-4xl xl:max-w-5xl justify-end">
         <div
           className={`flex flex-col items-stretch max-w-[90%] ${msg.bubble}`}
         >
@@ -80,7 +80,7 @@ function UserMessageSkeleton({
 function AssistantMessageSkeleton() {
   return (
     <div className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl">
-      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-5 sm:px-6">
         {/* Avatar + name */}
         <div className="mb-3 flex items-center gap-2">
           <div className="skeleton-line size-6 rounded-full shrink-0" />
@@ -91,7 +91,7 @@ function AssistantMessageSkeleton() {
         </div>
         {/* Response content skeleton */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
-          <div className="space-y-3 px-2 my-2">
+          <div className="space-y-3 my-2">
             <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
             <div className="flex gap-2 sm:gap-3">
               <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />

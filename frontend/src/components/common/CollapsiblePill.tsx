@@ -126,7 +126,7 @@ export function CollapsiblePill({
       <button
         onClick={handleToggle}
         className={clsx(
-          "inline-flex items-center gap-2 px-2.5 py-2.5 rounded-full text-xs font-medium max-w-full h-7",
+          "inline-flex items-center gap-2 p-3 rounded-full text-xs font-medium max-w-full h-7",
           "transition-colors",
           statusStyles[status],
           canExpand && "cursor-pointer hover:opacity-80",

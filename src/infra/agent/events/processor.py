@@ -29,7 +29,9 @@ from src.infra.writer.present import Presenter
 
 logger = get_logger(__name__)
 
-_CONTEXT_EVENT_TYPES = frozenset(("on_chat_model_stream", "on_tool_start", "on_tool_end"))
+_CONTEXT_EVENT_TYPES = frozenset(
+    ("on_chat_model_stream", "on_tool_start", "on_tool_end", "on_tool_error")
+)
 
 
 class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
@@ -60,6 +62,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         "_agent_context_cache",
         "_subagent_display_names",
         "_subagent_avatars",
+        "_started_tool_call_ids",
     )
 
     _CHUNK_FLUSH_SIZE = 200
@@ -92,6 +95,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._agent_context_cache: dict[str, tuple[str | None, int]] = {}
         self._subagent_display_names = subagent_display_names or {}
         self._subagent_avatars = subagent_avatars or {}
+        self._started_tool_call_ids: set[str] = set()
 
     @property
     def output_text(self) -> str:
@@ -148,6 +152,7 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
         self._agent_context_cache.clear()
         self._chunk_buffer.clear()
         self._summary_chunk_buffer.clear()
+        self._started_tool_call_ids.clear()
 
     async def process_event(self, event: StreamEvent) -> None:
         """Process a single LangChain stream event."""
@@ -200,6 +205,9 @@ class AgentEventProcessor(SubagentEventMixin, StreamEventMixin, ToolEventMixin):
             case "on_tool_end":
                 await self.flush()
                 await self._handle_tool_end(event, tool_name, current_agent_id, current_depth)
+            case "on_tool_error":
+                await self.flush()
+                await self._handle_tool_error(event, tool_name, current_agent_id, current_depth)
 
     _extract_tool_output = staticmethod(extract_tool_output)
     _detect_tool_error = staticmethod(detect_tool_error)

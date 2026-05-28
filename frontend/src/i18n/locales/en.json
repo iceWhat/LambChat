@@ -532,6 +532,7 @@
       "generating": "Generating",
       "mermaidError": "Mermaid Error",
       "model": "Model",
+      "openImage": "chat.message.openImage",
       "openInSidebar": "Open in sidebar",
       "parameters": "Parameters",
       "projects": "Projects",

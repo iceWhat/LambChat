@@ -307,7 +307,7 @@ export const ChatMessage = memo(function ChatMessage({
       data-outline-id={createMessageAnchorId(message.id)}
       className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl transition-[background-color,box-shadow] duration-300 data-[external-navigation-highlighted=true]:bg-amber-50/85 data-[external-navigation-highlighted=true]:ring-2 data-[external-navigation-highlighted=true]:ring-amber-500/60 dark:data-[external-navigation-highlighted=true]:bg-amber-500/12 dark:data-[external-navigation-highlighted=true]:ring-amber-400/50"
     >
-      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-6">
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}
@@ -338,7 +338,7 @@ export const ChatMessage = memo(function ChatMessage({
           {isStreaming && !hasParts && <ThinkingIndicator />}
 
           {hasParts ? (
-            <div className="space-y-3 px-2 my-2">
+            <div className="space-y-3 my-2">
               {message.parts!.map((part: MessagePart, index: number) => (
                 <MessagePartRenderer
                   key={index}
