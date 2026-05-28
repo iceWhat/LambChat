@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { mcpApi } from "../../services/api/mcp";
@@ -54,7 +54,17 @@ export function MCPServerToolsSidebar({
   const [toolsLoading, setToolsLoading] = useState(false);
   const [toolsError, setToolsError] = useState<string | null>(null);
   const [savingToolPolicy, setSavingToolPolicy] = useState<string | null>(null);
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const pendingToggleRef = useRef<Promise<void> | null>(null);
+
+  const toggleExpanded = useCallback((toolName: string) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(toolName)) next.delete(toolName);
+      else next.add(toolName);
+      return next;
+    });
+  }, []);
 
   const TRANSPORT_LABELS: Record<string, string> = {
     sse: t("mcp.form.transportSse"),
@@ -245,30 +255,44 @@ export function MCPServerToolsSidebar({
             {tools.map((tool) => {
               const isDisabled =
                 tool.system_disabled || tool.user_disabled || false;
+              const isExpanded = expandedTools.has(tool.name);
+              const canExpand = server.can_edit;
               return (
                 <div
                   key={tool.name}
                   className={`list-item-card ${
                     isDisabled ? "list-item-card--disabled" : ""
-                  }`}
+                  } ${isExpanded ? "list-item-card--expanded" : ""}`}
                 >
                   <div className="list-item-card__body">
-                    <div className="list-item-card__top">
+                    <div
+                      className="list-item-card__top cursor-pointer"
+                      onClick={() => canExpand && toggleExpanded(tool.name)}
+                    >
+                      {canExpand && (
+                        <ChevronDown
+                          size={14}
+                          className={`shrink-0 text-[var(--theme-text-quaternary)] transition-transform duration-200 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        />
+                      )}
                       <div className="list-item-card__identity">
                         <code className="list-item-card__name">
                           {tool.name}
                         </code>
                         {tool.description && (
-                          <p className="text-[11px] text-[var(--theme-text-tertiary)] leading-snug truncate">
+                          <p className="text-[11px] text-[var(--theme-text-tertiary)] leading-snug line-clamp-2">
                             {tool.description}
                           </p>
                         )}
                       </div>
                       <div className="list-item-card__actions">
                         <button
-                          onClick={() =>
-                            handleToggleTool(tool.name, !isDisabled)
-                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleTool(tool.name, !isDisabled);
+                          }}
                           className={`team-toggle ${
                             !isDisabled ? "team-toggle--on" : ""
                           }`}
@@ -281,10 +305,10 @@ export function MCPServerToolsSidebar({
                       </div>
                     </div>
 
-                    {server.can_edit && (
+                    {canExpand && isExpanded && (
                       <div className="list-item-card__instructions">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] text-[var(--theme-text-tertiary)]">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-[10px] font-medium text-[var(--theme-text-tertiary)]">
                             {t("mcp.form.allowedRoles")}
                           </span>
                           {savingToolPolicy === tool.name && (
@@ -307,61 +331,99 @@ export function MCPServerToolsSidebar({
                           }
                         />
                         {(tool.allowed_roles ?? []).length > 0 && (
-                          <div className="mt-1.5 space-y-1">
-                            {(tool.allowed_roles ?? []).map((role) => {
-                              const quota = tool.role_quotas?.[role] ?? {};
-                              return (
-                                <div
-                                  key={role}
-                                  className="grid grid-cols-[1fr_76px_76px] items-center gap-1.5"
-                                >
-                                  <span className="truncate text-[10px] text-[var(--theme-text-secondary)]">
-                                    {role}
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                toggleExpanded(`${tool.name}:quotas`)
+                              }
+                              className="mt-2.5 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-[10px] font-medium text-[var(--theme-text-tertiary)] hover:bg-[var(--theme-bg-hover)] transition-colors"
+                            >
+                              <ChevronDown
+                                size={12}
+                                className={`transition-transform duration-200 ${
+                                  expandedTools.has(`${tool.name}:quotas`)
+                                    ? "rotate-180"
+                                    : ""
+                                }`}
+                              />
+                              <span className="flex-1 text-left">
+                                {t("mcp.form.rateLimits")}
+                              </span>
+                              <span className="text-[var(--theme-text-quaternary)]">
+                                {(tool.allowed_roles ?? []).length}{" "}
+                                {t("mcp.form.roles")}
+                              </span>
+                            </button>
+                            {expandedTools.has(`${tool.name}:quotas`) && (
+                              <div className="mt-1.5 space-y-1">
+                                <div className="grid grid-cols-[1fr_76px_76px] items-center gap-1.5 px-1 pb-0.5">
+                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                    {t("mcp.form.role")}
                                   </span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={quota.daily_limit ?? ""}
-                                    onChange={(e) => {
-                                      const nextQuotas = updateQuotaValue(
-                                        tool.role_quotas,
-                                        role,
-                                        "daily_limit",
-                                        e.target.value,
-                                      );
-                                      if (nextQuotas) {
-                                        handleUpdateToolPolicy(tool.name, {
-                                          role_quotas: nextQuotas,
-                                        });
-                                      }
-                                    }}
-                                    placeholder={t("mcp.form.dailyLimit")}
-                                    className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
-                                  />
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={quota.weekly_limit ?? ""}
-                                    onChange={(e) => {
-                                      const nextQuotas = updateQuotaValue(
-                                        tool.role_quotas,
-                                        role,
-                                        "weekly_limit",
-                                        e.target.value,
-                                      );
-                                      if (nextQuotas) {
-                                        handleUpdateToolPolicy(tool.name, {
-                                          role_quotas: nextQuotas,
-                                        });
-                                      }
-                                    }}
-                                    placeholder={t("mcp.form.weeklyLimit")}
-                                    className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
-                                  />
+                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                    {t("mcp.form.dailyLimit")}
+                                  </span>
+                                  <span className="text-[9px] text-[var(--theme-text-quaternary)]">
+                                    {t("mcp.form.weeklyLimit")}
+                                  </span>
                                 </div>
-                              );
-                            })}
-                          </div>
+                                {(tool.allowed_roles ?? []).map((role) => {
+                                  const quota = tool.role_quotas?.[role] ?? {};
+                                  return (
+                                    <div
+                                      key={role}
+                                      className="grid grid-cols-[1fr_76px_76px] items-center gap-1.5 rounded-md px-1 py-1 hover:bg-[var(--theme-bg-hover)] transition-colors"
+                                    >
+                                      <span className="truncate text-[10px] text-[var(--theme-text-secondary)]">
+                                        {role}
+                                      </span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={quota.daily_limit ?? ""}
+                                        onChange={(e) => {
+                                          const nextQuotas = updateQuotaValue(
+                                            tool.role_quotas,
+                                            role,
+                                            "daily_limit",
+                                            e.target.value,
+                                          );
+                                          if (nextQuotas) {
+                                            handleUpdateToolPolicy(tool.name, {
+                                              role_quotas: nextQuotas,
+                                            });
+                                          }
+                                        }}
+                                        placeholder={t("mcp.form.dailyLimit")}
+                                        className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
+                                      />
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={quota.weekly_limit ?? ""}
+                                        onChange={(e) => {
+                                          const nextQuotas = updateQuotaValue(
+                                            tool.role_quotas,
+                                            role,
+                                            "weekly_limit",
+                                            e.target.value,
+                                          );
+                                          if (nextQuotas) {
+                                            handleUpdateToolPolicy(tool.name, {
+                                              role_quotas: nextQuotas,
+                                            });
+                                          }
+                                        }}
+                                        placeholder={t("mcp.form.weeklyLimit")}
+                                        className="glass-input h-6 px-1.5 text-[10px] tabular-nums"
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
