@@ -133,9 +133,6 @@ export function ChatSkeleton({ count = 5 }: { count?: number }) {
           );
         })}
       </div>
-
-      {/* ChatInput skeleton at bottom */}
-      <ChatInputSkeleton />
     </div>
   );
 }
@@ -161,44 +158,6 @@ export function ChatSkeletonMessagesOnly({ count = 3 }: { count?: number }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/** Shared ChatInput skeleton — matches real ChatInput rounded-3xl container + toolbar */
-function ChatInputSkeleton() {
-  return (
-    <div className="shrink-0 sm:px-4 pb-3 pt-1">
-      <div className="mx-auto max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2">
-        <div
-          className="flex flex-col w-full rounded-3xl px-1 border"
-          style={{
-            backgroundColor: "var(--theme-bg-card)",
-            borderColor: "var(--theme-border)",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-          }}
-        >
-          {/* Textarea area */}
-          <div className="px-2.5 pt-1">
-            <div className="pt-[10px] min-h-[40px] sm:min-h-[44px]">
-              <div className="skeleton-line h-3 w-3/5 rounded" />
-            </div>
-          </div>
-          {/* Toolbar — matches real toolbar: gap-1 sm:gap-2 */}
-          <div className="flex justify-between flex-nowrap pt-3 pb-3 px-2 mx-0.5 max-w-full">
-            <div className="flex items-center gap-1 sm:gap-2 self-end flex-1 min-w-0">
-              <div className="skeleton-line h-8 w-8 rounded-lg shrink-0" />
-            </div>
-            <div className="self-end flex shrink-0">
-              <div className="skeleton-line size-8 rounded-full" />
-            </div>
-          </div>
-        </div>
-        {/* Keyboard shortcut hint — desktop only */}
-        <div className="hidden sm:flex mx-auto mt-3 px-2 max-w-3xl lg:max-w-4xl xl:max-w-5xl justify-center">
-          <SkeletonLine width="w-40" className="!h-3" />
-        </div>
-      </div>
     </div>
   );
 }
