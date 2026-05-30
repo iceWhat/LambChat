@@ -50,6 +50,7 @@ import type {
   SkillSource,
   ToolCategory,
   AgentOption,
+  AgentInfo,
   MessageAttachment,
   ConnectionStatus,
   PersonaPreset,
@@ -59,6 +60,7 @@ import type { RevealPreviewRequest } from "../../chat/ChatMessage/items/revealPr
 import { clearFileRevealAutoOpenState } from "../../chat/ChatMessage/items/fileRevealAutoOpen";
 import { clearProjectRevealAutoOpenState } from "../../chat/ChatMessage/items/projectRevealAutoOpen";
 import { getLatestChatAutoPreviewTarget } from "../../chat/ChatMessage/autoPreviewEligibility";
+import { findCancelledRetryTarget } from "../../chat/ChatMessage/cancelledRetry";
 import {
   createActiveRevealPreviewState,
   markRevealPreviewInteracted,
@@ -82,8 +84,6 @@ import { teamApi } from "../../../services/api/team";
 import type { Team } from "../../../types/team";
 import { getTeamFallbackAvatar } from "../../team/teamAvatarUtils";
 import { shouldOpenExternalNavigationPreview } from "./externalNavigationState";
-
-const FLOATING_SCROLL_BUTTON_OFFSET_CLASS = "bottom-full mb-3";
 
 function useCurrentTeam(currentAgent: string, selectedTeamId: string | null) {
   const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
@@ -206,7 +206,7 @@ interface ChatViewProps {
   agentOptionValues: Record<string, boolean | string | number>;
   onToggleAgentOption: (key: string, value: boolean | string | number) => void;
   // Agent mode selector
-  agents: { id: string; name: string; description: string }[];
+  agents: AgentInfo[];
   currentAgent: string;
   onSelectAgent: (id: string) => void;
   // Team picker
@@ -220,7 +220,7 @@ interface ChatViewProps {
     approved: boolean,
   ) => void;
   approvalLoading: boolean;
-  onSendMessage: (content: string) => void;
+  onSendMessage: (content: string, attachments?: MessageAttachment[]) => void;
   onStopGeneration: () => void;
   attachments: MessageAttachment[];
   onAttachmentsChange: React.Dispatch<
@@ -347,7 +347,7 @@ export function ChatView({
     virtuosoScrollerRef,
     messagesEndRef,
     isNearBottom,
-    showScrollTop,
+    isNearTop,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,
@@ -695,6 +695,32 @@ export function ChatView({
     [navigate, sessionId, t],
   );
 
+  const handleRetryCancelledMessage = useCallback(
+    (messageId: string) => {
+      if (sessionRunning || !canSendMessage) {
+        return;
+      }
+
+      const target = findCancelledRetryTarget(messages, messageId);
+      if (!target) {
+        return;
+      }
+
+      onSendMessage(target.content, target.attachments);
+    },
+    [canSendMessage, messages, onSendMessage, sessionRunning],
+  );
+
+  const handleRecommendQuestionClick = useCallback(
+    (question: string) => {
+      if (sessionRunning || !canSendMessage) {
+        return;
+      }
+      onSendMessage(question);
+    },
+    [canSendMessage, onSendMessage, sessionRunning],
+  );
+
   const handleVirtuosoRangeChanged = useCallback((range: ListRange) => {
     setVisibleRange((current) =>
       current?.startIndex === range.startIndex &&
@@ -760,6 +786,8 @@ export function ChatView({
         latestAutoPreview={latestAutoPreview}
         onOpenPreview={handleOpenPreview}
         onForkMessage={handleForkMessage}
+        onRecommendQuestionClick={handleRecommendQuestionClick}
+        onRetryCancelledMessage={handleRetryCancelledMessage}
       />
     ),
     [
@@ -772,12 +800,18 @@ export function ChatView({
       latestAutoPreview,
       handleOpenPreview,
       handleForkMessage,
+      handleRecommendQuestionClick,
+      handleRetryCancelledMessage,
     ],
   );
 
   // Shared ChatInput props to avoid duplication
   const chatInputProps = {
-    onSend: onSendMessage,
+    onSend: (
+      content: string,
+      _options?: Record<string, boolean | string | number>,
+      sendAttachments?: MessageAttachment[],
+    ) => onSendMessage(content, sendAttachments),
     onStop: onStopGeneration,
     isLoading: sessionRunning,
     canSend: canSendMessage,
@@ -903,56 +937,61 @@ export function ChatView({
       <AttachmentPreviewHost />
       <PersistentToolPanelHost />
 
+      {/* Floating scroll buttons - fixed bottom-right */}
+      {messages.length > 0 && (
+        <div className="bottom-40 sm:bottom-44 z-50 fixed right-3 sm:right-5 flex flex-col gap-2">
+          <button
+            onClick={scrollToTop}
+            className="group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+            style={{
+              opacity: isNearTop ? 0 : 1,
+              transform: isNearTop ? "translateY(6px)" : "translateY(0)",
+              pointerEvents: isNearTop ? "none" : "auto",
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          <button
+            onClick={scrollToBottom}
+            className={`group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95 ${
+              hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
+            }`}
+            style={{
+              opacity: isNearBottom ? 0 : 1,
+              transform: isNearBottom ? "translateY(6px)" : "translateY(0)",
+              pointerEvents: isNearBottom ? "none" : "auto",
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
       {messages.length > 0 && (
         <div className="relative">
-          {/* Right-side floating button cluster */}
-          {showScrollTop && (
-            <div
-              className={`absolute right-3 sm:right-4 z-50 flex flex-col gap-1.5 ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS}`}
-            >
-              <button
-                onClick={scrollToTop}
-                className="flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg  hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="w-4 h-4 text-stone-500 dark:text-stone-300"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
-            </div>
-          )}
-
-          {!isNearBottom && (
-            <button
-              onClick={scrollToBottom}
-              className={`absolute left-1/2 z-50 flex items-center p-2 rounded-full bg-white/90 dark:bg-stone-800/90 border border-stone-200/80 dark:border-stone-700/60 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 active:scale-95 ${FLOATING_SCROLL_BUTTON_OFFSET_CLASS} -translate-x-1/2 ${
-                hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
-              }`}
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="w-4 h-4 text-stone-500 dark:text-stone-300"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          )}
-
           <ChatInput {...chatInputProps} />
         </div>
       )}

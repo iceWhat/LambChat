@@ -15,6 +15,7 @@ from src.infra.session.dual_writer import get_dual_writer
 from src.infra.session.favorites import is_session_favorite
 from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import utc_now_iso
+from src.kernel.config import settings
 from src.kernel.schemas.session import SessionCreate, SessionUpdate
 
 from .exceptions import TaskInterruptedError
@@ -23,6 +24,11 @@ from .state_machine import TaskStateMachine
 from .status import TaskStatus
 
 logger = get_logger(__name__)
+
+
+def should_schedule_recommend_questions() -> bool:
+    """Return whether this run should generate follow-up question suggestions."""
+    return bool(getattr(settings, "ENABLE_RECOMMEND_QUESTIONS", True))
 
 
 class TaskExecutor:
@@ -76,6 +82,7 @@ class TaskExecutor:
 
         presenter = None
         dual_writer = None
+        recommendation_task: asyncio.Task | None = None
 
         try:
             await self._update_session_status(session_id, TaskStatus.STARTING, run_id=run_id)
@@ -130,6 +137,14 @@ class TaskExecutor:
                     display_message or message, attachments=attachments
                 )
 
+            if message and should_schedule_recommend_questions():
+                from src.agents.core.recommendations import schedule_recommend_questions
+
+                recommendation_task = schedule_recommend_questions(
+                    presenter,
+                    display_message or message,
+                )
+
             # 保存 trace_id 和 agent_id 到 run_info，保留已有的 flag
             run_info_entry: dict[str, Any] = {
                 "session_id": session_id,
@@ -176,6 +191,8 @@ class TaskExecutor:
             await self._send_task_notification(session_id, run_id, TaskStatus.COMPLETED, user_id)
 
         except asyncio.CancelledError:
+            if recommendation_task and not recommendation_task.done():
+                recommendation_task.cancel()
             await self._handle_cancelled_error(session_id, run_id, user_id, dual_writer, presenter)
             raise
 

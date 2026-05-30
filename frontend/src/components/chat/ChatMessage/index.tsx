@@ -79,6 +79,8 @@ interface ChatMessageProps {
     source?: RevealPreviewOpenSource,
   ) => boolean;
   onForkMessage?: (messageId: string) => void | Promise<void>;
+  onRecommendQuestionClick?: (question: string) => void;
+  onRetryCancelledMessage?: (messageId: string) => void | Promise<void>;
   showFeedbackAndShareActions?: boolean;
 }
 
@@ -251,6 +253,8 @@ export const ChatMessage = memo(function ChatMessage({
   latestAutoPreview,
   onOpenPreview,
   onForkMessage,
+  onRecommendQuestionClick,
+  onRetryCancelledMessage,
   showFeedbackAndShareActions = true,
 }: ChatMessageProps) {
   const { t } = useTranslation();
@@ -338,24 +342,32 @@ export const ChatMessage = memo(function ChatMessage({
           {isStreaming && !hasParts && <ThinkingIndicator />}
 
           {hasParts ? (
-            <div className="space-y-3 my-2">
-              {message.parts!.map((part: MessagePart, index: number) => (
-                <MessagePartRenderer
-                  key={index}
-                  part={part}
-                  messageId={message.id}
-                  partIndex={index}
-                  isStreaming={message.isStreaming}
-                  isLast={index === message.parts!.length - 1}
-                  activePreview={activePreview}
-                  onOpenPreview={onOpenPreview}
-                  allowAutoPreview={shouldAllowAutoPreviewForPart({
-                    messageId: message.id,
-                    partIndex: index,
-                    latestAutoPreview: latestAutoPreview ?? null,
-                  })}
-                />
-              ))}
+            <div className="space-y-3 my-2 pl-0.5">
+              {message.parts!.map((part: MessagePart, index: number) =>
+                part.type === "recommend_questions" ? null : (
+                  <MessagePartRenderer
+                    key={index}
+                    part={part}
+                    messageId={message.id}
+                    partIndex={index}
+                    isStreaming={message.isStreaming}
+                    isLast={index === message.parts!.length - 1}
+                    activePreview={activePreview}
+                    onOpenPreview={onOpenPreview}
+                    onRecommendQuestionClick={onRecommendQuestionClick}
+                    onRetryCancelled={
+                      part.type === "cancelled" && onRetryCancelledMessage
+                        ? () => void onRetryCancelledMessage(message.id)
+                        : undefined
+                    }
+                    allowAutoPreview={shouldAllowAutoPreviewForPart({
+                      messageId: message.id,
+                      partIndex: index,
+                      latestAutoPreview: latestAutoPreview ?? null,
+                    })}
+                  />
+                ),
+              )}
               <RevealArtifactsSummary
                 parts={message.parts}
                 isStreaming={message.isStreaming}
@@ -400,7 +412,7 @@ export const ChatMessage = memo(function ChatMessage({
           )}
           {/* Streaming indicator - bottom of message (when not showing thinking indicator) */}
           {message.isStreaming && !(isStreaming && !hasParts) && (
-            <div className="mt-3 px-2">
+            <div className="mt-3">
               <CollapsiblePill
                 status="loading"
                 icon={<Sparkles size={12} className="shrink-0 opacity-50" />}
@@ -480,6 +492,28 @@ export const ChatMessage = memo(function ChatMessage({
             )}
           </div>
         )}
+        {!message.isStreaming &&
+          isLastMessage &&
+          message.parts?.some((p) => p.type === "recommend_questions") && (
+            <div className="space-y-3 my-2 pl-0.5">
+              {message
+                .parts!.filter((p) => p.type === "recommend_questions")
+                .map((part, index) => (
+                  <MessagePartRenderer
+                    key={`rec-${index}`}
+                    part={part}
+                    messageId={message.id}
+                    partIndex={index}
+                    isStreaming={false}
+                    isLast={false}
+                    activePreview={activePreview}
+                    onOpenPreview={onOpenPreview}
+                    onRecommendQuestionClick={onRecommendQuestionClick}
+                    allowAutoPreview={undefined}
+                  />
+                ))}
+            </div>
+          )}
       </div>
     </div>
   );

@@ -23,6 +23,8 @@ export interface UserSkill {
   updated_at?: string;
   is_published: boolean;
   marketplace_is_active: boolean;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
 }
 
 // User skill with files list (from GET /api/skills/{name})
@@ -34,6 +36,8 @@ export interface UserSkillDetail {
   tags?: string[];
   is_published?: boolean;
   marketplace_is_active?: boolean;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
 }
 
 // Skill file content response
@@ -89,6 +93,19 @@ export interface SkillResponse {
   updated_at?: string;
   is_published: boolean;
   marketplace_is_active: boolean;
+  is_favorite?: boolean;
+  is_pinned?: boolean;
+}
+
+export interface SkillPreferenceUpdate {
+  is_favorite?: boolean;
+  is_pinned?: boolean;
+}
+
+export interface SkillPreferenceResponse {
+  skill_name: string;
+  is_favorite: boolean;
+  is_pinned: boolean;
 }
 
 // Skills list response

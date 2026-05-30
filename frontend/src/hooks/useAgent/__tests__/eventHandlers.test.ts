@@ -152,3 +152,42 @@ test("user cancel marks message cancelled without closing the SSE connection", (
   ]);
   assert.deepEqual(ctx.connectionStatuses, []);
 });
+
+test("adds recommended questions from SSE events to the streaming assistant", () => {
+  const ctx = createContext(
+    [
+      {
+        id: "assistant-1",
+        role: "assistant",
+        content: "回答内容",
+        timestamp: new Date("2026-04-19T01:02:03.456Z"),
+        parts: [{ type: "text", content: "回答内容" }],
+        isStreaming: true,
+      },
+    ],
+    null,
+  );
+
+  handleStreamEvent(
+    {
+      event: "recommend:questions",
+      data: JSON.stringify({
+        questions: ["如何预防胫骨内侧压力综合征？", "赛前减量期具体怎么做？"],
+      }),
+    },
+    "assistant-1",
+    "redis-event-recommend",
+    "2026-04-19T01:02:04.000Z",
+    ctx,
+  );
+
+  const parts = ctx.messages()[0]?.parts ?? [];
+  const recommendations = parts[1];
+  assert.equal(recommendations?.type, "recommend_questions");
+  assert.deepEqual(
+    recommendations.type === "recommend_questions"
+      ? recommendations.questions.map((question) => question.content)
+      : [],
+    ["如何预防胫骨内侧压力综合征？", "赛前减量期具体怎么做？"],
+  );
+});

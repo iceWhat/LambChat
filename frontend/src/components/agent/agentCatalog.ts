@@ -1,0 +1,60 @@
+import type { AgentCatalogLabels } from "../../types";
+
+export const AGENT_CATALOG_LOCALES = [
+  { code: "zh", label: "中文" },
+  { code: "en", label: "English" },
+  { code: "ja", label: "日本語" },
+  { code: "ko", label: "한국어" },
+  { code: "ru", label: "Русский" },
+] as const;
+
+type AgentDisplaySource = {
+  name: string;
+  description: string;
+  labels?: AgentCatalogLabels;
+};
+
+type Translate = (key: string) => string;
+
+function normalizeLocale(locale?: string) {
+  return (locale || "en").split("-")[0].toLowerCase();
+}
+
+function resolveLocalizedField(
+  agent: AgentDisplaySource,
+  locale: string | undefined,
+  field: "name" | "description",
+  fallbackKey: string,
+  t: Translate,
+) {
+  const labels = agent.labels || {};
+  const currentLocale = normalizeLocale(locale);
+  const fallbackLocales = [currentLocale, "zh", "en"];
+  for (const candidate of fallbackLocales) {
+    const value = labels[candidate]?.[field]?.trim();
+    if (value) return value;
+  }
+  return t(fallbackKey);
+}
+
+export function resolveAgentDisplayName(
+  agent: AgentDisplaySource,
+  locale: string | undefined,
+  t: Translate,
+) {
+  return resolveLocalizedField(agent, locale, "name", agent.name, t);
+}
+
+export function resolveAgentDescription(
+  agent: AgentDisplaySource,
+  locale: string | undefined,
+  t: Translate,
+) {
+  return resolveLocalizedField(
+    agent,
+    locale,
+    "description",
+    agent.description,
+    t,
+  );
+}

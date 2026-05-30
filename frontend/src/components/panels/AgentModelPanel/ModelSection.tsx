@@ -145,12 +145,6 @@ export function ModelSection() {
     );
   }
 
-  const overviewItems = [
-    { value: dbModels.length, label: t("agentConfig.modelConfigTab") },
-    { value: availableModels.length, label: t("agentConfig.modelsSection") },
-    { value: roles.length, label: t("agentConfig.rolesTab") },
-  ];
-
   return (
     <div className="animate-glass-enter px-4 py-5 sm:px-6 lg:px-7">
       {error && (
@@ -159,22 +153,6 @@ export function ModelSection() {
           <span>{error}</span>
         </div>
       )}
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {overviewItems.map((item) => (
-          <div
-            key={item.label}
-            className="glass-card animate-glass-enter rounded-xl px-4 py-3.5"
-          >
-            <div className="text-xl font-bold tracking-tight text-theme-text">
-              {item.value}
-            </div>
-            <div className="mt-0.5 truncate text-xs text-theme-text-secondary">
-              {item.label}
-            </div>
-          </div>
-        ))}
-      </div>
 
       <div className="glass-tab-bar mb-5 flex gap-6">
         <button

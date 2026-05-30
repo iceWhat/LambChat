@@ -14,6 +14,7 @@ import {
   Pin,
   Plus,
   Save,
+  Sparkles,
   Star,
   Tag,
   Trash2,
@@ -21,6 +22,7 @@ import {
   Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { teamApi } from "../../services/api/team";
 import {
@@ -39,9 +41,9 @@ import { PersonaTagFilterDropdown } from "../persona/PersonaTagFilterDropdown";
 import type { ScopeFilter } from "../persona/usePersonaPlaza";
 import { TeamAvatar } from "./TeamAvatar";
 import { getTeamFallbackAvatar, getTeamFallbackTag } from "./teamAvatarUtils";
+import { fetchAllTeamsForExport, toTeamExportData } from "./teamExport";
 
 const TEAM_PAGE_SIZE = 20;
-const TEAM_EXPORT_PAGE_SIZE = 200;
 
 type TeamScopeFilter = Extract<ScopeFilter, "all" | "pinned" | "favorite">;
 type ImportedTeamMember = NonNullable<TeamCreateRequest["members"]>[number];
@@ -170,6 +172,7 @@ function renderMemberAvatar(member: TeamMember) {
 
 export function TeamBuilderWrapper() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [teams, setTeams] = useState<Team[]>([]);
   const [query, setQuery] = useState("");
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -280,6 +283,18 @@ export function TeamBuilderWrapper() {
     }
   };
 
+  const handleUseTeam = (team: Team) => {
+    navigate(`/chat?agent=team&team=${encodeURIComponent(team.id)}`, {
+      state: {
+        agentId: "team",
+        teamId: team.id,
+      },
+    });
+    toast.success(
+      t("team.useSuccess", "已切换到团队「{{name}}」", { name: team.name }),
+    );
+  };
+
   const handleTogglePreference = useCallback(
     async (
       team: Team,
@@ -370,35 +385,15 @@ export function TeamBuilderWrapper() {
   }, []);
 
   const handleExport = useCallback(async () => {
-    let allTeams: Team[] = [];
-    let skip = 0;
+    let allTeams: Team[];
     try {
-      while (true) {
-        const res = await teamApi.list({
-          skip,
-          limit: TEAM_EXPORT_PAGE_SIZE,
-        });
-        allTeams = allTeams.concat(res.teams);
-        skip += res.teams.length;
-        if (skip >= res.total || res.teams.length < TEAM_EXPORT_PAGE_SIZE) {
-          break;
-        }
-      }
+      allTeams = await fetchAllTeamsForExport(teamApi.list);
     } catch {
       toast.error(t("team.exportFailed", "导出失败"));
       return;
     }
 
-    const exportData = allTeams.map((team) => ({
-      name: team.name,
-      description: team.description,
-      avatar: team.avatar ?? null,
-      tags: team.tags ?? [],
-      members: team.members,
-      default_member_id: team.default_member_id ?? null,
-      team_instructions: team.team_instructions,
-      starter_prompts: team.starter_prompts ?? [],
-    }));
+    const exportData = toTeamExportData(allTeams);
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
     });
@@ -742,6 +737,13 @@ export function TeamBuilderWrapper() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleUseTeam(team)}
+                          className="scb__action-btn scb__action-btn--ghost"
+                          title={t("team.use", "使用")}
+                        >
+                          <Sparkles size={16} />
+                        </button>
                         <button
                           onClick={() => handleEditTeam(team.id)}
                           className="scb__action-btn scb__action-btn--ghost"

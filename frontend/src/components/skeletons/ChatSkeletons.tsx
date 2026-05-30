@@ -91,7 +91,7 @@ function AssistantMessageSkeleton() {
         </div>
         {/* Response content skeleton */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
-          <div className="space-y-3 my-2">
+          <div className="space-y-3 my-2 pl-0.5">
             <div className="skeleton-line w-full h-2 sm:h-[7px] rounded-full" />
             <div className="flex gap-2 sm:gap-3">
               <div className="skeleton-line flex-1 h-2 sm:h-[7px] rounded-full" />

@@ -109,6 +109,7 @@ export const WelcomePage = memo(function WelcomePage({
   const [pendingInput, setPendingInput] = useState<string | null>(null);
   const [teamCards, setTeamCards] = useState<Team[]>([]);
   const [teamCardsLoading, setTeamCardsLoading] = useState(false);
+  const [teamCardsLoaded, setTeamCardsLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
 
@@ -149,8 +150,12 @@ export const WelcomePage = memo(function WelcomePage({
   );
 
   useEffect(() => {
-    if (currentAgent !== "team") return;
+    if (currentAgent !== "team") {
+      setTeamCardsLoaded(false);
+      return;
+    }
     let cancelled = false;
+    setTeamCardsLoaded(false);
     setTeamCardsLoading(true);
     teamApi
       .list(0, 50)
@@ -159,7 +164,10 @@ export const WelcomePage = memo(function WelcomePage({
       })
       .catch((err) => console.error("Failed to load teams:", err))
       .finally(() => {
-        if (!cancelled) setTeamCardsLoading(false);
+        if (!cancelled) {
+          setTeamCardsLoaded(true);
+          setTeamCardsLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -319,8 +327,16 @@ export const WelcomePage = memo(function WelcomePage({
         : defaultSuggestions;
   const displayCards = mentionQuery ? filteredCards : roleCards;
   const displayTeamCards = mentionQuery ? filteredTeamCards : welcomeTeamCards;
-  const personaSkeletonCount = getWelcomePersonaSkeletonCount();
-  const teamSkeletonCount = getWelcomePersonaSkeletonCount();
+  const shouldShowTeamSkeletons =
+    showTeamCards && (teamCardsLoading || !teamCardsLoaded);
+  const personaSkeletonCount = getWelcomePersonaSkeletonCount(
+    personaPresetsLoading,
+    displayCards.length,
+  );
+  const teamSkeletonCount = getWelcomePersonaSkeletonCount(
+    shouldShowTeamSkeletons,
+    displayTeamCards.length,
+  );
   // Whether data has loaded but is empty
   const isTeamEmpty =
     showTeamCards && !teamCardsLoading && displayTeamCards.length === 0;

@@ -57,7 +57,6 @@ test("resets follow and history state when switching sessions", () => {
     pendingHistoryScroll: false,
     historyScrollArmed: false,
     isNearBottom: true,
-    showScrollTop: false,
   });
 });
 

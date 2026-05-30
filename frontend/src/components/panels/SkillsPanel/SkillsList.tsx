@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
 import { PanelSearchInput } from "../../common/PanelSearchInput";
-import { SkillsPanelSkeleton } from "../../skeletons";
+import { PanelLoadingState } from "../../common/PanelLoadingState";
 import { Pagination } from "../../common/Pagination";
 import { SkillCard } from "../../skill/SkillCard";
 import type { SkillResponse } from "../../../types";
@@ -42,6 +42,10 @@ interface SkillsListProps {
   canPublish: boolean;
   selectedNames: Set<string>;
   onToggle: (name: string) => void;
+  onTogglePreference: (
+    skill: SkillResponse,
+    preference: { is_favorite?: boolean; is_pinned?: boolean },
+  ) => void;
   onEdit: (skill: SkillResponse) => void;
   onDelete: (name: string) => void;
   onExportZip: (name: string) => void;
@@ -76,6 +80,7 @@ export function SkillsList({
   canPublish,
   selectedNames,
   onToggle,
+  onTogglePreference,
   onEdit,
   onDelete,
   onExportZip,
@@ -107,13 +112,7 @@ export function SkillsList({
     isLoading && filteredSkills.length === 0 && !hasActiveFilters;
 
   if (isInitialLoading) {
-    return embedded ? (
-      <div className="[&_.panel-header]:hidden">
-        <SkillsPanelSkeleton />
-      </div>
-    ) : (
-      <SkillsPanelSkeleton />
-    );
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
   }
 
   const filterMenu = availableTags.length > 0 && (
@@ -206,23 +205,21 @@ export function SkillsList({
     <>
       {embedded && (
         <div className="skill-panel-header">
-          <div className="mt-2 flex flex-col gap-2 sm:mt-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search
-                  size={18}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
-                />
-                <PanelSearchInput
-                  type="text"
-                  value={searchQuery}
-                  onValueChange={setSearchQuery}
-                  className="panel-search h-10"
-                  placeholder={t("skills.searchPlaceholder")}
-                />
-              </div>
-              {filterMenu}
+          <div className="mt-2 flex items-center gap-2 sm:mt-3 sm:gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 dark:text-stone-500"
+              />
+              <PanelSearchInput
+                type="text"
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+                className="panel-search h-10"
+                placeholder={t("skills.searchPlaceholder")}
+              />
             </div>
+            {filterMenu}
             <div className="flex flex-nowrap shrink-0 items-center gap-1.5 sm:gap-2">
               {headerActions}
             </div>
@@ -297,6 +294,7 @@ export function SkillsList({
                 key={skill.name}
                 skill={skill}
                 onToggle={onToggle}
+                onTogglePreference={onTogglePreference}
                 onEdit={onEdit}
                 onDelete={onDelete}
                 onExportZip={onExportZip}

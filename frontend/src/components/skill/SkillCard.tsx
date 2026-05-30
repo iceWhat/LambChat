@@ -10,6 +10,8 @@ import {
   Archive,
   Sparkles,
   Upload,
+  Pin,
+  Star,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { SkillBaseCard } from "../common/SkillBaseCard";
@@ -20,6 +22,10 @@ import { formatDate } from "../../utils/datetime";
 interface SkillCardProps {
   skill: SkillResponse;
   onToggle: (name: string) => void;
+  onTogglePreference?: (
+    skill: SkillResponse,
+    preference: { is_favorite?: boolean; is_pinned?: boolean },
+  ) => void;
   onEdit: (skill: SkillResponse) => void;
   onDelete: (name: string) => void;
   onExportZip?: (name: string) => void;
@@ -38,6 +44,7 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
 export function SkillCard({
   skill,
   onToggle,
+  onTogglePreference,
   onEdit,
   onDelete,
   onExportZip,
@@ -66,6 +73,42 @@ export function SkillCard({
       onSelect={onSelect ? () => onSelect(skill.name) : undefined}
       animated
       animationDelay={0}
+      bannerLeadingOverlay={
+        onTogglePreference ? (
+          <>
+            <button
+              type="button"
+              className={`pps-card__icon-action ${
+                skill.is_pinned ? "pps-card__icon-action--active-pin" : ""
+              }`}
+              title={t("personaPresets.pin", "置顶")}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePreference(skill, {
+                  is_pinned: !skill.is_pinned,
+                });
+              }}
+            >
+              <Pin size={12} />
+            </button>
+            <button
+              type="button"
+              className={`pps-card__icon-action ${
+                skill.is_favorite ? "pps-card__icon-action--active-fav" : ""
+              }`}
+              title={t("personaPresets.favorite", "收藏")}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePreference(skill, {
+                  is_favorite: !skill.is_favorite,
+                });
+              }}
+            >
+              <Star size={12} />
+            </button>
+          </>
+        ) : undefined
+      }
       bannerOverlay={
         <>
           {isPublished && (

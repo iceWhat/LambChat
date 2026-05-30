@@ -176,7 +176,9 @@ async def create_agent_team(
         "object with: persona_preset_id (required, must be an id returned by "
         "search_persona_presets or the preset.id returned by create_persona_preset), "
         "role_name (required, concise display name for this team such as 'Market Research "
-        "Lead'), role_instructions (recommended, specific responsibility in this team), "
+        "Lead'), role_avatar (required when creating a role for a team; use an emoji or "
+        "avatar image URL such as '🔎' or 'https://example.com/researcher.png'), "
+        "role_instructions (recommended, specific responsibility in this team), "
         "member_id (optional stable id like 'm-research'), position (optional zero-based "
         "order), enabled (optional, default true). Create 2-5 members for complex work, "
         "or 1 member for narrow tasks. Do not invent persona_preset_id values. Never use "
@@ -194,6 +196,12 @@ async def create_agent_team(
         "Short user-facing description of what this team is good at. Mention the task "
         "type and expected output, not internal implementation details.",
     ] = "",
+    avatar: Annotated[
+        str | None,
+        "Always provide an emoji or avatar image URL for this team when creating or "
+        "updating it. Use a single emoji such as '🧭' or an image URL such as "
+        "'https://example.com/team.png'.",
+    ] = None,
     tags: Annotated[
         list[str] | None,
         "Short searchable tags, e.g. ['auto-built', 'research', 'writing']. Keep tags "
@@ -265,6 +273,7 @@ async def create_agent_team(
                 member_id=item.get("member_id") or f"m-{index}",
                 persona_preset_id=item["persona_preset_id"],
                 role_name=item.get("role_name") or "",
+                role_avatar=item.get("role_avatar"),
                 role_instructions=item.get("role_instructions") or "",
                 position=item.get("position", index - 1),
                 enabled=item.get("enabled", True),
@@ -281,6 +290,7 @@ async def create_agent_team(
         payload = {
             "name": name,
             "description": description,
+            "avatar": avatar,
             "tags": tags or [],
             "members": team_members,
             "default_member_id": default_member_id,

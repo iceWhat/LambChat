@@ -35,6 +35,7 @@ import {
 } from "./modelSelection";
 import { getRestoredModelSelection } from "./sessionState";
 import { buildEffectiveSkills } from "./skillAvailability";
+import { getTeamRouteRequest } from "./teamRouteState";
 import { AppShell } from "./AppShell";
 import { ChatView } from "./ChatView";
 import { shouldShowMessageOutline } from "./messageOutline";
@@ -255,6 +256,7 @@ export function ChatAppContent({
   );
 
   const isSessionRestoredRef = useRef(false);
+  const lastTeamRouteRequestRef = useRef<string | null>(null);
 
   // Restore persona from localStorage when navigating from /persona page
   useEffect(() => {
@@ -292,6 +294,25 @@ export function ChatAppContent({
       /* ignore */
     }
   }, [location.state, searchParams, setSearchParams, setPersonaPreset]);
+
+  useEffect(() => {
+    const teamRequest = getTeamRouteRequest(searchParams, location.state);
+    if (!teamRequest) return;
+    const requestKey = `${teamRequest.agentId}:${teamRequest.teamId}`;
+    if (lastTeamRouteRequestRef.current === requestKey) return;
+    lastTeamRouteRequestRef.current = requestKey;
+
+    switchAgent(teamRequest.agentId);
+    selectTeam(teamRequest.teamId);
+    setSearchParams(
+      (prev) => {
+        prev.delete("agent");
+        prev.delete("team");
+        return prev;
+      },
+      { replace: true },
+    );
+  }, [location.state, searchParams, selectTeam, setSearchParams, switchAgent]);
 
   useEffect(() => {
     if (isSessionRestoredRef.current) return;
@@ -816,7 +837,9 @@ export function ChatAppContent({
           approvals={approvals}
           onRespondApproval={respondToApproval}
           approvalLoading={approvalLoading}
-          onSendMessage={sendMessage}
+          onSendMessage={(content, sendAttachments) =>
+            void sendMessage(content, undefined, sendAttachments)
+          }
           onStopGeneration={stopGeneration}
           attachments={pageDragAttachments}
           onAttachmentsChange={setPageDragAttachments}

@@ -15,6 +15,8 @@ import type {
   SkillFileResponse,
   SkillToggleResponse,
   SkillCreate,
+  SkillPreferenceResponse,
+  SkillPreferenceUpdate,
   MarketplaceSkillResponse,
   PublishToMarketplaceRequest,
   SkillsResponse,
@@ -220,6 +222,22 @@ export const skillApi = {
       method: "PATCH",
       body: body ? JSON.stringify(body) : undefined,
     });
+  },
+
+  /**
+   * Update current user's pin/favorite presentation preference
+   */
+  async updatePreference(
+    skillName: string,
+    data: SkillPreferenceUpdate,
+  ): Promise<SkillPreferenceResponse> {
+    return authFetch(
+      `${SKILLS_API}/${encodeURIComponent(skillName)}/preference`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    );
   },
 
   /**

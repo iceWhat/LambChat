@@ -199,6 +199,8 @@ export function handleStreamEvent(
     "token:usage",
     "todo:updated",
     "summary",
+    "recommend:questions",
+    "followup:questions",
     "error",
   ]);
   if (!MESSAGE_EVENTS.has(eventType)) {

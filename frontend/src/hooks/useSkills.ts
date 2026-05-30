@@ -18,6 +18,7 @@ import type {
   UserSkillDetail,
   SkillCreate,
   PublishToMarketplaceRequest,
+  SkillPreferenceUpdate,
   BinaryFileInfo,
 } from "../types/skill";
 
@@ -74,6 +75,8 @@ function composeSkillResponse(
     updated_at: userSkill.updated_at,
     is_published: userSkill.is_published,
     marketplace_is_active: userSkill.marketplace_is_active,
+    is_favorite: userSkill.is_favorite ?? false,
+    is_pinned: userSkill.is_pinned ?? false,
   };
 }
 
@@ -169,6 +172,8 @@ export function useSkills(options?: {
             updated_at: cached.updated_at,
             is_published: cached.is_published,
             marketplace_is_active: cached.marketplace_is_active,
+            is_favorite: cached.is_favorite,
+            is_pinned: cached.is_pinned,
           };
         } else {
           userSkill = {
@@ -183,6 +188,8 @@ export function useSkills(options?: {
             updated_at: undefined,
             is_published: detail.is_published || false,
             marketplace_is_active: detail.marketplace_is_active ?? true,
+            is_favorite: detail.is_favorite ?? false,
+            is_pinned: detail.is_pinned ?? false,
           };
         }
 
@@ -224,6 +231,8 @@ export function useSkills(options?: {
             updated_at: cached.updated_at,
             is_published: cached.is_published,
             marketplace_is_active: cached.marketplace_is_active,
+            is_favorite: cached.is_favorite,
+            is_pinned: cached.is_pinned,
           };
         } else {
           userSkill = {
@@ -238,6 +247,8 @@ export function useSkills(options?: {
             updated_at: undefined,
             is_published: detail.is_published || false,
             marketplace_is_active: detail.marketplace_is_active ?? true,
+            is_favorite: detail.is_favorite ?? false,
+            is_pinned: detail.is_pinned ?? false,
           };
         }
 
@@ -502,6 +513,46 @@ export function useSkills(options?: {
     [batchToggleSkills, skills],
   );
 
+  const updateSkillPreference = useCallback(
+    async (
+      name: string,
+      preference: SkillPreferenceUpdate,
+    ): Promise<boolean> => {
+      setError(null);
+      const previous = skills;
+      setSkills((current) =>
+        current.map((skill) =>
+          skill.name === name ? { ...skill, ...preference } : skill,
+        ),
+      );
+      try {
+        const updated = await skillApi.updatePreference(name, preference);
+        setSkills((current) =>
+          current.map((skill) =>
+            skill.name === name
+              ? {
+                  ...skill,
+                  is_favorite: updated.is_favorite,
+                  is_pinned: updated.is_pinned,
+                }
+              : skill,
+          ),
+        );
+        await fetchSkills();
+        return true;
+      } catch (err) {
+        setSkills(previous);
+        setError(
+          err instanceof Error
+            ? err.message
+            : i18n.t("skills.preferenceUpdateFailed", "技能偏好更新失败"),
+        );
+        return false;
+      }
+    },
+    [fetchSkills, skills],
+  );
+
   // Get enabled skill names
   const getEnabledSkillNames = useCallback((): string[] => {
     return skills.filter((s) => s.enabled).map((s) => s.name);
@@ -703,6 +754,7 @@ export function useSkills(options?: {
     batchDeleteSkills,
     batchToggleSkills,
     toggleSkill,
+    updateSkillPreference,
     toggleCategory,
     toggleAll,
     uploadSkill,

@@ -4,6 +4,7 @@ Stores user-level channel configurations with encrypted sensitive fields.
 Supports multiple channel types (Feishu, WeChat, DingTalk, etc.)
 """
 
+import asyncio
 import types
 import uuid
 from typing import Any, Optional
@@ -35,6 +36,10 @@ class ChannelStorage:
     Each user can have multiple configurations per channel type (multi-instance support).
     """
 
+    _indexes_done = False
+    _indexes_task: asyncio.Task | None = None
+    _indexes_lock: asyncio.Lock | None = None
+
     def __init__(self):
         self._client = None
         self._collection = None
@@ -47,6 +52,50 @@ class ChannelStorage:
             self._collection = db["user_channel_configs"]
         return self._collection
 
+    async def ensure_indexes_if_needed(self) -> None:
+        """Ensure channel indexes exist once per process."""
+        cls = type(self)
+        if cls._indexes_done:
+            return
+
+        if cls._indexes_lock is None:
+            cls._indexes_lock = asyncio.Lock()
+
+        async with cls._indexes_lock:
+            if cls._indexes_done:
+                return
+            if cls._indexes_task is None or cls._indexes_task.cancelled():
+                cls._indexes_task = asyncio.create_task(self._ensure_indexes())
+            task = cls._indexes_task
+
+        succeeded = await task
+        if succeeded:
+            cls._indexes_done = True
+            return
+
+        async with cls._indexes_lock:
+            if cls._indexes_task is task:
+                cls._indexes_task = None
+
+    async def _ensure_indexes(self) -> bool:
+        try:
+            collection = self._get_collection()
+            await collection.create_index(
+                [("user_id", 1), ("channel_type", 1), ("instance_id", 1)],
+                name="user_channel_instance_idx",
+                unique=True,
+                background=True,
+            )
+            await collection.create_index(
+                [("channel_type", 1), ("enabled", 1)],
+                name="channel_enabled_idx",
+                background=True,
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to create channel indexes: {e}")
+            return False
+
     async def get_config(
         self,
         user_id: str,
@@ -54,6 +103,7 @@ class ChannelStorage:
         instance_id: Optional[str] = None,
     ) -> Optional[dict[str, Any]]:
         """Get channel configuration for a user and optionally instance"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
 
         query: dict[str, Any] = {"user_id": user_id, "channel_type": channel_type.value}
@@ -78,6 +128,7 @@ class ChannelStorage:
         persona_preset_id: str | None = None,
     ) -> dict[str, Any]:
         """Create channel configuration for a user"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
 
         # Generate unique instance_id
@@ -120,6 +171,7 @@ class ChannelStorage:
         persona_preset_id: Optional[str] | types.EllipsisType = ...,
     ) -> Optional[dict[str, Any]]:
         """Update channel configuration for a user"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
 
         doc = await collection.find_one(
@@ -164,6 +216,7 @@ class ChannelStorage:
         instance_id: Optional[str] = None,
     ) -> bool:
         """Delete channel configuration for a user"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
 
         query: dict[str, Any] = {"user_id": user_id, "channel_type": channel_type.value}
@@ -179,6 +232,7 @@ class ChannelStorage:
 
     async def clear_project_id(self, project_id: str, user_id: str) -> int:
         """Clear a project reference from channel configurations for a user."""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
         result = await collection.update_many(
             {"user_id": user_id, "project_id": project_id},
@@ -195,6 +249,7 @@ class ChannelStorage:
         self, user_id: str, channel_type: ChannelType, instance_id: str
     ) -> int:
         """Clear the project reference for one channel configuration."""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
         result = await collection.update_one(
             {"user_id": user_id, "channel_type": channel_type.value, "instance_id": instance_id},
@@ -218,6 +273,17 @@ class ChannelStorage:
         config = await self.get_config(user_id, channel_type, instance_id)
         if not config:
             return None
+
+        return self.build_response_from_config(config, channel_type, user_id, metadata)
+
+    def build_response_from_config(
+        self,
+        config: dict[str, Any],
+        channel_type: ChannelType,
+        user_id: str,
+        metadata: Optional[dict[str, Any]] = None,
+    ) -> ChannelConfigResponse:
+        """Build a response from an already loaded config."""
 
         # Get sensitive field names from metadata
         sensitive_fields = set(SENSITIVE_FIELDS)
@@ -255,6 +321,15 @@ class ChannelStorage:
         if not config:
             return ChannelConfigStatus(channel_type=channel_type, enabled=False, connected=False)
 
+        return self.build_status_from_config(config, channel_type)
+
+    def build_status_from_config(
+        self,
+        config: dict[str, Any],
+        channel_type: ChannelType,
+    ) -> ChannelConfigStatus:
+        """Build a status object from an already loaded config."""
+
         return ChannelConfigStatus(
             channel_type=channel_type,
             enabled=config.get("enabled", True),
@@ -263,6 +338,7 @@ class ChannelStorage:
 
     async def list_user_configs(self, user_id: str) -> list[dict[str, Any]]:
         """List all channel configurations for a user"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
         configs = []
         async for doc in collection.find({"user_id": user_id}):
@@ -271,6 +347,7 @@ class ChannelStorage:
 
     async def list_enabled_configs(self, channel_type: ChannelType) -> list[dict[str, Any]]:
         """List all enabled configurations for a channel type (for channel manager)"""
+        await self.ensure_indexes_if_needed()
         collection = self._get_collection()
         configs = []
         async for doc in collection.find({"channel_type": channel_type.value, "enabled": True}):

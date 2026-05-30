@@ -20,10 +20,10 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import { PanelLoadingState } from "../common/PanelLoadingState";
 import { EditorSidebar } from "../common/EditorSidebar";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { Checkbox } from "../common/Checkbox";
-import { UsersPanelSkeleton } from "../skeletons";
 import { Pagination } from "../common/Pagination";
 import { userApi, roleApi } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
@@ -438,7 +438,7 @@ export function UsersPanel() {
     isLoading && users.length === 0 && searchQuery.trim().length === 0;
 
   if (isInitialLoading) {
-    return <UsersPanelSkeleton />;
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
   }
 
   return (

@@ -17,6 +17,7 @@ import type {
   SandboxPart,
   TodoPart,
   SummaryPart,
+  RecommendQuestion,
 } from "../../types";
 import i18n from "../../i18n";
 import { translateBackendError } from "../../utils/backendErrors";
@@ -429,6 +430,35 @@ export function processMessageEvent(
       break;
     }
 
+    // ---- Recommended follow-up questions ----
+
+    case "recommend:questions":
+    case "followup:questions": {
+      const questions = normalizeRecommendQuestions(data.questions);
+      if (!questions.length) break;
+
+      const recommendPart = {
+        type: "recommend_questions" as const,
+        questions,
+        depth,
+        agent_id: agentId,
+      };
+
+      if (depth > 0) {
+        result.parts = addPartToDepth(
+          parts,
+          recommendPart,
+          depth,
+          subagentStack,
+          agentId,
+          messageId,
+        );
+      } else {
+        result.parts = upsertRecommendQuestionsPart(parts, recommendPart);
+      }
+      break;
+    }
+
     // ---- Error ----
 
     case "error": {
@@ -470,4 +500,41 @@ function upsertTodoPart(
   return parts.some((p) => p.type === "todo")
     ? parts.map((p) => (p.type === "todo" ? todoPart : p))
     : [...parts, todoPart];
+}
+
+function normalizeRecommendQuestions(
+  questions: EventData["questions"],
+): RecommendQuestion[] {
+  if (!Array.isArray(questions)) return [];
+
+  return questions
+    .map((question) => {
+      if (typeof question === "string") {
+        const content = question.trim();
+        return content ? { content } : null;
+      }
+
+      const content = (
+        question.content ||
+        question.text ||
+        question.title ||
+        ""
+      ).trim();
+      if (!content) return null;
+
+      return {
+        content,
+        upload: question.upload || question.data_upload,
+      };
+    })
+    .filter((question): question is RecommendQuestion => question !== null);
+}
+
+function upsertRecommendQuestionsPart(
+  parts: MessagePart[],
+  recommendPart: Extract<MessagePart, { type: "recommend_questions" }>,
+): MessagePart[] {
+  return parts.some((p) => p.type === "recommend_questions")
+    ? parts.map((p) => (p.type === "recommend_questions" ? recommendPart : p))
+    : [...parts, recommendPart];
 }

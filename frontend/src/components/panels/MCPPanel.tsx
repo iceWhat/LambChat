@@ -14,7 +14,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { LoadingSpinner } from "../common/LoadingSpinner";
-import { MCPPanelSkeleton } from "../skeletons";
+import { PanelLoadingState } from "../common/PanelLoadingState";
 import { Pagination } from "../common/Pagination";
 import { MCPServerCard } from "../mcp/MCPServerCard";
 import { MCPServerToolsSidebar } from "../mcp/MCPServerToolsSidebar";
@@ -385,7 +385,7 @@ export function MCPPanel() {
     isLoading && servers.length === 0 && searchQuery.trim().length === 0;
 
   if (isInitialLoading) {
-    return <MCPPanelSkeleton />;
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
   }
 
   return (

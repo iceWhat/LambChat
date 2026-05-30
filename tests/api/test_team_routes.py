@@ -66,6 +66,34 @@ async def test_collection_crud_accepts_paths_without_trailing_slash() -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_teams_accepts_export_page_size() -> None:
+    calls: list[dict] = []
+
+    class _FakeManager:
+        async def list_teams(self, **kwargs):
+            calls.append(kwargs)
+            return TeamListResponse(
+                teams=[],
+                total=0,
+                skip=kwargs["skip"],
+                limit=kwargs["limit"],
+            )
+
+    app = FastAPI()
+    app.include_router(team_route.router, prefix="/api/teams")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[team_route._get_manager] = lambda: _FakeManager()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.get("/api/teams/?skip=0&limit=200")
+
+    assert response.status_code == 200
+    assert response.json()["limit"] == 200
+    assert calls[0]["limit"] == 200
+
+
+@pytest.mark.asyncio
 async def test_update_team_preference_route() -> None:
     calls: list[tuple[str, bool | None, bool | None]] = []
 

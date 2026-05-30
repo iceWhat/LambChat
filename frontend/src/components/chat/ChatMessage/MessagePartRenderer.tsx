@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { Ban } from "lucide-react";
+import { RotateCcw, Square } from "lucide-react";
 import type { MessagePart } from "../../../types";
 import { useTranslation } from "react-i18next";
 import { MarkdownContent } from "./MarkdownContent";
@@ -32,6 +32,8 @@ export function MessagePartRenderer({
   allowAutoPreview,
   activePreview,
   onOpenPreview,
+  onRecommendQuestionClick,
+  onRetryCancelled,
 }: {
   part: MessagePart;
   messageId?: string;
@@ -44,6 +46,8 @@ export function MessagePartRenderer({
     preview: RevealPreviewRequest,
     source?: RevealPreviewOpenSource,
   ) => boolean;
+  onRecommendQuestionClick?: (question: string) => void;
+  onRetryCancelled?: () => void;
 }) {
   const { t } = useTranslation();
   const toolPartAnchorId =
@@ -269,19 +273,66 @@ export function MessagePartRenderer({
     );
   }
 
+  if (part.type === "recommend_questions") {
+    if (isStreaming) {
+      return null;
+    }
+
+    return (
+      <div className="flex flex-col gap-2.5 pt-2">
+        {part.questions.map((question, index) => (
+          <button
+            key={`${question.content}-${index}`}
+            type="button"
+            onClick={() => onRecommendQuestionClick?.(question.content)}
+            disabled={!onRecommendQuestionClick}
+            className={clsx(
+              "mt-1 w-fit rounded-xl ring-1 ring-inset shadow-sm px-3.5 py-2 text-left text-sm leading-snug transition-all duration-200 active:scale-[0.98]",
+              "ring-theme-border bg-theme-bg-card text-theme-text-secondary hover:ring-theme-border-hover hover:shadow-[0_2px_8px_-2px_var(--theme-shadow-md)] hover:bg-theme-bg-subtle",
+              !onRecommendQuestionClick && "cursor-default opacity-70",
+            )}
+          >
+            {question.content}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   if (part.type === "cancelled") {
     return (
       <div
-        className={clsx(
-          "flex items-center gap-2 px-4 py-2.5 rounded-xl",
-          "bg-amber-50 dark:bg-amber-950/40",
-          "border border-amber-200/60 dark:border-amber-800/60",
-          "text-amber-700 dark:text-amber-400",
-          "text-sm font-medium",
-        )}
+        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-medium"
+        style={{
+          background:
+            "color-mix(in srgb, var(--theme-primary) 8%, transparent)",
+          border:
+            "1px solid color-mix(in srgb, var(--theme-primary) 18%, transparent)",
+          color: "var(--theme-primary)",
+        }}
       >
-        <Ban size={16} className="shrink-0" />
-        <span>{t("chat.message.cancelled")}</span>
+        <Square size={10} fill="currentColor" className="shrink-0" />
+        <span>{t("chat.message.interrupted")}</span>
+        {onRetryCancelled && (
+          <button
+            type="button"
+            onClick={onRetryCancelled}
+            className={clsx(
+              "ml-0.5 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium",
+              "bg-white/70 dark:bg-white/[0.07]",
+              "border border-white/40 dark:border-white/10",
+              "transition-all duration-150 ease-out",
+              "hover:bg-white dark:hover:bg-white/12",
+              "active:scale-[0.97]",
+              "[&>svg]:transition-transform [&>svg]:duration-300",
+              "hover:[&>svg]:-rotate-180",
+            )}
+            title={t("chat.message.retryAnswer")}
+          >
+            <RotateCcw size={11} className="shrink-0" />
+            {t("chat.message.retryAnswer")}
+          </button>
+        )}
       </div>
     );
   }

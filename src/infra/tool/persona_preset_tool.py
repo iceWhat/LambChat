@@ -86,7 +86,12 @@ async def create_persona_preset(
         "Always suggest fixes alongside issues. Never approve code with SQL injection risks.'",
     ],
     description: Annotated[str, "Short one-line description of what this persona does"] = "",
-    avatar: Annotated[str | None, "Optional avatar URL"] = None,
+    avatar: Annotated[
+        str | None,
+        "Always provide an emoji or avatar image URL for this persona when creating a "
+        "role. Use a single emoji such as '🧭' or an image URL such as "
+        "'https://example.com/avatar.png'.",
+    ] = None,
     tags: Annotated[list[str], "Optional tags for categorization, e.g. ['coding', 'review']"] = [],
     starter_prompts: Annotated[
         list[PersonaStarterPrompt],

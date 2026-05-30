@@ -151,10 +151,10 @@ export function useWebSocketNotifications({
                 e.stopPropagation();
                 toast.remove();
               }}
-              className="absolute top-1.5 right-1.5 z-10 rounded-full p-0.5 text-stone-400 opacity-0 transition-opacity hover:text-stone-600 group-hover:opacity-100 dark:text-stone-500 dark:hover:text-stone-300"
+              className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-black/10 text-stone-400 opacity-0 transition-all hover:bg-black/20 hover:text-stone-600 group-hover:opacity-100 dark:bg-white/10 dark:text-stone-500 dark:hover:bg-white/20 dark:hover:text-stone-300"
               aria-label={t("common.dismiss", "关闭")}
             >
-              <X size={12} />
+              <X size={14} />
             </button>
 
             <div className="flex items-center gap-3 text-left">

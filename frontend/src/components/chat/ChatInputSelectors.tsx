@@ -12,6 +12,7 @@ import type {
   SkillResponse,
   SkillSource,
   AgentOption,
+  AgentInfo,
   PersonaPreset,
   PersonaPresetSnapshot,
 } from "../../types";
@@ -62,7 +63,7 @@ export interface ChatInputSelectorsProps {
   onClearPersonaPreset?: () => void;
   canManagePersonaPresets?: boolean;
   // Agent mode
-  agents?: { id: string; name: string; description: string }[];
+  agents?: AgentInfo[];
   currentAgent?: string;
   onSelectAgent?: (id: string) => void;
   selectedTeamId?: string | null;

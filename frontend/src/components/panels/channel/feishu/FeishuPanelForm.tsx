@@ -1,6 +1,6 @@
 import {
   Check,
-  X,
+  Unplug,
   RefreshCw,
   Sparkles,
   QrCode,
@@ -153,7 +153,7 @@ export function FeishuPanelForm({
           }`}
         >
           <div className="es-callout-icon">
-            {status.connected ? <Check size={14} /> : <X size={14} />}
+            {status.connected ? <Check size={14} /> : <Unplug size={14} />}
           </div>
           <div className="es-callout-body">
             <div className="es-callout-title">

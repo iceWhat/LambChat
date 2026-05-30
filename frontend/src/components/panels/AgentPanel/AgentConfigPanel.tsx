@@ -6,13 +6,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { Bot, AlertCircle, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../../common/PanelHeader";
-import { AgentPanelSkeleton } from "../../skeletons";
+import { PanelLoadingState } from "../../common/PanelLoadingState";
+import { AgentIcon } from "../../agent/AgentIcon";
 import { agentConfigApi, roleApi, agentApi } from "../../../services/api";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types";
 import type { AgentConfig, Role, AgentInfo } from "../../../types";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "../../agent/agentCatalog";
 
 import { GlobalAgentTab, RolesAgentTab } from "./tabs";
 
@@ -47,7 +53,7 @@ export function AgentConfigPanel() {
       // 并行加载所有数据
       const [globalConfig, roleList, agentList] = await Promise.all([
         canManageAgents
-          ? agentConfigApi.getGlobalConfig()
+          ? agentConfigApi.getCatalogConfig()
           : Promise.resolve(null),
         roleApi.list({ limit: 200 }),
         agentApi.list(),
@@ -56,12 +62,17 @@ export function AgentConfigPanel() {
       // 管理员使用全局配置的全部 agent（用于角色分配），非管理员使用过滤后的列表
       setAvailableAgents(
         canManageAgents && globalConfig
-          ? globalConfig.agents.map((a) => ({
-              id: a.id,
-              name: a.name,
-              description: a.description,
-              version: "",
-            }))
+          ? globalConfig.agents
+              .filter((a) => a.enabled)
+              .map((a) => ({
+                id: a.id,
+                name: a.name,
+                description: a.description,
+                version: "",
+                icon: a.icon,
+                sort_order: a.sort_order,
+                labels: a.labels,
+              }))
           : agentList.agents || [],
       );
 
@@ -76,6 +87,9 @@ export function AgentConfigPanel() {
             name: a.name,
             description: a.description,
             enabled: true,
+            icon: a.icon,
+            sort_order: a.sort_order,
+            labels: a.labels,
           })),
         );
       }
@@ -118,8 +132,28 @@ export function AgentConfigPanel() {
     if (!canManageAgents) return;
     setIsSaving(true);
     try {
-      await agentConfigApi.updateGlobalConfig(agents);
+      await agentConfigApi.updateCatalogConfig(
+        agents.map((agent) => ({
+          ...agent,
+          icon: agent.icon || "Bot",
+          sort_order: agent.sort_order ?? 100,
+          labels: agent.labels || {},
+        })),
+      );
       setGlobalAgents(agents);
+      setAvailableAgents(
+        agents
+          .filter((agent) => agent.enabled)
+          .map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            version: "",
+            icon: agent.icon,
+            sort_order: agent.sort_order,
+            labels: agent.labels,
+          })),
+      );
       toast.success(t("agentConfig.saveSuccess"));
     } catch (err) {
       toast.error((err as Error).message || t("agentConfig.saveFailed"));
@@ -148,7 +182,7 @@ export function AgentConfigPanel() {
   };
 
   if (isLoading) {
-    return <AgentPanelSkeleton />;
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
   }
 
   return (
@@ -238,27 +272,40 @@ export function AgentConfigPanel() {
               {t("agentConfig.availableAgents")}
             </p>
             <div className="grid gap-3">
-              {availableAgents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className="flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
-                >
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--glass-bg-subtle)] ring-1 ring-[var(--glass-border)] shadow-sm">
-                    <Bot
-                      size={20}
-                      className="text-stone-600 dark:text-stone-400"
-                    />
+              {availableAgents.map((agent) => {
+                const displayName = resolveAgentDisplayName(
+                  agent,
+                  i18n.language,
+                  t,
+                );
+                const displayDescription = resolveAgentDescription(
+                  agent,
+                  i18n.language,
+                  t,
+                );
+                return (
+                  <div
+                    key={agent.id}
+                    className="flex items-center gap-3.5 glass-card rounded-xl p-4 transition-all duration-200 hover:shadow-[var(--glass-shadow-hover)]"
+                  >
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--glass-bg-subtle)] ring-1 ring-[var(--glass-border)] shadow-sm">
+                      <AgentIcon
+                        icon={agent.icon || "Bot"}
+                        size={20}
+                        className="text-stone-600 dark:text-stone-400"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate tracking-tight font-serif">
+                        {displayName}
+                      </h4>
+                      <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5 hidden sm:block">
+                        {displayDescription}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-sm font-semibold text-stone-900 dark:text-stone-100 truncate tracking-tight font-serif">
-                      {t(agent.name)}
-                    </h4>
-                    <p className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5 hidden sm:block">
-                      {t(agent.description)}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

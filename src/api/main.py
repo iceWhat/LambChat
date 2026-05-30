@@ -176,6 +176,7 @@ async def lifespan(app: FastAPI):
     # 初始化 Agent 配置存储索引
     from src.infra.agent.config_storage import get_agent_config_storage
     from src.infra.agent.model_storage import get_model_storage
+    from src.infra.channel.channel_storage import ChannelStorage
 
     agent_config_storage = get_agent_config_storage()
     await agent_config_storage.ensure_indexes()
@@ -185,6 +186,10 @@ async def lifespan(app: FastAPI):
     model_storage = get_model_storage()
     await model_storage.ensure_indexes()
     logger.info("Model storage indexes initialized")
+
+    channel_storage = ChannelStorage()
+    await channel_storage.ensure_indexes_if_needed()
+    logger.info("Channel storage indexes initialized")
 
     # 清理残留的运行中任务（服务重启前未正常关闭的任务）
     from src.infra.task.manager import get_task_manager

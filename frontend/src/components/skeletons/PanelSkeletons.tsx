@@ -517,8 +517,82 @@ export function FeedbackPanelSkeleton() {
   );
 }
 
+/** Channels page: card grid matching SkillBaseCard (.scb) structure */
+export function ChannelsGridSkeleton() {
+  return (
+    <div className="flex h-full flex-col animate-fade-in">
+      <PanelHeaderSkeleton hasSearch={false} />
+      <div className="flex-1 overflow-y-auto py-4">
+        <div className="mx-auto max-w-full">
+          <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="scb">
+                {/* Banner */}
+                <div
+                  className="h-12 w-full shrink-0 relative"
+                  style={{
+                    background: `linear-gradient(135deg, ${
+                      [
+                        "var(--theme-primary-light)",
+                        "color-mix(in srgb, var(--theme-primary-light) 60%, var(--theme-bg))",
+                        "var(--theme-bg-card)",
+                      ][i % 3]
+                    }, var(--theme-bg-card))`,
+                  }}
+                />
+                {/* Card body */}
+                <div className="flex flex-1 flex-col -mt-3 pt-5 p-4">
+                  {/* Icon + name */}
+                  <div className="flex items-start gap-3">
+                    <div className="scb__icon-ring shrink-0 skeleton-line" />
+                    <div className="min-w-0 flex-1">
+                      <SkeletonLine
+                        width={i % 2 === 0 ? "w-3/4" : "w-1/2"}
+                        className="!h-4"
+                      />
+                    </div>
+                  </div>
+                  {/* Status pill */}
+                  <div className="mt-1.5 sm:mt-2">
+                    <SkeletonLine
+                      width={
+                        i % 3 === 0
+                          ? "w-16 sm:w-20"
+                          : i % 3 === 1
+                            ? "w-12"
+                            : "w-8"
+                      }
+                      className="!h-4 !rounded-full"
+                    />
+                  </div>
+                  {/* Description */}
+                  <div className="mt-3 space-y-1.5">
+                    <SkeletonLine width="w-full" className="!h-2.5 sm:!h-3" />
+                    <SkeletonLine
+                      width={i % 2 === 0 ? "w-5/6" : "w-2/3"}
+                      className="!h-2.5 sm:!h-3"
+                    />
+                  </div>
+                  {/* Tags row */}
+                  <div className="mt-3">
+                    <SkeletonLine
+                      width="w-20 sm:w-24"
+                      className="!h-5 !rounded-lg"
+                    />
+                  </div>
+                  <div className="flex-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Channels panel: form-based configuration (status card + config form) */
-export function ChannelsPanelSkeleton() {
+export function ChannelConfigSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch={false} />

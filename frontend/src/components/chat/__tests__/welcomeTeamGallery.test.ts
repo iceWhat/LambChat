@@ -65,7 +65,7 @@ test("welcome page keeps change role and change team actions visible after selec
   );
   assert.match(
     welcomePageSource,
-    /\(showChoiceCards\s*\|\|\s*showStarterPrompts\s*\|\|\s*showTeamStarterPrompts\s*\|\|\s*showSelectionActions\)/,
+    /\(showGallerySection\s*\|\|\s*showStarterPrompts\s*\|\|\s*showTeamStarterPrompts\s*\|\|\s*showSelectionActions\)/,
   );
   assert.match(welcomePageSource, /onSelectTeam\?\.\(null\)/);
   assert.match(welcomePageSource, /t\("team\.change", "更换团队"\)/);
@@ -74,11 +74,39 @@ test("welcome page keeps change role and change team actions visible after selec
 test("welcome page uses the same skeleton count for role and team choices", () => {
   assert.match(
     welcomePageSource,
-    /const teamSkeletonCount = getWelcomePersonaSkeletonCount\(\s*teamCardsLoading,\s*displayTeamCards\.length,\s*\);/,
+    /const teamSkeletonCount = getWelcomePersonaSkeletonCount\(\s*shouldShowTeamSkeletons,\s*displayTeamCards\.length,\s*\);/,
   );
   assert.doesNotMatch(
     welcomePageSource,
-    /getWelcomePersonaSkeletonCount\(\s*teamCardsLoading,\s*displayTeamCards\.length,\s*6,\s*\)/,
+    /getWelcomePersonaSkeletonCount\(\s*shouldShowTeamSkeletons,\s*displayTeamCards\.length,\s*6,\s*\)/,
+  );
+});
+
+test("welcome team plaza renders skeleton cards while teams are loading", () => {
+  assert.match(
+    welcomePageSource,
+    /const personaSkeletonCount = getWelcomePersonaSkeletonCount\(\s*personaPresetsLoading,\s*displayCards\.length,\s*\);/,
+  );
+  assert.match(
+    welcomePageSource,
+    /\{showTeamCards &&\s*Array\.from\(\{ length: teamSkeletonCount \}\)/,
+  );
+  assert.match(
+    welcomePageSource,
+    /className="welcome-persona-card welcome-persona-skeleton/,
+  );
+});
+
+test("welcome team plaza treats the first unresolved team request as loading", () => {
+  assert.match(
+    welcomePageSource,
+    /const \[teamCardsLoaded, setTeamCardsLoaded\] = useState\(false\);/,
+  );
+  assert.match(welcomePageSource, /setTeamCardsLoaded\(false\);/);
+  assert.match(welcomePageSource, /setTeamCardsLoaded\(true\);/);
+  assert.match(
+    welcomePageSource,
+    /const shouldShowTeamSkeletons =\s*showTeamCards && \(teamCardsLoading \|\| !teamCardsLoaded\);/,
   );
 });
 

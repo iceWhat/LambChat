@@ -89,6 +89,8 @@ async def test_list_user_skills_without_filters_returns_paginated_skills(
             "published_marketplace_name": "public-planner",
             "created_at": "2026-01-01T00:00:00Z",
             "updated_at": "2026-01-02T00:00:00Z",
+            "is_pinned": False,
+            "is_favorite": False,
         }
     ]
     assert collection.aggregate_pipelines[0][-2:] == [{"$skip": 20}, {"$limit": 10}]

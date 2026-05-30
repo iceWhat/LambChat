@@ -1,0 +1,19 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const componentSource = readFileSync(
+  join(import.meta.dirname, "../SkillCard.tsx"),
+  "utf8",
+);
+
+test("skill cards expose pin and favorite banner actions", () => {
+  assert.match(componentSource, /Pin,/);
+  assert.match(componentSource, /Star,/);
+  assert.match(componentSource, /onTogglePreference\?:/);
+  assert.match(componentSource, /pps-card__icon-action--active-pin/);
+  assert.match(componentSource, /pps-card__icon-action--active-fav/);
+  assert.match(componentSource, /t\("personaPresets\.pin", "置顶"\)/);
+  assert.match(componentSource, /t\("personaPresets\.favorite", "收藏"\)/);
+});

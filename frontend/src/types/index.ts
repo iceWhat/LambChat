@@ -41,6 +41,8 @@ export type {
   ConnectionState,
   RunSummary,
   SummaryPart,
+  RecommendQuestion,
+  RecommendQuestionsPart,
 } from "./message";
 
 // ============================================
@@ -91,6 +93,10 @@ export type {
   AgentInfo,
   AgentListResponse,
   WorkflowStepData,
+  AgentCatalogConfig,
+  AgentCatalogConfigResponse,
+  AgentCatalogLabels,
+  AgentCatalogLocale,
   AgentConfig,
   GlobalAgentConfigResponse,
   RoleAgentAssignment,

@@ -21,7 +21,8 @@ export {
   RolesPanelSkeleton,
   MCPPanelSkeleton,
   FeedbackPanelSkeleton,
-  ChannelsPanelSkeleton,
+  ChannelsGridSkeleton,
+  ChannelConfigSkeleton,
   AgentPanelSkeleton,
   ModelPanelSkeleton,
 } from "./PanelSkeletons";

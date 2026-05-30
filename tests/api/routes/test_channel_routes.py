@@ -204,11 +204,12 @@ async def test_update_channel_persists_explicit_persona_preset_id(
 
 
 @pytest.mark.asyncio
-async def test_status_starts_enabled_channel_when_manager_is_disconnected(
+async def test_status_reports_disconnected_without_reloading_manager(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     storage = _FakeStorage()
     manager = _FakeManager()
+    manager.connected = False
     manager_class = type(
         "_StatusManagerClass",
         (),
@@ -223,8 +224,33 @@ async def test_status_starts_enabled_channel_when_manager_is_disconnected(
         storage=storage,
     )
 
-    assert manager.reload_calls == [("user-1", "instance-1")]
-    assert status.connected is True
+    assert manager.reload_calls == []
+    assert status.connected is False
+
+
+@pytest.mark.asyncio
+async def test_status_does_not_reload_disconnected_manager(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    manager = _FakeManager()
+    manager.connected = False
+    manager_class = type(
+        "_StatusManagerClassNoReload",
+        (),
+        {"get_instance": classmethod(lambda cls: manager)},
+    )
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry(manager_class))
+
+    status = await channels_route.get_channel_instance_status(
+        ChannelType.FEISHU,
+        "instance-1",
+        user=SimpleNamespace(sub="user-1", roles=[]),
+        storage=storage,
+    )
+
+    assert manager.reload_calls == []
+    assert status.connected is False
 
 
 @pytest.mark.asyncio

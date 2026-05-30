@@ -42,6 +42,8 @@ class SkillStorage:
         self._client: Optional["AsyncIOMotorClient"] = None
         self._files_collection: Optional["AsyncIOMotorCollection"] = None
 
+    MAX_PINNED = 10
+
     def _get_files_collection(self) -> "AsyncIOMotorCollection":
         if self._files_collection is None:
             self._client = get_mongo_client()
@@ -311,6 +313,8 @@ class SkillStorage:
         skip: int = 0,
         limit: int = 100,
         disabled_skills: Optional[list[str]] = None,
+        pinned_skill_names: Optional[list[str]] = None,
+        favorite_skill_names: Optional[list[str]] = None,
         q: str | None = None,
         tags: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
@@ -324,13 +328,24 @@ class SkillStorage:
         """
         if disabled_skills is None:
             disabled_skills = []
+        if pinned_skill_names is None:
+            pinned_skill_names = []
+        if favorite_skill_names is None:
+            favorite_skill_names = []
         disabled_set = set(disabled_skills)
+        pinned_set = set(pinned_skill_names)
+        favorite_set = set(favorite_skill_names)
+        has_preferences = bool(pinned_set or favorite_set)
 
         collection = self._get_files_collection()
         paged_skill_names: list[str] | None = None
         if q or tags:
             matching_skill_names = await self.list_matching_skill_names(user_id, q=q, tags=tags)
-            paged_skill_names = matching_skill_names[skip : skip + limit]
+            paged_skill_names = (
+                matching_skill_names
+                if has_preferences
+                else matching_skill_names[skip : skip + limit]
+            )
             if not paged_skill_names:
                 return []
 
@@ -352,7 +367,7 @@ class SkillStorage:
             },
             {"$sort": {"_id": 1}},
         ]
-        if paged_skill_names is None:
+        if paged_skill_names is None and not has_preferences:
             pipeline.extend([{"$skip": skip}, {"$limit": limit}])
         skill_stats: dict[str, dict] = {}
         async for doc in collection.aggregate(pipeline):  # type: ignore[arg-type]
@@ -399,10 +414,115 @@ class SkillStorage:
                     "published_marketplace_name": meta.published_marketplace_name if meta else None,
                     "created_at": stats.get("created_at"),
                     "updated_at": stats.get("updated_at"),
+                    "is_pinned": skill_name in pinned_set,
+                    "is_favorite": skill_name in favorite_set,
                 }
             )
 
+        if has_preferences:
+            result.sort(key=self._preference_sort_key)
+            result = result[skip : skip + limit]
+
         return result
+
+    @staticmethod
+    def _timestamp_sort_value(value: Any) -> float:
+        if value is None:
+            return 0
+        if hasattr(value, "timestamp"):
+            return float(value.timestamp())
+        if isinstance(value, str):
+            from datetime import datetime
+
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                return 0
+        return 0
+
+    @classmethod
+    def _preference_sort_key(cls, skill: dict[str, Any]) -> tuple:
+        return (
+            0 if skill.get("is_pinned") else 1,
+            0 if skill.get("is_favorite") else 1,
+            -cls._timestamp_sort_value(skill.get("updated_at")),
+            -cls._timestamp_sort_value(skill.get("created_at")),
+            skill.get("skill_name", ""),
+        )
+
+    async def _get_user_skill_preference(self, user_id: str) -> dict[str, list[str]]:
+        from src.infra.user.storage import UserStorage
+
+        user_doc = await UserStorage().get_by_id(user_id)
+        metadata = (user_doc.metadata if user_doc else None) or {}
+        return {
+            "pinned": metadata.get("pinned_skill_names") or [],
+            "favorite": metadata.get("favorite_skill_names") or [],
+        }
+
+    async def update_user_preference(
+        self,
+        *,
+        user_id: str,
+        skill_name: str,
+        update: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Update the current user's favorite/pinned state for a skill."""
+        from src.infra.user.storage import UserStorage
+
+        pref = await self._get_user_skill_preference(user_id)
+        pinned: list[str] = list(pref["pinned"])
+        favorite: list[str] = list(pref["favorite"])
+
+        if update.get("is_pinned") is not None:
+            if update["is_pinned"] and skill_name not in pinned:
+                if len(pinned) >= self.MAX_PINNED:
+                    return {
+                        "is_favorite": skill_name in favorite,
+                        "is_pinned": False,
+                    }
+                pinned.append(skill_name)
+            elif not update["is_pinned"] and skill_name in pinned:
+                pinned.remove(skill_name)
+
+        if update.get("is_favorite") is not None:
+            if update["is_favorite"] and skill_name not in favorite:
+                favorite.append(skill_name)
+            elif not update["is_favorite"] and skill_name in favorite:
+                favorite.remove(skill_name)
+
+        await UserStorage().update_metadata(
+            user_id,
+            {
+                "pinned_skill_names": pinned,
+                "favorite_skill_names": favorite,
+            },
+        )
+        return {
+            "is_favorite": skill_name in favorite,
+            "is_pinned": skill_name in pinned,
+        }
+
+    async def remove_user_skill_preference(self, user_id: str, skill_names: list[str]) -> None:
+        """Remove deleted skill names from the current user's preference lists."""
+        from src.infra.user.storage import UserStorage
+
+        remove_names = set(skill_names)
+        if not remove_names:
+            return
+
+        pref = await self._get_user_skill_preference(user_id)
+        pinned = [name for name in pref["pinned"] if name not in remove_names]
+        favorite = [name for name in pref["favorite"] if name not in remove_names]
+        if pinned == pref["pinned"] and favorite == pref["favorite"]:
+            return
+        await UserStorage().update_metadata(
+            user_id,
+            {
+                "pinned_skill_names": pinned,
+                "favorite_skill_names": favorite,
+            },
+        )
 
     async def count_user_skills(
         self,

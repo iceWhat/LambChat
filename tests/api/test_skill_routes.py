@@ -18,18 +18,24 @@ def _fake_user() -> TokenPayload:
     )
 
 
+class _FakeUserDoc:
+    metadata = {
+        "disabled_skills": ["archived"],
+        "pinned_skill_names": ["planner"],
+        "favorite_skill_names": ["writer"],
+    }
+
+
+class _FakeUserStorage:
+    async def get_by_id(self, user_id: str):
+        assert user_id == "user-1"
+        return _FakeUserDoc()
+
+
 @pytest.mark.asyncio
 async def test_list_user_skills_returns_paginated_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    class _FakeUserDoc:
-        metadata = {"disabled_skills": ["archived"]}
-
-    class _FakeUserStorage:
-        async def get_by_id(self, user_id: str):
-            assert user_id == "user-1"
-            return _FakeUserDoc()
-
     class _FakeStorage:
         async def list_user_skills(
             self,
@@ -37,6 +43,8 @@ async def test_list_user_skills_returns_paginated_response(
             skip: int = 0,
             limit: int = 100,
             disabled_skills=None,
+            pinned_skill_names=None,
+            favorite_skill_names=None,
             q: str | None = None,
             tags=None,
         ):
@@ -44,6 +52,8 @@ async def test_list_user_skills_returns_paginated_response(
             assert skip == 20
             assert limit == 10
             assert disabled_skills == ["archived"]
+            assert pinned_skill_names == ["planner"]
+            assert favorite_skill_names == ["writer"]
             assert q == "plan"
             assert tags == ["planning"]
             return [
@@ -56,6 +66,8 @@ async def test_list_user_skills_returns_paginated_response(
                     "published_marketplace_name": None,
                     "created_at": "2026-01-01T00:00:00Z",
                     "updated_at": "2026-01-02T00:00:00Z",
+                    "is_pinned": True,
+                    "is_favorite": False,
                 }
             ]
 
@@ -112,3 +124,43 @@ async def test_list_user_skills_returns_paginated_response(
     assert payload["enabled_count"] == 37
     assert payload["available_tags"] == ["planning"]
     assert [skill["skill_name"] for skill in payload["skills"]] == ["planner"]
+    assert payload["skills"][0]["is_pinned"] is True
+    assert payload["skills"][0]["is_favorite"] is False
+
+
+@pytest.mark.asyncio
+async def test_update_skill_preference_returns_updated_skill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeStorage:
+        async def list_skill_file_paths(self, skill_name: str, user_id: str):
+            assert skill_name == "planner"
+            assert user_id == "user-1"
+            return ["SKILL.md"]
+
+        async def update_user_preference(self, *, user_id: str, skill_name: str, update):
+            assert user_id == "user-1"
+            assert skill_name == "planner"
+            assert update == {"is_favorite": True, "is_pinned": None}
+            return {"is_favorite": True, "is_pinned": False}
+
+    monkeypatch.setattr(skill_route, "UserStorage", lambda: _FakeUserStorage())
+
+    app = FastAPI()
+    app.include_router(skill_route.router, prefix="/api/skills")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[skill_route.get_storage] = lambda: _FakeStorage()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.patch(
+            "/api/skills/planner/preference",
+            json={"is_favorite": True},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "skill_name": "planner",
+        "is_favorite": True,
+        "is_pinned": False,
+    }

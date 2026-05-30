@@ -64,9 +64,12 @@ def test_create_persona_preset_description_guides_team_role_creation() -> None:
     from src.infra.tool import persona_preset_tool
 
     description = persona_preset_tool.create_persona_preset.description
+    create_fields = persona_preset_tool.create_persona_preset.args_schema.model_fields
 
     assert "create_agent_team" in description
     assert "no existing persona fits" in description.lower()
+    assert "emoji or avatar image URL" in create_fields["avatar"].description
+    assert "Always provide" in create_fields["avatar"].description
 
 
 @pytest.mark.asyncio

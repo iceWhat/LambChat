@@ -1,7 +1,14 @@
 import { memo, useMemo, useState, useCallback, useEffect, useRef } from "react";
-import { Bot, ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import type { AgentInfo } from "../../types";
+import { AgentIcon } from "./AgentIcon";
+import { LoadingSpinner } from "../common/LoadingSpinner";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "./agentCatalog";
 
 interface AgentItemProps {
   agent: AgentInfo;
@@ -19,6 +26,8 @@ const AgentItem = memo(function AgentItem({
   onSelect,
 }: AgentItemProps) {
   const { t } = useTranslation();
+  const displayName = resolveAgentDisplayName(agent, i18n.language, t);
+  const displayDescription = resolveAgentDescription(agent, i18n.language, t);
   return (
     <button
       onClick={onSelect}
@@ -26,14 +35,18 @@ const AgentItem = memo(function AgentItem({
     >
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-stone-100 to-stone-200 dark:from-amber-500/20 dark:to-orange-500/20">
-          <Bot size={18} className="text-stone-600 dark:text-amber-400" />
+          <AgentIcon
+            icon={agent.icon || "Bot"}
+            size={18}
+            className="text-stone-600 dark:text-amber-400"
+          />
         </div>
         <div className="flex-1 min-w-0 space-y-1">
           <div className="text-sm font-medium text-stone-700 dark:text-stone-200 font-serif">
-            {t(agent.name)}
+            {displayName}
           </div>
           <div className="text-xs text-stone-400 dark:text-stone-500 truncate">
-            {t(agent.description)}
+            {displayDescription}
           </div>
         </div>
         {isSelected && (
@@ -115,6 +128,10 @@ const AgentSelector = memo(function AgentSelector({
     return null;
   }
 
+  const currentDisplayName = currentAgentInfo
+    ? resolveAgentDisplayName(currentAgentInfo, i18n.language, t)
+    : t(currentAgent);
+
   return (
     <div
       ref={containerRef}
@@ -127,7 +144,7 @@ const AgentSelector = memo(function AgentSelector({
         className="flex items-center gap-1.5 hover:opacity-70 transition-opacity"
       >
         <span className="text-base font-semibold text-stone-700 dark:text-stone-200 font-serif">
-          {t(currentAgentInfo?.name || currentAgent)}
+          {currentDisplayName}
         </span>
         <ChevronDown
           size={18}
@@ -141,8 +158,9 @@ const AgentSelector = memo(function AgentSelector({
       {showSelector && (
         <div className="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150">
           {agentsLoading ? (
-            <div className="px-3 py-2 text-sm text-stone-400 dark:text-stone-500">
-              Loading...
+            <div className="flex items-center justify-center px-3 py-4 text-sm text-stone-400 dark:text-stone-500 gap-2">
+              <LoadingSpinner size="sm" />
+              <span>Loading...</span>
             </div>
           ) : (
             agents.map((agent) => (

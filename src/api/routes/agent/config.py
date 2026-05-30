@@ -15,6 +15,9 @@ from src.infra.agent.config_storage import get_agent_config_storage
 from src.infra.logging import get_logger
 from src.infra.role.manager import get_role_manager
 from src.kernel.schemas.agent import (
+    AgentCatalogConfig,
+    AgentCatalogConfigResponse,
+    AgentCatalogConfigUpdate,
     AgentConfig,
     AgentConfigUpdate,
     GlobalAgentConfigResponse,
@@ -34,6 +37,58 @@ router = APIRouter()
 logger = get_logger(__name__)
 
 
+def _catalog_entry_from_registered(
+    agent: dict,
+    saved: AgentCatalogConfig | AgentConfig | None = None,
+) -> AgentCatalogConfig:
+    """Merge registered runtime defaults with persisted catalog metadata."""
+    saved_sort_order = getattr(saved, "sort_order", None) if saved else None
+    return AgentCatalogConfig(
+        id=agent["id"],
+        name=agent.get("name") or agent["id"],
+        description=agent.get("description") or "",
+        enabled=saved.enabled if saved else True,
+        icon=(getattr(saved, "icon", None) if saved else None) or "Bot",
+        sort_order=saved_sort_order
+        if saved_sort_order is not None
+        else agent.get("sort_order", 100),
+        labels=getattr(saved, "labels", {}) if saved else {},
+    )
+
+
+async def _load_catalog_config() -> list[AgentCatalogConfig]:
+    storage = get_agent_config_storage()
+    all_agents = AgentFactory.list_agents()
+    saved_configs = await storage.get_catalog_config()
+    if not saved_configs and hasattr(storage, "get_global_config"):
+        global_configs = await storage.get_global_config()
+        saved_configs_map: dict[str, AgentCatalogConfig | AgentConfig] = {
+            c.id: c for c in global_configs
+        }
+    else:
+        saved_configs_map = {c.id: c for c in saved_configs}
+
+    catalog = [
+        _catalog_entry_from_registered(agent, saved_configs_map.get(agent["id"]))
+        for agent in all_agents
+    ]
+    catalog.sort(key=lambda agent: (agent.sort_order, agent.name))
+    await storage.set_catalog_config(catalog)
+    return catalog
+
+
+def _catalog_to_global_config(agent: AgentCatalogConfig) -> AgentConfig:
+    return AgentConfig(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        enabled=agent.enabled,
+        icon=agent.icon,
+        sort_order=agent.sort_order,
+        labels=agent.labels,
+    )
+
+
 # ============================================
 # 管理员接口
 # ============================================
@@ -44,34 +99,24 @@ async def get_global_agent_config(
     _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
 ):
     """获取全局 Agent 配置"""
-    storage = get_agent_config_storage()
-
-    all_agents = AgentFactory.list_agents()
-    saved_configs = await storage.get_global_config()
-    saved_configs_map = {c.id: c for c in saved_configs}
-
-    # 合并：使用保存的配置，新注册的 agent 默认启用
-    agent_configs = []
-    for agent in all_agents:
-        agent_id = agent["id"]
-        if agent_id in saved_configs_map:
-            agent_configs.append(saved_configs_map[agent_id])
-        else:
-            agent_configs.append(
-                AgentConfig(
-                    id=agent_id,
-                    name=agent["name"],
-                    description=agent["description"],
-                    enabled=True,
-                )
-            )
-
-    # 持久化新发现的 agents
-    await storage.set_global_config(agent_configs)
+    catalog = await _load_catalog_config()
+    agent_configs = [_catalog_to_global_config(agent) for agent in catalog]
 
     return GlobalAgentConfigResponse(
         agents=agent_configs,
         available_agents=[a.id for a in agent_configs if a.enabled],
+    )
+
+
+@router.get("/catalog", response_model=AgentCatalogConfigResponse)
+async def get_agent_catalog_config(
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+):
+    """获取可配置 Agent 展示目录。"""
+    catalog = await _load_catalog_config()
+    return AgentCatalogConfigResponse(
+        agents=catalog,
+        available_agents=[a.id for a in catalog if a.enabled],
     )
 
 
@@ -91,10 +136,61 @@ async def update_global_agent_config(
 
             raise ValidationError(f"Agent '{agent.id}' 未注册")
 
-    agents = config_update.agents
-    await storage.set_global_config(agents)
+    registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
+    catalog_agents = [
+        AgentCatalogConfig(
+            id=agent.id,
+            name=agent.name or registered_agents[agent.id].get("name", agent.id),
+            description=agent.description or registered_agents[agent.id].get("description", ""),
+            enabled=agent.enabled,
+            icon=agent.icon or "Bot",
+            sort_order=agent.sort_order
+            if agent.sort_order is not None
+            else registered_agents[agent.id].get("sort_order", 100),
+            labels=agent.labels,
+        )
+        for agent in config_update.agents
+    ]
+    await storage.set_catalog_config(catalog_agents)
+    agents = [_catalog_to_global_config(agent) for agent in catalog_agents]
 
     return GlobalAgentConfigResponse(
+        agents=agents,
+        available_agents=[a.id for a in agents if a.enabled],
+    )
+
+
+@router.put("/catalog", response_model=AgentCatalogConfigResponse)
+async def update_agent_catalog_config(
+    config_update: AgentCatalogConfigUpdate,
+    _: TokenPayload = Depends(require_permissions(Permission.AGENT_ADMIN.value)),
+):
+    """更新可配置 Agent 展示目录。"""
+    storage = get_agent_config_storage()
+
+    registered_ids = set(list_registered_agents())
+    for agent in config_update.agents:
+        if agent.id not in registered_ids:
+            from src.kernel.exceptions import ValidationError
+
+            raise ValidationError(f"Agent '{agent.id}' 未注册")
+
+    registered_agents = {agent["id"]: agent for agent in AgentFactory.list_agents()}
+    agents = [
+        AgentCatalogConfig(
+            id=agent.id,
+            name=agent.name or registered_agents[agent.id].get("name", agent.id),
+            description=agent.description or registered_agents[agent.id].get("description", ""),
+            enabled=agent.enabled,
+            icon=agent.icon or "Bot",
+            sort_order=agent.sort_order,
+            labels=agent.labels,
+        )
+        for agent in config_update.agents
+    ]
+    await storage.set_catalog_config(agents)
+
+    return AgentCatalogConfigResponse(
         agents=agents,
         available_agents=[a.id for a in agents if a.enabled],
     )

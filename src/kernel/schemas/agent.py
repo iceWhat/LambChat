@@ -184,6 +184,47 @@ class AgentConfig(BaseModel):
     name: str = Field(..., description="Agent name")
     description: str = Field(..., description="Agent description")
     enabled: bool = Field(True, description="Whether the agent is enabled globally")
+    icon: Optional[str] = Field(None, description="Display icon name or emoji")
+    sort_order: Optional[int] = Field(None, description="Display sort order")
+    labels: dict[str, "AgentCatalogLocale"] = Field(
+        default_factory=dict,
+        description="Localized display labels keyed by locale",
+    )
+
+
+class AgentCatalogLocale(BaseModel):
+    """Localized display metadata for an agent."""
+
+    name: str = Field(default="", description="Localized agent display name")
+    description: str = Field(default="", description="Localized agent description")
+
+
+class AgentCatalogConfig(BaseModel):
+    """Admin-managed agent catalog entry."""
+
+    id: str = Field(..., description="Agent ID")
+    name: str = Field(..., description="Fallback agent name or i18n key")
+    description: str = Field(..., description="Fallback agent description or i18n key")
+    enabled: bool = Field(True, description="Whether the agent is enabled globally")
+    icon: str = Field("Bot", description="Display icon name or emoji")
+    sort_order: int = Field(100, description="Display sort order")
+    labels: dict[str, AgentCatalogLocale] = Field(
+        default_factory=dict,
+        description="Localized display labels keyed by locale",
+    )
+
+
+class AgentCatalogConfigUpdate(BaseModel):
+    """Update admin-managed agent catalog."""
+
+    agents: list[AgentCatalogConfig] = Field(..., description="List of catalog entries")
+
+
+class AgentCatalogConfigResponse(BaseModel):
+    """Response for admin-managed agent catalog."""
+
+    agents: list[AgentCatalogConfig] = Field(..., description="All catalog entries")
+    available_agents: list[str] = Field(..., description="List of enabled agent IDs")
 
 
 class AgentConfigUpdate(BaseModel):

@@ -24,6 +24,8 @@ from src.infra.skill.types import (
     PublishToMarketplaceRequest,
     UserSkill,
     UserSkillListResponse,
+    UserSkillPreferenceResponse,
+    UserSkillPreferenceUpdate,
 )
 from src.infra.user.storage import UserStorage
 from src.kernel.config import settings
@@ -331,8 +333,12 @@ async def list_user_skills(
     user_storage = UserStorage()
     user_doc = await user_storage.get_by_id(user.sub)
     disabled_skills: list[str] = []
+    pinned_skill_names: list[str] = []
+    favorite_skill_names: list[str] = []
     if user_doc and user_doc.metadata:
         disabled_skills = user_doc.metadata.get("disabled_skills", []) or []
+        pinned_skill_names = user_doc.metadata.get("pinned_skill_names", []) or []
+        favorite_skill_names = user_doc.metadata.get("favorite_skill_names", []) or []
     available_tags = await storage.list_user_skill_tags(user.sub)
 
     skills = await storage.list_user_skills(
@@ -340,6 +346,8 @@ async def list_user_skills(
         skip=skip,
         limit=limit,
         disabled_skills=disabled_skills,
+        pinned_skill_names=pinned_skill_names,
+        favorite_skill_names=favorite_skill_names,
         q=q,
         tags=tags,
     )
@@ -395,6 +403,8 @@ async def list_user_skills(
             marketplace_is_active=published_map.get(
                 s.get("published_marketplace_name") or s["skill_name"], {}
             ).get("is_active", True),
+            is_pinned=bool(s.get("is_pinned")),
+            is_favorite=bool(s.get("is_favorite")),
         )
         for s in skills
     ]
@@ -426,6 +436,12 @@ async def get_user_skill(
     disabled_skills = set()
     if user_doc and user_doc.metadata:
         disabled_skills = set(user_doc.metadata.get("disabled_skills", []))
+    pinned_skill_names = (
+        set((user_doc.metadata or {}).get("pinned_skill_names", [])) if user_doc else set()
+    )
+    favorite_skill_names = (
+        set((user_doc.metadata or {}).get("favorite_skill_names", [])) if user_doc else set()
+    )
     enabled = name not in disabled_skills
 
     # Get metadata from __meta__ doc
@@ -458,6 +474,8 @@ async def get_user_skill(
         marketplace_is_active=published_map.get(
             (meta.published_marketplace_name if meta else None) or name, {}
         ).get("is_active", True),
+        is_pinned=name in pinned_skill_names,
+        is_favorite=name in favorite_skill_names,
     )
 
 
@@ -630,6 +648,8 @@ async def delete_user_skill(
             disabled.discard(name)
             await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
 
+    await storage.remove_user_skill_preference(user.sub, [name])
+
     # 失效缓存
     await storage.invalidate_user_cache(user.sub)
 
@@ -660,6 +680,23 @@ async def _ensure_skill_exists(storage: SkillStorage, skill_name: str, user_id: 
     paths = await storage.list_skill_file_paths(skill_name, user_id)
     if not paths:
         raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+
+
+@router.patch("/{name}/preference", response_model=UserSkillPreferenceResponse)
+async def update_skill_preference(
+    name: str,
+    preference: UserSkillPreferenceUpdate,
+    user: TokenPayload = Depends(require_permissions("skill:read")),
+    storage: SkillStorage = Depends(get_storage),
+):
+    """更新当前用户对 Skill 的置顶/收藏偏好。"""
+    await _ensure_skill_exists(storage, name, user.sub)
+    updated = await storage.update_user_preference(
+        user_id=user.sub,
+        skill_name=name,
+        update=preference.model_dump(mode="json"),
+    )
+    return UserSkillPreferenceResponse(skill_name=name, **updated)
 
 
 # ==========================================
@@ -695,6 +732,7 @@ async def batch_delete_skills(
             if disabled & set(deleted):
                 disabled -= set(deleted)
                 await user_storage.update_metadata(user.sub, {"disabled_skills": sorted(disabled)})
+        await storage.remove_user_skill_preference(user.sub, deleted)
 
     return {"deleted": deleted, "errors": errors}
 

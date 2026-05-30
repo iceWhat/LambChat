@@ -57,6 +57,7 @@ export function useSkillsActions() {
     batchDeleteSkills,
     batchToggleSkills,
     toggleSkill,
+    updateSkillPreference,
     uploadSkill,
     previewZipSkills,
     previewGitHubSkills,
@@ -228,6 +229,13 @@ export function useSkillsActions() {
 
   const handleToggle = async (name: string) => {
     await toggleSkill(name);
+  };
+
+  const handleTogglePreference = async (
+    skill: SkillResponse,
+    preference: { is_favorite?: boolean; is_pinned?: boolean },
+  ) => {
+    await updateSkillPreference(skill.name, preference);
   };
 
   // Batch handlers
@@ -537,6 +545,7 @@ export function useSkillsActions() {
     handleExportZip,
     handleDelete,
     handleToggle,
+    handleTogglePreference,
     clearError,
 
     // Delete confirm

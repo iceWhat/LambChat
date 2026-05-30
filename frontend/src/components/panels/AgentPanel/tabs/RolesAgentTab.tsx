@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
-import { Bot, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../../i18n";
+import { AgentIcon } from "../../../agent/AgentIcon";
 import { AgentPanelSkeleton } from "../../../skeletons";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "../../../agent/agentCatalog";
 import { RoleSelector } from "../shared/RoleSelector";
 import type { Role, AgentInfo } from "../../../../types";
 
@@ -103,6 +109,16 @@ export function RolesAgentTab({
             </div>
             {availableAgents.map((agent, index) => {
               const isSelected = currentRoleAgents.includes(agent.id);
+              const displayName = resolveAgentDisplayName(
+                agent,
+                i18n.language,
+                t,
+              );
+              const displayDescription = resolveAgentDescription(
+                agent,
+                i18n.language,
+                t,
+              );
               return (
                 <label
                   key={agent.id}
@@ -120,14 +136,14 @@ export function RolesAgentTab({
                     className="h-4 w-4 rounded border-[var(--glass-border)] text-stone-600 focus:ring-stone-500"
                   />
                   <div className="flex size-9 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--glass-bg-subtle)] text-theme-text-secondary ring-1 ring-[var(--glass-border)]">
-                    <Bot size={16} />
+                    <AgentIcon icon={agent.icon || "Bot"} size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-theme-text">
-                      {t(agent.name)}
+                      {displayName}
                     </div>
                     <div className="mt-0.5 hidden truncate text-xs text-theme-text-secondary sm:block">
-                      {t(agent.description)}
+                      {displayDescription}
                     </div>
                   </div>
                 </label>

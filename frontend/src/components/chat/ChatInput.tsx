@@ -526,7 +526,7 @@ export const ChatInput = memo(function ChatInput({
 
   return (
     <div
-      className="chat-input-shell sm:px-4 pb-3"
+      className="chat-input-shell sm:px-4 pb-3 sm:pb-5"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
       <form
@@ -638,6 +638,7 @@ export const ChatInput = memo(function ChatInput({
             personaName={selectedPersonaName}
             hasAgentSelector={agents.length > 1 && !!onSelectAgent}
             agentName={agents.find((a) => a.id === currentAgent)?.name}
+            agentIcon={agents.find((a) => a.id === currentAgent)?.icon}
             hasThinkingOption={
               !!(
                 agentOptions &&

@@ -6,6 +6,7 @@ export interface SkillBaseCardProps {
   description?: string;
   descriptionMaxLines?: 2 | 3;
   gradient?: string[];
+  bannerLeadingOverlay?: ReactNode;
   bannerOverlay?: ReactNode;
   icon?: ReactNode;
   statusPills?: ReactNode;
@@ -28,6 +29,7 @@ export function SkillBaseCard({
   description,
   descriptionMaxLines = 2,
   gradient,
+  bannerLeadingOverlay,
   bannerOverlay,
   icon,
   statusPills,
@@ -78,26 +80,45 @@ export function SkillBaseCard({
             background: `linear-gradient(45deg, ${gradient[0]}, ${gradient[1]}, ${gradient[2]})`,
           }}
         >
-          <div className="absolute inset-0 flex items-center justify-between px-2 z-[3]">
-            {selectionMode && onSelect && (
-              <div
-                className={`transition-all duration-200 ${
-                  selected
-                    ? "scale-110"
-                    : "sm:scale-90 sm:group-hover:scale-100"
-                }`}
-              >
-                <Checkbox
-                  size="lg"
-                  checked={selected}
-                  onChange={() => onSelect()}
-                  className="shadow-sm sm:opacity-0 sm:group-hover:opacity-100"
-                />
-              </div>
-            )}
-            {bannerOverlay && (
-              <div className="flex gap-1.5 ml-auto">{bannerOverlay}</div>
-            )}
+          <div className="absolute inset-0 flex items-start justify-between px-2 py-2 z-[3]">
+            <div className="flex items-center gap-1.5">
+              {bannerLeadingOverlay}
+              {!bannerLeadingOverlay && selectionMode && onSelect && (
+                <div
+                  className={`transition-all duration-200 ${
+                    selected
+                      ? "scale-110"
+                      : "sm:scale-90 sm:group-hover:scale-100"
+                  }`}
+                >
+                  <Checkbox
+                    size="lg"
+                    checked={selected}
+                    onChange={() => onSelect()}
+                    className="shadow-sm sm:opacity-0 sm:group-hover:opacity-100"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              {bannerLeadingOverlay && selectionMode && onSelect && (
+                <div
+                  className={`transition-all duration-200 ${
+                    selected
+                      ? "scale-110"
+                      : "sm:scale-90 sm:group-hover:scale-100"
+                  }`}
+                >
+                  <Checkbox
+                    size="lg"
+                    checked={selected}
+                    onChange={() => onSelect()}
+                    className="shadow-sm sm:opacity-0 sm:group-hover:opacity-100"
+                  />
+                </div>
+              )}
+              {bannerOverlay}
+            </div>
           </div>
         </div>
       )}

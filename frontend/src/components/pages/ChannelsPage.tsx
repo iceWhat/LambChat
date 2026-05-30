@@ -14,7 +14,9 @@ import { channelApi } from "../../services/api/channel";
 import { ChannelPanel } from "../panels/ChannelPanel";
 import { FeishuPanel } from "../panels/channel/feishu/FeishuPanel";
 import { PanelHeader } from "../common/PanelHeader";
-import { ChannelsPanelSkeleton } from "../skeletons";
+import { ChannelsGridSkeleton } from "../skeletons";
+import { SkillBaseCard } from "../common/SkillBaseCard";
+import { nameToGradient } from "../common/cardUtils";
 import type {
   ChannelMetadata,
   ChannelConfigStatus,
@@ -74,10 +76,8 @@ export function ChannelsPage() {
       const types = await channelApi.getTypes();
       setChannelTypes(types);
 
-      // Load instances for all channel types
-      for (const ct of types) {
-        await loadInstances(ct.channel_type);
-      }
+      // Load instances for all channel types in parallel
+      await Promise.all(types.map((ct) => loadInstances(ct.channel_type)));
     } catch (error) {
       console.error("Failed to load channel types:", error);
       toast.error(
@@ -95,20 +95,30 @@ export function ChannelsPage() {
       );
       setInstances((prev) => ({ ...prev, [channelType]: instanceList }));
 
-      // Load status for each instance
-      for (const instance of instanceList) {
-        try {
-          const status = await channelApi.getStatus(
-            channelType as ChannelType,
-            instance.instance_id,
-          );
-          setStatuses((prev) => ({
-            ...prev,
-            [`${channelType}:${instance.instance_id}`]: status,
-          }));
-        } catch {
-          // Instance might not have status
-        }
+      // Load statuses for all instances in parallel
+      const statusEntries = await Promise.all(
+        instanceList.map(async (instance) => {
+          try {
+            const status = await channelApi.getStatus(
+              channelType as ChannelType,
+              instance.instance_id,
+            );
+            return [`${channelType}:${instance.instance_id}`, status] as const;
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      const nextStatuses: Record<string, ChannelConfigStatus> = {};
+      for (const entry of statusEntries) {
+        if (!entry) continue;
+        const [key, status] = entry;
+        nextStatuses[key] = status;
+      }
+
+      if (Object.keys(nextStatuses).length > 0) {
+        setStatuses((prev) => ({ ...prev, ...nextStatuses }));
       }
     } catch (error) {
       console.error(`Failed to load ${channelType} instances:`, error);
@@ -164,7 +174,7 @@ export function ChannelsPage() {
   // Render channel type list
   const renderChannelList = () => {
     if (isLoading) {
-      return <ChannelsPanelSkeleton />;
+      return <ChannelsGridSkeleton />;
     }
 
     return (
@@ -200,7 +210,7 @@ export function ChannelsPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-3 p-3 sm:p-4">
+              <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
                 {channelTypes.map((ct) => {
                   const channelInstances = instances[ct.channel_type] || [];
                   const instanceCount = channelInstances.length;
@@ -209,56 +219,62 @@ export function ChannelsPage() {
                       statuses[`${ct.channel_type}:${i.instance_id}`]
                         ?.connected,
                   );
+                  const gradient = nameToGradient(ct.display_name);
 
                   return (
-                    <div
+                    <SkillBaseCard
                       key={ct.channel_type}
-                      onClick={() => navigate(`/channels/${ct.channel_type}`)}
-                      className="panel-card cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {getChannelIcon(
-                              ct.icon,
-                              "text-[var(--theme-text-secondary)] flex-shrink-0",
-                            )}
-                            <h4 className="font-medium text-[var(--theme-text)] truncate">
-                              {ct.display_name}
-                            </h4>
-                            {ct.capabilities.includes("websocket") && (
-                              <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
-                                WS
+                      title={ct.display_name}
+                      description={ct.description}
+                      gradient={gradient}
+                      icon={getChannelIcon(ct.icon, "w-5 h-5")}
+                      statusPills={
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {instanceCount > 0 &&
+                            (hasAnyConnected ? (
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                                Connected
                               </span>
-                            )}
-                            {ct.capabilities.includes("webhook") && (
+                            ) : (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                Hook
+                                Disconnected
                               </span>
-                            )}
-                            {instanceCount > 0 && (
-                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                                {instanceCount}{" "}
-                                {instanceCount === 1 ? "instance" : "instances"}
-                              </span>
-                            )}
-                            {instanceCount > 0 &&
-                              (hasAnyConnected ? (
-                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                                  Connected
-                                </span>
-                              ) : (
-                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                                  Disconnected
-                                </span>
-                              ))}
-                          </div>
-                          <p className="mt-2 text-sm text-[var(--theme-text-secondary)]">
-                            {ct.description}
-                          </p>
+                            ))}
+                          {ct.capabilities.includes("websocket") && (
+                            <span className="rounded-full bg-[var(--theme-primary-light)] px-2 py-0.5 text-xs font-medium text-[var(--theme-text-secondary)]">
+                              WS
+                            </span>
+                          )}
+                          {ct.capabilities.includes("webhook") && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                              Hook
+                            </span>
+                          )}
                         </div>
-                      </div>
-                    </div>
+                      }
+                      tags={
+                        instanceCount > 0 ? (
+                          <span className="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-medium bg-[var(--glass-bg-subtle)] text-[var(--theme-text-secondary)] border border-[var(--theme-border)]">
+                            {instanceCount}{" "}
+                            {instanceCount === 1 ? "instance" : "instances"}
+                          </span>
+                        ) : undefined
+                      }
+                      bannerOverlay={
+                        instanceCount > 0 &&
+                        (hasAnyConnected ? (
+                          <span className="rounded-full bg-white/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-white">
+                            Connected
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-white/20 backdrop-blur-sm px-2 py-0.5 text-xs font-medium text-white">
+                            Disconnected
+                          </span>
+                        ))
+                      }
+                      onClick={() => navigate(`/channels/${ct.channel_type}`)}
+                      className="cursor-pointer"
+                    />
                   );
                 })}
               </div>

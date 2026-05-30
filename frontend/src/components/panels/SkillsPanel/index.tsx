@@ -74,6 +74,7 @@ export function SkillsPanel({ embedded = false }: SkillsPanelProps) {
         onToggle={actions.handleToggle}
         onEdit={actions.handleEdit}
         onDelete={actions.handleDelete}
+        onTogglePreference={actions.handleTogglePreference}
         onExportZip={actions.handleExportZip}
         onPublish={
           canPublish

@@ -21,7 +21,7 @@ export function ToolbarChip({
       onClick={onClick}
       title={label}
     >
-      <div className="flex flex-row items-center gap-1.5 min-w-0">
+      <div className="flex flex-row items-center gap-2 min-w-0">
         {icon && (
           <span className="relative h-[18px] w-[18px] shrink-0 inline-flex items-center justify-center">
             {icon}

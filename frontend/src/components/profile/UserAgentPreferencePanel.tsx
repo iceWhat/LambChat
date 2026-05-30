@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../i18n";
 import { Save, Check, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { AgentInfo } from "../../types";
 import { agentConfigApi, agentApi } from "../../services/api";
 import { LoadingSpinner } from "../common/LoadingSpinner";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "../agent/agentCatalog";
 
 export function UserAgentPreferencePanel() {
   const { t } = useTranslation();
@@ -89,33 +94,45 @@ export function UserAgentPreferencePanel() {
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {availableAgents.map((agent) => (
-              <label
-                key={agent.id}
-                className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${
-                  selectedAgent === agent.id
-                    ? "border-amber-400/60 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-900/15"
-                    : "border-transparent bg-white/60 dark:bg-stone-600/40 hover:bg-white dark:hover:bg-stone-600/70"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="defaultAgent"
-                  value={agent.id}
-                  checked={selectedAgent === agent.id}
-                  onChange={(e) => setSelectedAgent(e.target.value)}
-                  className="shrink-0"
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-                    {t(agent.name)}
+            {availableAgents.map((agent) => {
+              const displayName = resolveAgentDisplayName(
+                agent,
+                i18n.language,
+                t,
+              );
+              const displayDescription = resolveAgentDescription(
+                agent,
+                i18n.language,
+                t,
+              );
+              return (
+                <label
+                  key={agent.id}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-3 transition-colors ${
+                    selectedAgent === agent.id
+                      ? "border-amber-400/60 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-900/15"
+                      : "border-transparent bg-white/60 dark:bg-stone-600/40 hover:bg-white dark:hover:bg-stone-600/70"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="defaultAgent"
+                    value={agent.id}
+                    checked={selectedAgent === agent.id}
+                    onChange={(e) => setSelectedAgent(e.target.value)}
+                    className="shrink-0"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+                      {displayName}
+                    </span>
+                    <span className="block text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
+                      {displayDescription}
+                    </span>
                   </span>
-                  <span className="block text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate">
-                    {t(agent.description)}
-                  </span>
-                </span>
-              </label>
-            ))}
+                </label>
+              );
+            })}
           </div>
         )}
       </div>

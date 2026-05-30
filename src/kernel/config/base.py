@@ -101,6 +101,7 @@ class Settings(BaseSettings):
     SESSION_TITLE_API_BASE: str = ""
     SESSION_TITLE_API_KEY: str = ""
     SESSION_TITLE_PROMPT: str = "请您用简短的3-5个字的标题加上一个表情符号作为用户对话的提示标题。请您选取适合用于总结的表情符号来增强理解，但请避免使用符号或特殊格式。请您根据提示回复一个提示标题文本。\n\n回复示例：\n\n📉 股市趋势\n\n🍪 完美巧克力曲奇食谱\n\n🎮 视频游戏开发洞察\n\n# 重要\n\n1. 请务必用{lang}回复我\n2. 回复字数控制在3-5个字\n\nPrompt: {message}"
+    ENABLE_RECOMMEND_QUESTIONS: bool = True
 
     # Redis Settings
     REDIS_URL: str = "redis://localhost:6379/0"

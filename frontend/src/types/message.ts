@@ -40,7 +40,8 @@ export type MessagePart =
   | TokenUsagePart
   | CancelledPart
   | TodoPart
-  | SummaryPart;
+  | SummaryPart
+  | RecommendQuestionsPart;
 
 // Sandbox 状态块类型（用于渲染沙箱初始化状态）
 export interface SandboxPart {
@@ -91,6 +92,18 @@ export interface SummaryPart {
   depth?: number;
   agent_id?: string;
   isStreaming?: boolean;
+}
+
+export interface RecommendQuestion {
+  content: string;
+  upload?: Record<string, unknown>;
+}
+
+export interface RecommendQuestionsPart {
+  type: "recommend_questions";
+  questions: RecommendQuestion[];
+  depth?: number;
+  agent_id?: string;
 }
 
 export interface TextPart {

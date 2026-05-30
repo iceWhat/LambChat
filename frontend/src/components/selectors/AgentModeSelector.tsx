@@ -2,10 +2,23 @@ import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Bot, X } from "lucide-react";
+import i18n from "../../i18n";
 import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import { AgentIcon } from "../agent/AgentIcon";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "../agent/agentCatalog";
+import type { AgentCatalogLabels } from "../../types";
 
 interface AgentModeSelectorProps {
-  agents: { id: string; name: string; description: string }[];
+  agents: {
+    id: string;
+    name: string;
+    description: string;
+    icon?: string;
+    labels?: AgentCatalogLabels;
+  }[];
   currentAgent: string;
   onSelectAgent?: (id: string) => void;
   isOpen?: boolean;
@@ -25,6 +38,9 @@ export function AgentModeSelector({
   const setOpen = externalOnOpenChange ?? setInternalOpen;
 
   const current = agents.find((a) => a.id === currentAgent);
+  const currentName = current
+    ? resolveAgentDisplayName(current, i18n.language, t)
+    : "";
   const sheetRef = useSwipeToClose({ onClose: () => setOpen(false) });
 
   const handleClose = useCallback(() => setOpen(false), [setOpen]);
@@ -108,6 +124,16 @@ export function AgentModeSelector({
                 <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5">
                   {agents.map((agent) => {
                     const isActive = agent.id === currentAgent;
+                    const displayName = resolveAgentDisplayName(
+                      agent,
+                      i18n.language,
+                      t,
+                    );
+                    const displayDescription = resolveAgentDescription(
+                      agent,
+                      i18n.language,
+                      t,
+                    );
                     return (
                       <button
                         key={agent.id}
@@ -122,10 +148,11 @@ export function AgentModeSelector({
                           setOpen(false);
                         }}
                       >
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600">
-                          <Bot
-                            size={17}
-                            className={`sm:w-[18px] sm:h-[18px] ${
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600 overflow-hidden">
+                          <AgentIcon
+                            icon={agent.icon || "Bot"}
+                            size={24}
+                            className={`sm:w-[26px] sm:h-[26px] ${
                               isActive
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-stone-500 dark:text-stone-400"
@@ -140,11 +167,11 @@ export function AgentModeSelector({
                                 : "text-stone-700 dark:text-stone-200"
                             }`}
                           >
-                            {t(agent.name)}
+                            {displayName}
                           </span>
                           {agent.description && (
                             <p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
-                              {t(agent.description)}
+                              {displayDescription}
                             </p>
                           )}
                         </div>
@@ -193,9 +220,9 @@ export function AgentModeSelector({
         type="button"
         onClick={() => setOpen(true)}
         className="chat-tool-btn"
-        title={current ? t(current.name) : ""}
+        title={currentName}
       >
-        <Bot size={18} />
+        <AgentIcon icon={current?.icon || "Bot"} size={18} />
       </button>
 
       {open &&
@@ -254,6 +281,16 @@ export function AgentModeSelector({
                 <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 space-y-1.5">
                   {agents.map((agent) => {
                     const isActive = agent.id === currentAgent;
+                    const displayName = resolveAgentDisplayName(
+                      agent,
+                      i18n.language,
+                      t,
+                    );
+                    const displayDescription = resolveAgentDescription(
+                      agent,
+                      i18n.language,
+                      t,
+                    );
                     return (
                       <button
                         key={agent.id}
@@ -268,10 +305,11 @@ export function AgentModeSelector({
                           setOpen(false);
                         }}
                       >
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600">
-                          <Bot
-                            size={17}
-                            className={`sm:w-[18px] sm:h-[18px] ${
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 bg-white dark:bg-stone-700 shadow-sm border border-stone-100 dark:border-stone-600 overflow-hidden">
+                          <AgentIcon
+                            icon={agent.icon || "Bot"}
+                            size={24}
+                            className={`sm:w-[26px] sm:h-[26px] ${
                               isActive
                                 ? "text-amber-600 dark:text-amber-400"
                                 : "text-stone-500 dark:text-stone-400"
@@ -286,11 +324,11 @@ export function AgentModeSelector({
                                 : "text-stone-700 dark:text-stone-200"
                             }`}
                           >
-                            {t(agent.name)}
+                            {displayName}
                           </span>
                           {agent.description && (
                             <p className="text-xs text-stone-400 dark:text-stone-500 truncate mt-0.5 leading-relaxed text-left">
-                              {t(agent.description)}
+                              {displayDescription}
                             </p>
                           )}
                         </div>

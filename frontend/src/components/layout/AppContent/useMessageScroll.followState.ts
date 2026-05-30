@@ -22,7 +22,6 @@ export interface MessageScrollSessionResetState
   pendingHistoryScroll: boolean;
   historyScrollArmed: boolean;
   isNearBottom: boolean;
-  showScrollTop: boolean;
 }
 
 export function createMessageScrollFollowState(
@@ -43,7 +42,6 @@ export function getMessageScrollSessionResetState(): MessageScrollSessionResetSt
     pendingHistoryScroll: false,
     historyScrollArmed: false,
     isNearBottom: true,
-    showScrollTop: false,
   };
 }
 

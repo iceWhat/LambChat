@@ -134,7 +134,7 @@ const ExcelPreview = memo(function ExcelPreview({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
+      <div className="flex h-full items-center justify-center">
         <LoadingSpinner
           size="lg"
           className="text-stone-400 dark:text-stone-500"

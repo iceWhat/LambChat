@@ -167,11 +167,6 @@ export function useTools() {
     [tools],
   );
 
-  // 初始加载
-  useEffect(() => {
-    fetchTools();
-  }, [fetchTools]);
-
   // 监听 MCP 工具偏好变更事件（来自 ProfileToolsTab 等）
   useEffect(() => {
     const handleMcpToolsChanged = () => {

@@ -13,9 +13,9 @@ import {
   Star,
 } from "lucide-react";
 import { PanelHeader } from "../common/PanelHeader";
+import { PanelLoadingState } from "../common/PanelLoadingState";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { Pagination } from "../common/Pagination";
-import { PersonaPlazaSkeleton } from "../skeletons";
 import { usePersonaPlaza, type PersonaRouteState } from "./usePersonaPlaza";
 import { PersonaPresetCard } from "./PersonaPresetCard";
 import { PersonaEditorModal } from "./PersonaEditorModal";
@@ -89,7 +89,8 @@ export function PersonaPlazaPanel() {
   const isInitialLoading =
     isLoading && presets.length === 0 && !hasActiveFilters;
 
-  if (isInitialLoading) return <PersonaPlazaSkeleton />;
+  if (isInitialLoading)
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
 
   return (
     <div className="skill-theme-shell flex h-full min-h-0 flex-col">

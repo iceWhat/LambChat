@@ -95,3 +95,35 @@ test("agent call preserves team role avatar url", () => {
   assert.equal(subagent.type, "subagent");
   assert.equal(subagent.agent_avatar, "https://cdn.example.com/designer.png");
 });
+
+test("adds recommended questions from recommendation events", () => {
+  const result = processMessageEvent(
+    "recommend:questions",
+    {
+      questions: [
+        "如何预防胫骨内侧压力综合征？",
+        { content: "赛前减量期具体怎么做？" },
+        { text: "能量胶补给策略有哪些细节？" },
+      ],
+    },
+    [],
+    "",
+    [],
+    0,
+    [],
+    false,
+    "message-1",
+  );
+
+  assert.equal(result.parts.length, 1);
+  const recommendations = result.parts[0];
+  assert.equal(recommendations.type, "recommend_questions");
+  assert.deepEqual(
+    recommendations.questions.map((question) => question.content),
+    [
+      "如何预防胫骨内侧压力综合征？",
+      "赛前减量期具体怎么做？",
+      "能量胶补给策略有哪些细节？",
+    ],
+  );
+});

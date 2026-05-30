@@ -19,6 +19,8 @@ export interface AgentInfo {
   description: string;
   version: string;
   sort_order?: number;
+  icon?: string;
+  labels?: AgentCatalogLabels;
   supports_sandbox?: boolean;
   options?: Record<string, AgentOption>;
 }
@@ -49,6 +51,31 @@ export interface AgentConfig {
   name: string;
   description: string;
   enabled: boolean;
+  icon?: string;
+  sort_order?: number;
+  labels?: AgentCatalogLabels;
+}
+
+export interface AgentCatalogLocale {
+  name: string;
+  description: string;
+}
+
+export type AgentCatalogLabels = Record<string, AgentCatalogLocale>;
+
+export interface AgentCatalogConfig {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  icon: string;
+  sort_order: number;
+  labels: AgentCatalogLabels;
+}
+
+export interface AgentCatalogConfigResponse {
+  agents: AgentCatalogConfig[];
+  available_agents: string[];
 }
 
 // Global agent config response

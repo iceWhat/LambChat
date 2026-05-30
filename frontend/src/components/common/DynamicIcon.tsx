@@ -16,7 +16,7 @@ function renderEmojiIcon(
       ]
         .filter(Boolean)
         .join(" ")}
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, fontSize: size, lineHeight: 1 }}
     >
       <FluentEmoji emoji={icon} size={size} type="3d" />
     </span>

@@ -10,6 +10,62 @@ import type {
 } from "../../types";
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { getAccessToken } from "./token";
+
+const ROLE_LIST_CACHE_TTL_MS = 10_000;
+
+interface RoleListCacheEntry {
+  data?: RoleListResponse;
+  expiresAt: number;
+  authScope: string | null;
+  promise?: Promise<RoleListResponse>;
+}
+
+const roleListCache = new Map<string, RoleListCacheEntry>();
+
+function clearRoleListCache(): void {
+  roleListCache.clear();
+}
+
+function getCachedRoleList(url: string): Promise<RoleListResponse> {
+  const now = Date.now();
+  const authScope = getAccessToken();
+  const cached = roleListCache.get(url);
+
+  if (
+    cached?.data &&
+    cached.expiresAt > now &&
+    cached.authScope === authScope
+  ) {
+    return Promise.resolve(cached.data);
+  }
+
+  if (cached?.promise && cached.authScope === authScope) {
+    return cached.promise;
+  }
+
+  const promise = authFetch<RoleListResponse>(url)
+    .then((data) => {
+      roleListCache.set(url, {
+        data,
+        expiresAt: Date.now() + ROLE_LIST_CACHE_TTL_MS,
+        authScope,
+      });
+      return data;
+    })
+    .catch((error) => {
+      roleListCache.delete(url);
+      throw error;
+    });
+
+  roleListCache.set(url, {
+    promise,
+    expiresAt: now + ROLE_LIST_CACHE_TTL_MS,
+    authScope,
+  });
+
+  return promise;
+}
 
 export interface RoleListParams {
   skip?: number;
@@ -32,7 +88,7 @@ export const roleApi = {
    * 列出角色
    */
   async list(params: RoleListParams = {}): Promise<RoleListResponse> {
-    return authFetch<RoleListResponse>(buildRoleListUrl(params));
+    return getCachedRoleList(buildRoleListUrl(params));
   },
 
   /**
@@ -46,28 +102,37 @@ export const roleApi = {
    * 创建角色
    */
   async create(roleData: RoleCreate): Promise<Role> {
-    return authFetch<Role>(`${API_BASE}/api/roles/`, {
+    const role = await authFetch<Role>(`${API_BASE}/api/roles/`, {
       method: "POST",
       body: JSON.stringify(roleData),
     });
+    clearRoleListCache();
+    return role;
   },
 
   /**
    * 更新角色
    */
   async update(roleId: string, roleData: RoleUpdate): Promise<Role> {
-    return authFetch<Role>(`${API_BASE}/api/roles/${roleId}`, {
+    const role = await authFetch<Role>(`${API_BASE}/api/roles/${roleId}`, {
       method: "PUT",
       body: JSON.stringify(roleData),
     });
+    clearRoleListCache();
+    return role;
   },
 
   /**
    * 删除角色
    */
   async delete(roleId: string): Promise<{ status: string }> {
-    return authFetch<{ status: string }>(`${API_BASE}/api/roles/${roleId}`, {
-      method: "DELETE",
-    });
+    const result = await authFetch<{ status: string }>(
+      `${API_BASE}/api/roles/${roleId}`,
+      {
+        method: "DELETE",
+      },
+    );
+    clearRoleListCache();
+    return result;
   },
 };

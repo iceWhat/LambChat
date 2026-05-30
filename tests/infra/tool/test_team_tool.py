@@ -58,7 +58,10 @@ def test_team_tool_descriptions_guide_llm_team_creation() -> None:
     assert "Leave `team_id` empty to create a new team" in normalized_create_description
     assert "Pass `team_id` to update an existing team" in normalized_create_description
     assert "Optional existing Team id to update" in create_fields["team_id"].description
+    assert "Always provide an emoji or avatar image URL" in create_fields["avatar"].description
     assert "Do not invent persona_preset_id values" in create_fields["members"].description
+    assert "role_avatar" in create_fields["members"].description
+    assert "emoji or avatar image URL" in create_fields["members"].description
     assert "Never use placeholder ids such as 'general-purpose'" in (
         create_fields["members"].description
     )
@@ -131,11 +134,13 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
         await team_tool.create_agent_team.coroutine(
             name="竞品分析团队",
             description="Analyze competitors and write a report.",
+            avatar="🧭",
             members=[
                 {
                     "member_id": "m-research",
                     "persona_preset_id": "preset-research",
                     "role_name": "Market Research Lead",
+                    "role_avatar": "🔎",
                     "role_instructions": "Find competitors and evidence.",
                 }
             ],
@@ -150,7 +155,9 @@ async def test_create_agent_team_saves_llm_supplied_team(monkeypatch: pytest.Mon
     assert result["team_id"] == "team-1"
     body = manager.create_team.await_args.args[0]
     assert body.name == "竞品分析团队"
+    assert body.avatar == "🧭"
     assert body.members[0].role_name == "Market Research Lead"
+    assert body.members[0].role_avatar == "🔎"
     assert body.default_member_id == "m-research"
     assert body.team_instructions == "Research first, then synthesize."
     assert body.tags == ["analysis"]

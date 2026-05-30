@@ -77,6 +77,23 @@ class UserSkill(BaseModel):
     updated_at: Optional[str] = None
     is_published: bool = False
     marketplace_is_active: bool = True
+    is_favorite: bool = False
+    is_pinned: bool = False
+
+
+class UserSkillPreferenceUpdate(BaseModel):
+    """Update the current user's presentation preferences for a skill."""
+
+    is_favorite: Optional[bool] = None
+    is_pinned: Optional[bool] = None
+
+
+class UserSkillPreferenceResponse(BaseModel):
+    """Current user's presentation preferences for a skill."""
+
+    skill_name: str
+    is_favorite: bool = False
+    is_pinned: bool = False
 
 
 class UserSkillListResponse(BaseModel):

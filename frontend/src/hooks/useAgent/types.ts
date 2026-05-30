@@ -18,6 +18,8 @@ export type EventType =
   | "tool:result"
   | "todo:updated"
   | "summary"
+  | "recommend:questions"
+  | "followup:questions"
   | "agent:call"
   | "agent:result"
   | "approval_required"
@@ -102,6 +104,17 @@ export interface EventData {
   updated_index?: number;
   // summary event fields
   summary_id?: string;
+  // recommend:questions / followup:questions event fields
+  questions?: Array<
+    | string
+    | {
+        content?: string;
+        text?: string;
+        title?: string;
+        upload?: Record<string, unknown>;
+        data_upload?: Record<string, unknown>;
+      }
+  >;
 }
 
 export interface UseAgentOptions {
@@ -158,6 +171,16 @@ export interface HistoryEventData {
     status: "pending" | "in_progress" | "completed";
   }>;
   updated_index?: number;
+  questions?: Array<
+    | string
+    | {
+        content?: string;
+        text?: string;
+        title?: string;
+        upload?: Record<string, unknown>;
+        data_upload?: Record<string, unknown>;
+      }
+  >;
   attachments?: Array<{
     id: string;
     key: string;

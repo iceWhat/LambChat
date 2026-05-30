@@ -1,5 +1,6 @@
 import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
+import { getAccessToken } from "./token";
 import type {
   PersonaPreset,
   PersonaPresetCreate,
@@ -11,6 +12,62 @@ import type {
 } from "../../types/personaPreset";
 
 const PERSONA_PRESETS_API = `${API_BASE}/api/persona-presets`;
+const PERSONA_PRESET_LIST_CACHE_TTL_MS = 10_000;
+
+interface PersonaPresetListCacheEntry {
+  data?: PersonaPresetListResponse;
+  expiresAt: number;
+  authScope: string | null;
+  promise?: Promise<PersonaPresetListResponse>;
+}
+
+const personaPresetListCache = new Map<string, PersonaPresetListCacheEntry>();
+
+function clearPersonaPresetListCache(): void {
+  personaPresetListCache.clear();
+}
+
+function getCachedPersonaPresetList(
+  url: string,
+): Promise<PersonaPresetListResponse> {
+  const now = Date.now();
+  const authScope = getAccessToken();
+  const cached = personaPresetListCache.get(url);
+
+  if (
+    cached?.data &&
+    cached.expiresAt > now &&
+    cached.authScope === authScope
+  ) {
+    return Promise.resolve(cached.data);
+  }
+
+  if (cached?.promise && cached.authScope === authScope) {
+    return cached.promise;
+  }
+
+  const promise = authFetch<PersonaPresetListResponse>(url)
+    .then((data) => {
+      personaPresetListCache.set(url, {
+        data,
+        expiresAt: Date.now() + PERSONA_PRESET_LIST_CACHE_TTL_MS,
+        authScope,
+      });
+      return data;
+    })
+    .catch((error) => {
+      personaPresetListCache.delete(url);
+      throw error;
+    });
+
+  personaPresetListCache.set(url, {
+    promise,
+    expiresAt: now + PERSONA_PRESET_LIST_CACHE_TTL_MS,
+    authScope,
+  });
+
+  return promise;
+}
 
 export function buildPersonaPresetListUrl(
   params: PersonaPresetListParams = {},
@@ -40,7 +97,7 @@ export const personaPresetApi = {
   async list(
     params: PersonaPresetListParams = {},
   ): Promise<PersonaPresetListResponse> {
-    return authFetch(buildPersonaPresetListUrl(params));
+    return getCachedPersonaPresetList(buildPersonaPresetListUrl(params));
   },
 
   async get(presetId: string): Promise<PersonaPreset> {
@@ -48,60 +105,86 @@ export const personaPresetApi = {
   },
 
   async create(data: PersonaPresetCreate): Promise<PersonaPreset> {
-    return authFetch(`${PERSONA_PRESETS_API}/`, {
+    const preset = await authFetch<PersonaPreset>(`${PERSONA_PRESETS_API}/`, {
       method: "POST",
       body: JSON.stringify(data),
     });
+    clearPersonaPresetListCache();
+    return preset;
   },
 
   async batchCreate(items: PersonaPresetCreate[]): Promise<PersonaPreset[]> {
-    return authFetch(`${PERSONA_PRESETS_API}/batch`, {
-      method: "POST",
-      body: JSON.stringify(items),
-    });
+    const presets = await authFetch<PersonaPreset[]>(
+      `${PERSONA_PRESETS_API}/batch`,
+      {
+        method: "POST",
+        body: JSON.stringify(items),
+      },
+    );
+    clearPersonaPresetListCache();
+    return presets;
   },
 
   async update(
     presetId: string,
     data: PersonaPresetUpdate,
   ): Promise<PersonaPreset> {
-    return authFetch(`${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+    const preset = await authFetch<PersonaPreset>(
+      `${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+    clearPersonaPresetListCache();
+    return preset;
   },
 
   async updatePreference(
     presetId: string,
     data: PersonaPresetPreferenceUpdate,
   ): Promise<PersonaPreset> {
-    return authFetch(buildPersonaPresetPreferenceUrl(presetId), {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
+    const preset = await authFetch<PersonaPreset>(
+      buildPersonaPresetPreferenceUrl(presetId),
+      {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      },
+    );
+    clearPersonaPresetListCache();
+    return preset;
   },
 
   async delete(presetId: string): Promise<{ status: string }> {
-    return authFetch(`${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}`, {
-      method: "DELETE",
-    });
+    const result = await authFetch<{ status: string }>(
+      `${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+    clearPersonaPresetListCache();
+    return result;
   },
 
   async copy(presetId: string): Promise<PersonaPreset> {
-    return authFetch(
+    const preset = await authFetch<PersonaPreset>(
       `${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}/copy`,
       {
         method: "POST",
       },
     );
+    clearPersonaPresetListCache();
+    return preset;
   },
 
   async use(presetId: string): Promise<PersonaPresetSnapshot> {
-    return authFetch(
+    const snapshot = await authFetch<PersonaPresetSnapshot>(
       `${PERSONA_PRESETS_API}/${encodeURIComponent(presetId)}/use`,
       {
         method: "POST",
       },
     );
+    clearPersonaPresetListCache();
+    return snapshot;
   },
 };

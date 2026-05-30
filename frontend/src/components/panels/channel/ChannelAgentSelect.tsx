@@ -5,9 +5,14 @@
 import { useState, useEffect } from "react";
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../i18n";
 import { agentApi } from "../../../services/api/agent";
 import type { AgentInfo } from "../../../types";
 import { GlassSelect } from "../../common/GlassSelect";
+import {
+  resolveAgentDescription,
+  resolveAgentDisplayName,
+} from "../../agent/agentCatalog";
 
 interface ChannelAgentSelectProps {
   value: string | null | undefined;
@@ -53,7 +58,11 @@ export function ChannelAgentSelect({
         }
         options={agents.map((agent) => ({
           value: agent.id,
-          label: `${t(agent.name)} — ${t(agent.description)}`,
+          label: `${resolveAgentDisplayName(
+            agent,
+            i18n.language,
+            t,
+          )} — ${resolveAgentDescription(agent, i18n.language, t)}`,
         }))}
       />
       <p className="es-hint">

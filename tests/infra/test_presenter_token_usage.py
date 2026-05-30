@@ -18,6 +18,23 @@ def test_present_token_usage_includes_model_identifiers() -> None:
     assert event["data"]["model"] == "openai/gpt-4.1"
 
 
+def test_present_recommend_questions_builds_frontend_event() -> None:
+    presenter = create_presenter(session_id="session-1", agent_id="search", agent_name="Search")
+
+    event = presenter.present_recommend_questions(
+        [
+            "如何预防胫骨内侧压力综合征？",
+            {"content": "赛前减量期具体怎么做？", "upload": {"ctnm": 2}},
+        ]
+    )
+
+    assert event["event"] == "recommend:questions"
+    assert event["data"]["questions"] == [
+        "如何预防胫骨内侧压力综合征？",
+        {"content": "赛前减量期具体怎么做？", "upload": {"ctnm": 2}},
+    ]
+
+
 class _FakeDualWriter:
     def __init__(self) -> None:
         self.events = []
@@ -56,6 +73,27 @@ async def test_complete_writes_zero_token_usage_when_missing(monkeypatch) -> Non
     assert usage_events[0]["data"]["input_tokens"] == 0
     assert usage_events[0]["data"]["output_tokens"] == 0
     assert usage_events[0]["data"]["total_tokens"] == 0
+
+
+async def test_emit_recommend_questions_is_idempotent(monkeypatch) -> None:
+    writer = _FakeDualWriter()
+    monkeypatch.setattr("src.infra.session.dual_writer.get_dual_writer", lambda: writer)
+    presenter = create_presenter(
+        session_id="session-1",
+        agent_id="search",
+        agent_name="Search",
+        run_id="run-1",
+        trace_id="trace-1",
+    )
+
+    await presenter.emit_recommend_questions(["下一步我应该怎么做？"])
+    await presenter.emit_recommend_questions(["下一步我应该怎么做？"])
+
+    recommend_events = [
+        event for event in writer.events if event["event_type"] == "recommend:questions"
+    ]
+    assert len(recommend_events) == 1
+    assert recommend_events[0]["data"]["questions"] == ["下一步我应该怎么做？"]
 
 
 async def test_complete_does_not_duplicate_existing_token_usage(monkeypatch) -> None:

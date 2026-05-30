@@ -65,7 +65,7 @@ test("keeps mobile welcome cards readable with stable touch targets", () => {
   );
   assert.match(
     welcomeCss,
-    /@media \(max-width: 639px\) \{[\s\S]*\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*max-height: min\(38dvh,/,
+    /@media \(max-width: 639px\) \{[\s\S]*\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*max-height: min\(\s*38dvh,/,
   );
 });
 
@@ -76,7 +76,7 @@ test("keeps starter prompt container narrower than persona gallery", () => {
   );
   assert.match(
     getWelcomeSuggestionsContainerClass("personas"),
-    /sm:max-w-\[42rem\]/,
+    /sm:max-w-\[44rem\]/,
   );
 });
 
@@ -123,8 +123,10 @@ test("shows all welcome persona cards with pinned and favorite cards first", () 
   );
 });
 
-test("always returns 0 for persona skeleton count", () => {
-  assert.equal(getWelcomePersonaSkeletonCount(), 0);
+test("shows welcome choice skeletons only while the first page is loading", () => {
+  assert.equal(getWelcomePersonaSkeletonCount(true, 0), 4);
+  assert.equal(getWelcomePersonaSkeletonCount(true, 2), 0);
+  assert.equal(getWelcomePersonaSkeletonCount(false, 0), 0);
 });
 
 test("uses only the selected persona starter prompts after a welcome persona is selected", () => {

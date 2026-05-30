@@ -81,33 +81,33 @@ function SidebarExpandedSkeleton() {
       {/* Action buttons — NewChat, Search, PersonaPlaza, TeamBuilder, FileLibrary, More */}
       <div className="flex flex-col gap-px px-2 py-2 space-y-1">
         {/* New Chat */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-16 rounded-md" />
         </div>
         {/* Search */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-14 rounded-md flex-1" />
           <div className="skeleton-line h-4 w-10 rounded-md" />
         </div>
         {/* Persona Plaza */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-20 rounded-md" />
         </div>
         {/* Team Builder */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-16 rounded-md" />
         </div>
         {/* File Library */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-16 rounded-md" />
         </div>
         {/* More (conditional) */}
-        <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
           <div className="skeleton-line size-5 rounded-md shrink-0" />
           <div className="skeleton-line h-3.5 w-10 rounded-md" />
         </div>
@@ -122,7 +122,7 @@ function SidebarExpandedSkeleton() {
             <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
           </div>
           {/* New Project button */}
-          <div className="w-full h-9 rounded-[10px] flex items-center gap-3 px-[9px]">
+          <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
             <div className="skeleton-line size-5 rounded-md shrink-0" />
             <div className="skeleton-line h-3.5 w-20 rounded-md" />
           </div>

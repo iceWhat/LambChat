@@ -44,8 +44,7 @@ async def _validate_agent_id(agent_id: str | None, user: TokenPayload) -> None:
     agent_storage = get_agent_config_storage()
 
     # Check agent is globally enabled
-    global_agents = await agent_storage.get_global_config()
-    enabled_ids = {a.id for a in global_agents if a.enabled}
+    enabled_ids = set(await agent_storage.get_enabled_agent_ids())
     if agent_id not in enabled_ids:
         raise HTTPException(status_code=400, detail=f"Agent '{agent_id}' is not available")
 
@@ -284,7 +283,7 @@ async def get_channel_instance(
         raise HTTPException(status_code=404, detail="Channel instance not found")
 
     metadata = channel_class.get_metadata()
-    return await storage.get_response(user.sub, channel_type, instance_id, metadata)
+    return storage.build_response_from_config(config, channel_type, user.sub, metadata)
 
 
 @router.post(
@@ -550,9 +549,6 @@ async def get_channel_instance_status(
         try:
             manager = manager_class.get_instance()
             connected = manager.is_connected(user.sub, instance_id)
-            if not connected and status.enabled:
-                await manager.reload_user(user.sub, instance_id)
-                connected = manager.is_connected(user.sub, instance_id)
             status.connected = connected
         except Exception as e:
             logger.warning(

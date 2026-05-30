@@ -50,7 +50,7 @@ export function AgentModelPanel() {
           </button>
         }
       >
-        <div className="mt-3 inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 sm:mt-4">
+        <div className="mt-3 inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 sm:my-3">
           {sections.map((section) => {
             const Icon = section.icon;
             const isActive = activeSection === section.id;

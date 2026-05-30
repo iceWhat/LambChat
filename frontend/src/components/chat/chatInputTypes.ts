@@ -5,6 +5,7 @@ import type {
   SkillResponse,
   SkillSource,
   AgentOption,
+  AgentInfo,
   MessageAttachment,
   PersonaPreset,
   PersonaPresetSnapshot,
@@ -70,7 +71,7 @@ export interface ChatInputProps {
   agentOptions?: Record<string, AgentOption>;
   agentOptionValues?: Record<string, boolean | string | number>;
   onToggleAgentOption?: (key: string, value: boolean | string | number) => void;
-  agents?: { id: string; name: string; description: string }[];
+  agents?: AgentInfo[];
   currentAgent?: string;
   onSelectAgent?: (id: string) => void;
   // Team picker

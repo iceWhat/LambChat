@@ -6,12 +6,14 @@ import { API_BASE } from "./config";
 import { authFetch } from "./fetch";
 import type {
   GlobalAgentConfigResponse,
+  AgentCatalogConfigResponse,
   RoleAgentAssignment,
   RoleAgentAssignmentResponse,
   RoleModelAssignment,
   UserAgentPreference,
   UserAgentPreferenceResponse,
   AgentConfig,
+  AgentCatalogConfig,
 } from "../../types";
 
 export const agentConfigApi = {
@@ -28,6 +30,26 @@ export const agentConfigApi = {
   ): Promise<GlobalAgentConfigResponse> {
     return authFetch<GlobalAgentConfigResponse>(
       `${API_BASE}/api/agent/config/global`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ agents }),
+      },
+    );
+  },
+
+  /** 获取可配置 Agent 展示目录（需要管理员权限） */
+  async getCatalogConfig(): Promise<AgentCatalogConfigResponse> {
+    return authFetch<AgentCatalogConfigResponse>(
+      `${API_BASE}/api/agent/config/catalog`,
+    );
+  },
+
+  /** 更新可配置 Agent 展示目录（需要管理员权限） */
+  async updateCatalogConfig(
+    agents: AgentCatalogConfig[],
+  ): Promise<AgentCatalogConfigResponse> {
+    return authFetch<AgentCatalogConfigResponse>(
+      `${API_BASE}/api/agent/config/catalog`,
       {
         method: "PUT",
         body: JSON.stringify({ agents }),

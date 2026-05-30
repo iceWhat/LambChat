@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { PanelHeader } from "../common/PanelHeader";
 import { PanelSearchInput } from "../common/PanelSearchInput";
-import { MarketplacePanelSkeleton } from "../skeletons";
+import { PanelLoadingState } from "../common/PanelLoadingState";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { SkillFormSidebar } from "./SkillsPanel/SkillFormSidebar";
 import { useMarketplace } from "../../hooks/useMarketplace";
@@ -340,13 +340,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
     isLoading && skills.length === 0 && !hasActiveFilters;
 
   if (isInitialLoading) {
-    return embedded ? (
-      <div className="[&_.panel-header]:hidden">
-        <MarketplacePanelSkeleton />
-      </div>
-    ) : (
-      <MarketplacePanelSkeleton />
-    );
+    return <PanelLoadingState text={t("common.loading", "加载中...")} />;
   }
 
   return (

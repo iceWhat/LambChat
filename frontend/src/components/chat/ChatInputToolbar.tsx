@@ -17,6 +17,7 @@ import {
   getTeamFallbackTag,
 } from "../team/teamAvatarUtils";
 import { ToolbarChip } from "./ToolbarChip";
+import { AgentIcon } from "../agent/AgentIcon";
 
 export interface ChatInputToolbarProps {
   activePanel: FeaturePanel;
@@ -33,6 +34,7 @@ export interface ChatInputToolbarProps {
   personaName?: string | null;
   hasAgentSelector: boolean;
   agentName?: string;
+  agentIcon?: string;
   hasThinkingOption: boolean;
   thinkingLabel?: string;
   thinkingLevel?: string;
@@ -74,6 +76,7 @@ export function ChatInputToolbar({
   personaName,
   hasAgentSelector,
   agentName,
+  agentIcon,
   hasThinkingOption,
   thinkingLabel,
   thinkingLevel,
@@ -181,6 +184,7 @@ export function ChatInputToolbar({
           !selectedPersonaName &&
           !(currentAgent === "team" && onSelectTeam && selectedTeamId) && (
             <ToolbarChip
+              icon={<AgentIcon icon={agentIcon || "Bot"} size={18} />}
               label={t(`agents.${currentAgent}.name`) || agentName || ""}
               onClick={() => onActivePanelChange("agent")}
             />

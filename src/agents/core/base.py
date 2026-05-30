@@ -664,6 +664,8 @@ class AgentFactory:
                 or getattr(agent_cls, "_description", ""),
                 "version": getattr(agent_cls, "_version", "0.1.0"),
                 "sort_order": getattr(agent_cls, "_sort_order", 100),
+                "icon": getattr(agent_cls, "_icon", "Bot"),
+                "labels": {},
                 "supports_sandbox": getattr(agent_cls, "_supports_sandbox", False),
                 "options": getattr(agent_cls, "_options", {}),
             }
@@ -706,9 +708,16 @@ class AgentFactory:
 
         # 获取全局配置
         storage = get_agent_config_storage()
-        global_configs = await storage.get_global_config()
+        catalog_configs = (
+            await storage.get_catalog_config() if hasattr(storage, "get_catalog_config") else []
+        )
+        catalog_map = {config.id: config for config in catalog_configs}
+        global_configs = [] if catalog_configs else await storage.get_global_config()
 
-        if global_configs:
+        if catalog_configs:
+            enabled_agent_ids = {a.id for a in catalog_configs if a.enabled}
+            logger.info(f"[get_filtered_agents] catalog config exists, enabled={enabled_agent_ids}")
+        elif global_configs:
             # 全局配置已保存过 → 以它为准（即使全部禁用也尊重）
             enabled_agent_ids = {a.id for a in global_configs if a.enabled}
             logger.info(f"[get_filtered_agents] global config exists, enabled={enabled_agent_ids}")
@@ -738,7 +747,30 @@ class AgentFactory:
                 f"[get_filtered_agents] role_config intersect global: {role_allowed} & {enabled_agent_ids} = {final_ids}"
             )
 
-        filtered = [a for a in all_agents if a["id"] in final_ids]
+        filtered = []
+        for agent in all_agents:
+            if agent["id"] not in final_ids:
+                continue
+            catalog = catalog_map.get(agent["id"])
+            if catalog:
+                agent = {
+                    **agent,
+                    "name": catalog.name,
+                    "description": catalog.description,
+                    "icon": catalog.icon,
+                    "sort_order": catalog.sort_order,
+                    "labels": {
+                        locale: label.model_dump() for locale, label in catalog.labels.items()
+                    },
+                }
+            filtered.append(agent)
+        filtered.sort(
+            key=lambda agent: (
+                0 if agent["id"] == default_agent_id else 1,
+                agent.get("sort_order", 100),
+                agent.get("name", ""),
+            )
+        )
         logger.info(f"[get_filtered_agents] filtered count={len(filtered)}")
         return filtered
 

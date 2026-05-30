@@ -11,10 +11,11 @@ from typing import Any, Optional
 
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.config import settings
-from src.kernel.schemas.agent import AgentConfig, UserAgentPreference
+from src.kernel.schemas.agent import AgentCatalogConfig, AgentConfig, UserAgentPreference
 
 # MongoDB 集合名称
 _COLL_AGENT_CONFIG = "agent_config"
+_COLL_AGENT_CATALOG_CONFIG = "agent_catalog_config"
 _COLL_ROLE_AGENTS = "role_agents"
 _COLL_ROLE_MODELS = "role_models"
 _COLL_USER_PREFERENCES = "user_agent_preferences"
@@ -46,6 +47,7 @@ class AgentConfigStorage:
     async def ensure_indexes(self):
         """创建必要的 MongoDB 索引"""
         await self._get_collection(_COLL_AGENT_CONFIG).create_index("type", unique=True)
+        await self._get_collection(_COLL_AGENT_CATALOG_CONFIG).create_index("agent_id", unique=True)
         await self._get_collection(_COLL_ROLE_AGENTS).create_index("role_id", unique=True)
         await self._get_collection(_COLL_ROLE_MODELS).create_index("role_id", unique=True)
         await self._get_collection(_COLL_USER_PREFERENCES).create_index("user_id", unique=True)
@@ -78,8 +80,63 @@ class AgentConfigStorage:
 
     async def get_enabled_agent_ids(self) -> list[str]:
         """获取全局启用的 Agent ID 列表"""
+        catalog = await self.get_catalog_config()
+        if catalog:
+            return [a.id for a in catalog if a.enabled]
         agents = await self.get_global_config()
         return [a.id for a in agents if a.enabled]
+
+    # ============================================
+    # Agent 展示目录配置
+    # ============================================
+
+    async def get_catalog_config(self) -> list[AgentCatalogConfig]:
+        """获取可配置 Agent 展示目录。"""
+        cursor = self._get_collection(_COLL_AGENT_CATALOG_CONFIG).find()
+        docs = [doc async for doc in cursor]
+        docs.sort(key=lambda doc: (doc.get("sort_order", 100), doc.get("agent_id", "")))
+        return [
+            AgentCatalogConfig(
+                id=doc.get("agent_id") or doc.get("id"),
+                name=doc.get("name", ""),
+                description=doc.get("description", ""),
+                enabled=doc.get("enabled", True),
+                icon=doc.get("icon") or "Bot",
+                sort_order=doc.get("sort_order", 100),
+                labels=doc.get("labels", {}),
+            )
+            for doc in docs
+            if doc.get("agent_id") or doc.get("id")
+        ]
+
+    async def set_catalog_config(
+        self,
+        agents: list[AgentCatalogConfig],
+    ) -> list[AgentCatalogConfig]:
+        """设置可配置 Agent 展示目录。"""
+        now = utc_now_iso()
+        collection = self._get_collection(_COLL_AGENT_CATALOG_CONFIG)
+
+        for agent in agents:
+            payload = agent.model_dump()
+            agent_id = payload.pop("id")
+            await collection.update_one(
+                {"agent_id": agent_id},
+                {
+                    "$set": {
+                        **payload,
+                        "agent_id": agent_id,
+                        "updated_at": now,
+                    }
+                },
+                upsert=True,
+            )
+
+        registered_ids = [agent.id for agent in agents]
+        if registered_ids:
+            await collection.delete_many({"agent_id": {"$nin": registered_ids}})
+
+        return agents
 
     # ============================================
     # 角色 Agents 映射

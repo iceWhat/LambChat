@@ -53,8 +53,12 @@ export function getWelcomePersonaCardClass(_index: number): string {
     .join(" ");
 }
 
-export function getWelcomePersonaSkeletonCount(): number {
-  return 0;
+export function getWelcomePersonaSkeletonCount(
+  isLoading = false,
+  visibleCount = 0,
+  skeletonCount = 4,
+): number {
+  return isLoading && visibleCount === 0 ? skeletonCount : 0;
 }
 
 export function getWelcomeSuggestionButtonClass(_index: number): string {
@@ -67,7 +71,7 @@ export function getWelcomeSuggestionsContainerClass(
   const base =
     "welcome-suggestions relative px-0 sm:px-4 sm:mt-2 md:mt-3 xl:mt-4 2xl:mt-4";
   if (variant === "personas") {
-    return `${base} w-full sm:max-w-[42rem] md:max-w-[48rem] lg:max-w-[52rem] xl:max-w-[56rem] 2xl:max-w-[58rem]`;
+    return `${base} w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]`;
   }
   return `${base} w-[85%] sm:max-w-[38rem] md:max-w-[40rem] lg:max-w-[42rem] xl:max-w-[44rem] 2xl:max-w-[46rem]`;
 }

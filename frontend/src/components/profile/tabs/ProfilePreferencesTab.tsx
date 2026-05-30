@@ -8,6 +8,7 @@ import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { authApi, agentConfigApi, agentApi } from "../../../services/api";
 import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../../layout/AppContent/useAgentOptions";
 import { SkeletonLine } from "../../skeletons";
+import { resolveAgentDisplayName } from "../../agent/agentCatalog";
 import type { AgentInfo } from "../../../types";
 
 const NEWLINE_MODIFIER_KEY = "newlineModifier";
@@ -287,7 +288,7 @@ export function ProfilePreferencesTab() {
 
   const renderAgentLabel = (key: string) => {
     const agent = agents.find((a) => a.id === key);
-    return agent ? t(agent.name) : key;
+    return agent ? resolveAgentDisplayName(agent, i18n.language, t) : key;
   };
 
   return (

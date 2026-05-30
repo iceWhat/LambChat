@@ -9,7 +9,7 @@ import { useAuth } from "../../../../hooks/useAuth";
 import { Permission } from "../../../../types";
 import { PanelHeader } from "../../../common/PanelHeader";
 import { LoadingSpinner } from "../../../common/LoadingSpinner";
-import { ChannelsPanelSkeleton } from "../../../skeletons";
+import { ChannelConfigSkeleton } from "../../../skeletons";
 import { EditorSidebar } from "../../../common/EditorSidebar";
 import { channelApi } from "../../../../services/api/channel";
 import {
@@ -536,7 +536,7 @@ export function FeishuPanel({
   };
 
   if (isLoading) {
-    return <ChannelsPanelSkeleton />;
+    return <ChannelConfigSkeleton />;
   }
 
   const formContent = (

@@ -9,6 +9,7 @@ Writer 模块 - 统一流式输出 + 事件存储
 - metadata: 会话元数据
 - message:chunk: 文本片段 (纯文本)
 - thinking: 思考过程
+- recommend:questions: 推荐追问
 - tool:start: 工具调用开始
 - tool:result: 工具调用结果
 - agent:call: 调用子 Agent
@@ -21,7 +22,7 @@ Writer 模块 - 统一流式输出 + 事件存储
 import json
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Sequence
 
 from src.infra.logging import get_logger
 from src.infra.upload.file_record import FileRecordStorage
@@ -110,6 +111,7 @@ class Presenter:
         self._completed: bool = False
         self._token_usage_recorded: bool = False
         self._done_recorded: bool = False
+        self._recommend_questions_recorded: bool = False
 
     @property
     def trace_id(self) -> str:
@@ -124,6 +126,11 @@ class Presenter:
         if not self.config.run_id:
             self.config.run_id = _generate_run_id()
         return self.config.run_id
+
+    @property
+    def recommend_questions_recorded(self) -> bool:
+        """Whether recommended questions were already emitted for this run."""
+        return self._recommend_questions_recorded
 
     def get_langsmith_url(self) -> Optional[str]:
         """获取 LangSmith trace URL"""
@@ -434,6 +441,29 @@ class Presenter:
             {
                 "content": content,
                 "summary_id": summary_id,
+                "timestamp": utc_now_iso(),
+            },
+            depth=depth,
+            agent_id=agent_id,
+        )
+
+    def present_recommend_questions(
+        self,
+        questions: Sequence[str | Dict[str, Any]],
+        depth: int = 0,
+        agent_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """输出推荐追问列表.
+
+        Args:
+            questions: 推荐问题列表。每项可为字符串，或包含 content/text/upload 的字典。
+            depth: 层级深度（0=主代理，1+=子代理）
+            agent_id: 代理ID（用于子代理事件）
+        """
+        return self._build_event(
+            "recommend:questions",
+            {
+                "questions": questions,
                 "timestamp": utc_now_iso(),
             },
             depth=depth,
@@ -847,6 +877,18 @@ class Presenter:
         """输出思考过程并保存"""
         event = self.present_thinking(content)
         await self.save_event(event)
+        return event
+
+    async def emit_recommend_questions(
+        self,
+        questions: Sequence[str | Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """输出推荐追问列表并保存"""
+        event = self.present_recommend_questions(questions)
+        if self._recommend_questions_recorded:
+            return event
+        await self.save_event(event)
+        self._recommend_questions_recorded = True
         return event
 
     async def emit_user_message(

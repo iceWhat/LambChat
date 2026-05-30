@@ -45,7 +45,7 @@ interface UseMessageScrollReturn {
   virtuosoScrollerRef: React.RefObject<HTMLDivElement | null>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   isNearBottom: boolean;
-  showScrollTop: boolean;
+  isNearTop: boolean;
   handleVirtuosoAtBottomChange: (atBottom: boolean) => void;
   scrollToBottom: () => void;
   scrollToTop: () => void;
@@ -85,7 +85,7 @@ export function useMessageScroll(
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isNearTop, setIsNearTop] = useState(true);
   const rafRef = useRef<number>(0);
   const viewportResizeRafRef = useRef<number>(0);
   const scrollCleanupRef = useRef<(() => void) | null>(null);
@@ -160,7 +160,7 @@ export function useMessageScroll(
     historyLoadActiveRef.current = isLoadingHistory;
 
     setIsNearBottom(resetState.isNearBottom);
-    setShowScrollTop(resetState.showScrollTop);
+    setIsNearTop(true);
   }, [isLoadingHistory, messages, sessionId]);
 
   const handleVirtuosoAtBottomChange = useCallback((atBottom: boolean) => {
@@ -179,7 +179,6 @@ export function useMessageScroll(
             }),
             atBottom,
           });
-        setShowScrollTop(false);
         userScrolledUpRef.current = nextFollowState.userScrolledUp;
       }
     });
@@ -287,7 +286,6 @@ export function useMessageScroll(
       top: 0,
       behavior: "auto",
     });
-    setShowScrollTop(false);
   }, []);
 
   useEffect(() => {
@@ -297,7 +295,6 @@ export function useMessageScroll(
     const lastScrollTop = { value: 0 };
     const lastScrollTime = { value: 0 };
     let touchStartY: number | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const applyFollowState = (
       nextFollowState: ReturnType<
@@ -348,7 +345,6 @@ export function useMessageScroll(
     const handleScroll = () => {
       const now = Date.now();
       const scrollTop = scroller.scrollTop;
-      const dt = now - lastScrollTime.value;
       const dScroll = lastScrollTop.value - scrollTop;
       const upwardScrollPx = Math.max(0, dScroll);
       const programmaticScroll =
@@ -375,17 +371,7 @@ export function useMessageScroll(
       });
       applyFollowState(nextFollowState);
 
-      if (dt < 300 && dScroll > 30 && scrollTop > 200) {
-        setShowScrollTop(true);
-        userScrolledUpRef.current = true;
-        autoScrollActiveRef.current = false;
-        streamLockActiveRef.current = false;
-        pendingHistoryScrollRef.current = false;
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => setShowScrollTop(false), 3000);
-      } else if (scrollTop < 200) {
-        setShowScrollTop(false);
-      }
+      setIsNearTop(scrollTop < 200);
 
       lastScrollTop.value = scrollTop;
       lastScrollTime.value = now;
@@ -448,7 +434,6 @@ export function useMessageScroll(
       scroller.removeEventListener("touchmove", handleTouchMove);
       scroller.removeEventListener("touchend", resetTouchTracking);
       scroller.removeEventListener("touchcancel", resetTouchTracking);
-      if (timer) clearTimeout(timer);
     };
   }, [awayFromBottomThresholdPx, isMobileViewport, messages.length]);
 
@@ -868,7 +853,7 @@ export function useMessageScroll(
     virtuosoScrollerRef,
     messagesEndRef,
     isNearBottom,
-    showScrollTop,
+    isNearTop,
     handleVirtuosoAtBottomChange,
     scrollToBottom,
     scrollToTop,
