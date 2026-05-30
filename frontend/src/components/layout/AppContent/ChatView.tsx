@@ -563,7 +563,7 @@ export function ChatView({
             goalDurationLabel={t("chat.goal.running", "运行")}
             goalClearLabel={t("chat.goal.clear", "清除目标")}
             showHelpMenu
-            helpMenuClassName="sm:hidden"
+            helpMenuClassName="hidden sm:block"
           />
         </div>
       )}
