@@ -3,6 +3,8 @@
 处理 trace 创建、事件持久化、token usage 保证和 trace 完成。
 """
 
+from __future__ import annotations
+
 import json
 from typing import TYPE_CHECKING, Any, Dict
 

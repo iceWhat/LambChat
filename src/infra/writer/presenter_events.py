@@ -4,6 +4,8 @@
 通过 self._build_event() 和 self.config 访问主类状态。
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from src.infra.utils.datetime import utc_now_iso

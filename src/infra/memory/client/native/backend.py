@@ -14,7 +14,9 @@ from src.infra.memory.client.native.classification import (
     find_existing_memory_match,
     is_manual_memory_worthy,
 )
-from src.infra.memory.client.native.consolidation import consolidate_memories as run_consolidation
+from src.infra.memory.client.native.consolidation import (
+    consolidate_memories as run_consolidation,
+)
 from src.infra.memory.client.native.content import (
     build_content_fields,
     delete_memory_content,
@@ -91,7 +93,7 @@ class NativeMemoryBackend(MemoryBackend):
 
     async def initialize(self) -> None:
         """Ensure indexes exist; set up optional embedding function."""
-        self._ensure_collection()
+        await run_blocking_io(self._ensure_collection)
         await self._create_indexes()
         self._setup_embedding_fn()
         await self._prune_legacy_session_summaries()
@@ -117,7 +119,8 @@ class NativeMemoryBackend(MemoryBackend):
             deleted_count = int(getattr(result, "deleted_count", 0) or 0)
             if deleted_count:
                 logger.info(
-                    "[NativeMemory] Pruned %d legacy session summary memories", deleted_count
+                    "[NativeMemory] Pruned %d legacy session summary memories",
+                    deleted_count,
                 )
         except Exception as e:
             logger.debug("[NativeMemory] Failed to prune legacy session summaries: %s", e)
@@ -501,7 +504,12 @@ class NativeMemoryBackend(MemoryBackend):
         )
         try:
             col.create_index(
-                [("user_id", 1), ("content", "text"), ("summary", "text"), ("tags", "text")],
+                [
+                    ("user_id", 1),
+                    ("content", "text"),
+                    ("summary", "text"),
+                    ("tags", "text"),
+                ],
                 name="native_mem_text_idx",
                 weights={"content": 10, "summary": 5, "tags": 2},
             )

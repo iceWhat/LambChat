@@ -32,34 +32,35 @@ from src.infra.websocket import get_connection_manager
 
 async def start_runtime_services() -> None:
     """Start distributed runtime listeners needed by the current process."""
+    import asyncio
+
     await start_event_loop_lag_monitor()
 
     task_manager = get_task_manager()
     await task_manager.start_pubsub_listener()
     await start_arq_runtime()
 
+    # Launch all pub/sub listeners concurrently to reduce startup wall-clock time.
     settings_pubsub = get_settings_pubsub()
-    await settings_pubsub.start_listener()
-
     model_config_pubsub = get_model_config_pubsub()
-    await model_config_pubsub.start_listener()
-
     memory_pubsub = get_memory_pubsub()
-    await memory_pubsub.start_listener()
+    channel_pubsub = get_channel_config_pubsub()
+    tool_cache_pubsub = get_tool_cache_pubsub()
+    mcp_cache_pubsub = get_mcp_cache_pubsub()
+    websocket_manager = get_connection_manager()
+
+    await asyncio.gather(
+        settings_pubsub.start_listener(),
+        model_config_pubsub.start_listener(),
+        memory_pubsub.start_listener(),
+        channel_pubsub.start_listener(),
+        tool_cache_pubsub.start_listener(),
+        mcp_cache_pubsub.start_listener(),
+        websocket_manager.start_pubsub_listener(),
+    )
+
     start_memory_compaction_agent()
     get_runtime_scheduler().start()
-
-    channel_pubsub = get_channel_config_pubsub()
-    await channel_pubsub.start_listener()
-
-    tool_cache_pubsub = get_tool_cache_pubsub()
-    await tool_cache_pubsub.start_listener()
-
-    mcp_cache_pubsub = get_mcp_cache_pubsub()
-    await mcp_cache_pubsub.start_listener()
-
-    websocket_manager = get_connection_manager()
-    await websocket_manager.start_pubsub_listener()
 
 
 async def stop_runtime_services() -> None:

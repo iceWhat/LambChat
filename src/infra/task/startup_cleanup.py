@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any, Awaitable, Callable
@@ -81,14 +82,20 @@ class TaskStartupCleanupService:
         redis = limiter.redis
 
         try:
+            # --- RUNNING tasks ---
             cursor = self._storage.collection.find(
                 {"metadata.task_status": TaskStatus.RUNNING.value}
             )
             running_sessions = await cursor.to_list(length=1000)
 
             cleaned_count = 0
-            for session in running_sessions:
-                session_model = await self._load_session_record(session)
+
+            # Phase 1: load session records in parallel
+            load_tasks = [self._load_session_record(session) for session in running_sessions]
+            session_models = await asyncio.gather(*load_tasks)
+
+            candidates: list[tuple[Any, str, dict[str, Any], str]] = []
+            for session, session_model in zip(running_sessions, session_models):
                 if session_model is None:
                     continue
                 session_id = session_model.id
@@ -105,7 +112,6 @@ class TaskStartupCleanupService:
                         run_id,
                     )
                     continue
-
                 if not _is_latest_run(metadata, run_id):
                     logger.debug(
                         "Skipping non-current RUNNING task during startup recovery: session=%s, run_id=%s",
@@ -113,41 +119,53 @@ class TaskStartupCleanupService:
                         run_id,
                     )
                     continue
+                candidates.append((session_model, session_id, metadata, run_id))
 
-                heartbeat_exists = await self._heartbeat.check_exists(run_id)
-                if heartbeat_exists:
-                    logger.debug(
-                        "Task still running on another instance: session=%s, run_id=%s",
-                        session_id,
-                        run_id,
-                    )
-                    continue
-
-                logger.warning(
-                    "Cleaning up stale RUNNING task (no heartbeat): session=%s, run_id=%s",
-                    session_id,
-                    run_id,
+            # Phase 2: batch heartbeat checks in parallel
+            if candidates:
+                heartbeat_results = await asyncio.gather(
+                    *(self._heartbeat.check_exists(run_id) for _, _, _, run_id in candidates)
                 )
-                recovery_result = await self._resume_interrupted_run(
+                for (
                     session_model,
+                    session_id,
+                    metadata,
                     run_id,
-                    "server_restart",
-                )
-                if recovery_result.get("success"):
-                    logger.info(
-                        "Recovered stale RUNNING task: session=%s, old_run=%s, new_run=%s",
+                ), heartbeat_exists in zip(candidates, heartbeat_results):
+                    if heartbeat_exists:
+                        logger.debug(
+                            "Task still running on another instance: session=%s, run_id=%s",
+                            session_id,
+                            run_id,
+                        )
+                        continue
+
+                    logger.warning(
+                        "Cleaning up stale RUNNING task (no heartbeat): session=%s, run_id=%s",
                         session_id,
                         run_id,
-                        recovery_result.get("run_id"),
                     )
-                else:
-                    logger.warning(
-                        "Failed to auto-recover stale RUNNING task %s: %s",
+                    recovery_result = await self._resume_interrupted_run(
+                        session_model,
                         run_id,
-                        recovery_result.get("message"),
+                        "server_restart",
                     )
-                cleaned_count += 1
+                    if recovery_result.get("success"):
+                        logger.info(
+                            "Recovered stale RUNNING task: session=%s, old_run=%s, new_run=%s",
+                            session_id,
+                            run_id,
+                            recovery_result.get("run_id"),
+                        )
+                    else:
+                        logger.warning(
+                            "Failed to auto-recover stale RUNNING task %s: %s",
+                            run_id,
+                            recovery_result.get("message"),
+                        )
+                    cleaned_count += 1
 
+            # --- PENDING / QUEUED tasks ---
             cursor = self._storage.collection.find(
                 {
                     "metadata.task_status": {
@@ -157,8 +175,14 @@ class TaskStartupCleanupService:
             )
             pending_sessions = await cursor.to_list(length=1000)
 
-            for session in pending_sessions:
-                session_model = await self._load_session_record(session)
+            # Phase 1: load session records in parallel
+            pending_load_tasks = [
+                self._load_session_record(session) for session in pending_sessions
+            ]
+            pending_models = await asyncio.gather(*pending_load_tasks)
+
+            pending_candidates: list[tuple[Any, str, dict[str, Any], str, str]] = []
+            for session, session_model in zip(pending_sessions, pending_models):
                 if session_model is None:
                     continue
                 session_id = session_model.id
@@ -176,7 +200,6 @@ class TaskStartupCleanupService:
                         run_id,
                     )
                     continue
-
                 if not _is_latest_run(metadata, run_id):
                     logger.debug(
                         "Skipping non-current PENDING task during startup recovery: session=%s, run_id=%s",
@@ -184,46 +207,72 @@ class TaskStartupCleanupService:
                         run_id,
                     )
                     continue
+                pending_candidates.append((session_model, session_id, metadata, run_id, user_id))
 
-                active_key = f"chat:active:{user_id}"
-                in_active = await redis.zscore(active_key, run_id) is not None
-                if not in_active:
-                    continue
-
-                heartbeat_exists = await self._heartbeat.check_exists(run_id)
-                if heartbeat_exists:
-                    logger.debug(
-                        "Pending task still in active set (running elsewhere): session=%s, run_id=%s",
-                        session_id,
-                        run_id,
+            # Phase 2: batch Redis active-set checks in parallel
+            if pending_candidates:
+                active_results = await asyncio.gather(
+                    *(
+                        redis.zscore(f"chat:active:{user_id}", run_id)
+                        for _, _, _, run_id, user_id in pending_candidates
                     )
-                    continue
-
-                logger.warning(
-                    "Cleaning up stale PENDING task (in active set, no heartbeat): session=%s, run_id=%s",
-                    session_id,
-                    run_id,
                 )
-                recovery_result = await self._resume_interrupted_run(
-                    session_model,
-                    run_id,
-                    "server_restart",
-                )
-                if recovery_result.get("success"):
-                    logger.info(
-                        "Recovered stale PENDING task: session=%s, old_run=%s, new_run=%s",
-                        session_id,
-                        run_id,
-                        recovery_result.get("run_id"),
-                    )
-                else:
-                    logger.warning(
-                        "Failed to auto-recover stale PENDING task %s: %s",
-                        run_id,
-                        recovery_result.get("message"),
-                    )
-                cleaned_count += 1
+                # Filter to only those in the active set
+                active_candidates = [
+                    cand
+                    for cand, score in zip(pending_candidates, active_results)
+                    if score is not None
+                ]
 
+                # Phase 3: batch heartbeat checks for active candidates
+                if active_candidates:
+                    heartbeat_results = await asyncio.gather(
+                        *(
+                            self._heartbeat.check_exists(run_id)
+                            for _, _, _, run_id, _ in active_candidates
+                        )
+                    )
+                    for (
+                        session_model,
+                        session_id,
+                        metadata,
+                        run_id,
+                        user_id,
+                    ), heartbeat_exists in zip(active_candidates, heartbeat_results):
+                        if heartbeat_exists:
+                            logger.debug(
+                                "Pending task still in active set (running elsewhere): session=%s, run_id=%s",
+                                session_id,
+                                run_id,
+                            )
+                            continue
+
+                        logger.warning(
+                            "Cleaning up stale PENDING task (in active set, no heartbeat): session=%s, run_id=%s",
+                            session_id,
+                            run_id,
+                        )
+                        recovery_result = await self._resume_interrupted_run(
+                            session_model,
+                            run_id,
+                            "server_restart",
+                        )
+                        if recovery_result.get("success"):
+                            logger.info(
+                                "Recovered stale PENDING task: session=%s, old_run=%s, new_run=%s",
+                                session_id,
+                                run_id,
+                                recovery_result.get("run_id"),
+                            )
+                        else:
+                            logger.warning(
+                                "Failed to auto-recover stale PENDING task %s: %s",
+                                run_id,
+                                recovery_result.get("message"),
+                            )
+                        cleaned_count += 1
+
+            # --- FAILED recoverable tasks ---
             cursor = self._storage.collection.find(
                 {
                     "metadata.task_status": TaskStatus.FAILED.value,
@@ -233,8 +282,14 @@ class TaskStartupCleanupService:
             )
             failed_recoverable_sessions = await cursor.to_list(length=1000)
 
-            for session in failed_recoverable_sessions:
-                session_model = await self._load_session_record(session)
+            # Phase 1: load session records in parallel
+            failed_load_tasks = [
+                self._load_session_record(session) for session in failed_recoverable_sessions
+            ]
+            failed_models = await asyncio.gather(*failed_load_tasks)
+
+            failed_candidates: list[tuple[Any, str, dict[str, Any], str]] = []
+            for session, session_model in zip(failed_recoverable_sessions, failed_models):
                 if session_model is None:
                     continue
                 session_id = session_model.id
@@ -249,40 +304,51 @@ class TaskStartupCleanupService:
                         run_id,
                     )
                     continue
+                failed_candidates.append((session_model, session_id, metadata, run_id))
 
-                heartbeat_exists = await self._heartbeat.check_exists(run_id)
-                if heartbeat_exists:
-                    logger.debug(
-                        "Recoverable failed task still has heartbeat: session=%s, run_id=%s",
-                        session_id,
-                        run_id,
-                    )
-                    continue
-
-                logger.warning(
-                    "Recovering failed-but-recoverable task: session=%s, run_id=%s",
-                    session_id,
-                    run_id,
+            # Phase 2: batch heartbeat checks in parallel
+            if failed_candidates:
+                failed_heartbeat_results = await asyncio.gather(
+                    *(self._heartbeat.check_exists(run_id) for _, _, _, run_id in failed_candidates)
                 )
-                recovery_result = await self._resume_interrupted_run(
+                for (
                     session_model,
+                    session_id,
+                    metadata,
                     run_id,
-                    "server_restart",
-                )
-                if recovery_result.get("success"):
-                    logger.info(
-                        "Recovered failed task: session=%s, old_run=%s, new_run=%s",
+                ), heartbeat_exists in zip(failed_candidates, failed_heartbeat_results):
+                    if heartbeat_exists:
+                        logger.debug(
+                            "Recoverable failed task still has heartbeat: session=%s, run_id=%s",
+                            session_id,
+                            run_id,
+                        )
+                        continue
+
+                    logger.warning(
+                        "Recovering failed-but-recoverable task: session=%s, run_id=%s",
                         session_id,
                         run_id,
-                        recovery_result.get("run_id"),
                     )
-                else:
-                    logger.warning(
-                        "Failed to auto-recover failed task %s: %s",
+                    recovery_result = await self._resume_interrupted_run(
+                        session_model,
                         run_id,
-                        recovery_result.get("message"),
+                        "server_restart",
                     )
-                cleaned_count += 1
+                    if recovery_result.get("success"):
+                        logger.info(
+                            "Recovered failed task: session=%s, old_run=%s, new_run=%s",
+                            session_id,
+                            run_id,
+                            recovery_result.get("run_id"),
+                        )
+                    else:
+                        logger.warning(
+                            "Failed to auto-recover failed task %s: %s",
+                            run_id,
+                            recovery_result.get("message"),
+                        )
+                    cleaned_count += 1
 
             if cleaned_count > 0:
                 logger.info("Cleaned up %s stale tasks without heartbeat", cleaned_count)
