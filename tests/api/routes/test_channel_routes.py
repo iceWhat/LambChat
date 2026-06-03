@@ -163,6 +163,16 @@ class _FakeManager:
         return True
 
 
+class _FakeDistributedManager(_FakeManager):
+    def __init__(self) -> None:
+        super().__init__()
+        self.distributed_calls: list[tuple[str, str]] = []
+
+    async def is_connected_distributed(self, user_id: str, instance_id: str) -> bool:
+        self.distributed_calls.append((user_id, instance_id))
+        return True
+
+
 class _FakeProjectStorage:
     async def get_by_id(self, project_id: str, user_id: str):
         return None
@@ -455,6 +465,31 @@ async def test_status_reports_disconnected_without_reloading_manager(
 
     assert manager.reload_calls == []
     assert status.connected is False
+
+
+@pytest.mark.asyncio
+async def test_status_uses_distributed_channel_connection_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _FakeStorage()
+    manager = _FakeDistributedManager()
+    manager_class = type(
+        "_DistributedStatusManagerClass",
+        (),
+        {"get_instance": classmethod(lambda cls: manager)},
+    )
+    monkeypatch.setattr(channels_route, "get_registry", lambda: _FakeRegistry(manager_class))
+
+    status = await channels_route.get_channel_instance_status(
+        ChannelType.FEISHU,
+        "instance-1",
+        user=SimpleNamespace(sub="user-1", roles=[]),
+        storage=storage,
+    )
+
+    assert manager.distributed_calls == [("user-1", "instance-1")]
+    assert manager.reload_calls == []
+    assert status.connected is True
 
 
 @pytest.mark.asyncio

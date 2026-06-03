@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 
 import pytest
 
@@ -35,6 +36,13 @@ class _FakeRedisClient:
     async def get(self, key: str) -> str | None:
         return self.values.get(key)
 
+    async def scan(self, cursor=0, match=None, count=None):
+        del count
+        keys = list(self.values.keys())
+        if match:
+            keys = [key for key in keys if fnmatch.fnmatch(key, match)]
+        return 0, keys
+
     async def delete(self, key: str) -> int:
         existed = key in self.values
         self.values.pop(key, None)
@@ -42,8 +50,10 @@ class _FakeRedisClient:
         self.deleted.append(key)
         return 1 if existed else 0
 
-    async def eval(self, script: str, numkeys: int, key: str, value: str) -> int:
+    async def eval(self, script: str, numkeys: int, key: str, value: str, *args) -> int:
         if self.values.get(key) == value:
+            if args:
+                return 1
             await self.delete(key)
             return 1
         return 0
@@ -114,6 +124,26 @@ class _SingleConfigStorage:
         }
 
 
+class _MultiConfigStorage:
+    def __init__(self, configs: list[dict]) -> None:
+        self.configs = configs
+
+    async def iter_enabled_configs(self, channel_type):
+        del channel_type
+        for config in self.configs:
+            yield config
+
+
+class _LookupStorage:
+    def __init__(self, config: dict | None) -> None:
+        self.config = config
+        self.get_calls: list[tuple[object, object, object]] = []
+
+    async def get_config(self, user_id, channel_type, instance_id=None):
+        self.get_calls.append((user_id, channel_type, instance_id))
+        return self.config
+
+
 class _FailingRedisClient(_FakeRedisClient):
     def __init__(self) -> None:
         super().__init__()
@@ -131,6 +161,38 @@ class _FailingRedisClient(_FakeRedisClient):
         if self.calls >= 2:
             raise RuntimeError("lease refresh failed")
         return await super().set(key, value, nx=nx, ex=ex, xx=xx)
+
+
+class _ForeignLeaseRedisClient(_FakeRedisClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.set_calls = 0
+
+    async def set(
+        self,
+        key: str,
+        value: str,
+        nx: bool = False,
+        ex: int | None = None,
+        xx: bool = False,
+    ):
+        self.set_calls += 1
+        if self.set_calls == 1:
+            self.values[key] = value
+            return True
+        raise RuntimeError("stop refresh loop")
+
+
+class _AcquireFailRedisClient(_FakeRedisClient):
+    async def set(
+        self,
+        key: str,
+        value: str,
+        nx: bool = False,
+        ex: int | None = None,
+        xx: bool = False,
+    ):
+        raise RuntimeError("redis unavailable")
 
 
 def _config(instance_id: str = "inst-1", app_id: str = "app-1") -> FeishuConfig:
@@ -168,6 +230,27 @@ async def test_start_user_client_skips_when_lease_is_held_by_other_instance(
     assert started is False
     assert manager._channels == {}
     assert isolated_pool_flags == [True]
+
+
+@pytest.mark.asyncio
+async def test_start_user_client_skips_when_lease_cannot_be_acquired(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _AcquireFailRedisClient()
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+    monkeypatch.setattr("src.infra.channel.feishu.manager.FeishuChannel", _FakeChannel)
+
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+
+    started = await manager._start_user_client(_config())
+
+    assert started is False
+    assert manager._channels == {}
+    assert manager._active_app_ids == {}
 
 
 @pytest.mark.asyncio
@@ -248,6 +331,116 @@ async def test_start_refreshes_handler_on_existing_channel_started_by_reload(
 
     assert manager._channels["user-1:inst-1"] is channel
     assert channel.message_handler is new_handler
+
+
+@pytest.mark.asyncio
+async def test_reconcile_starts_only_configs_assigned_to_this_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FakeRedisClient()
+    fake_redis.values["feishu:nodes:instance-a"] = "instance-a"
+    fake_redis.values["feishu:nodes:instance-b"] = "instance-b"
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+    monkeypatch.setattr("src.infra.channel.feishu.manager.FeishuChannel", _FakeChannel)
+
+    configs = [
+        {
+            "user_id": "user-1",
+            "instance_id": "inst-1",
+            "app_id": "app-1",
+            "app_secret": "secret",
+            "enabled": True,
+        },
+        {
+            "user_id": "user-2",
+            "instance_id": "inst-2",
+            "app_id": "app-2",
+            "app_secret": "secret",
+            "enabled": True,
+        },
+    ]
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+    manager._storage = _MultiConfigStorage(configs)
+    nodes = ["instance-a", "instance-b"]
+    expected_keys = {
+        f"{config['user_id']}:{config['instance_id']}"
+        for config in configs
+        if manager._preferred_owner(config["app_id"], nodes) == "instance-a"
+    }
+
+    await manager._reconcile_enabled_configs()
+
+    assert set(manager._channels) == expected_keys
+
+
+@pytest.mark.asyncio
+async def test_reconcile_stops_channels_assigned_to_another_node(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FakeRedisClient()
+    fake_redis.values["feishu:nodes:instance-a"] = "instance-a"
+    fake_redis.values["feishu:nodes:instance-b"] = "instance-b"
+    fake_redis.values["feishu:lease:app-1"] = "instance-a"
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+    manager._storage = _MultiConfigStorage(
+        [
+            {
+                "user_id": "user-1",
+                "instance_id": "inst-1",
+                "app_id": "app-1",
+                "app_secret": "secret",
+                "enabled": True,
+            }
+        ]
+    )
+    manager._preferred_owner = lambda app_id, nodes: "instance-b"  # type: ignore[method-assign]
+    channel = _FakeChannel(_config(), None)
+    await channel.start()
+    manager._channels["user-1:inst-1"] = channel
+    manager._active_app_ids["app-1"] = "user-1:inst-1"
+
+    await manager._reconcile_enabled_configs()
+
+    assert channel.stopped is True
+    assert manager._channels == {}
+    assert manager._active_app_ids == {}
+    assert "feishu:lease:app-1" in fake_redis.deleted
+
+
+@pytest.mark.asyncio
+async def test_is_connected_distributed_reports_remote_lease_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FakeRedisClient()
+    fake_redis.values["feishu:lease:app-1"] = "instance-b"
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+    manager._storage = _LookupStorage(
+        {
+            "user_id": "user-1",
+            "instance_id": "inst-1",
+            "app_id": "app-1",
+            "app_secret": "secret",
+            "enabled": True,
+        }
+    )
+
+    assert await manager.is_connected_distributed("user-1", "inst-1") is True
 
 
 @pytest.mark.asyncio
@@ -372,3 +565,68 @@ async def test_lease_refresh_task_cleans_itself_up_when_it_exits(
     await task
 
     assert "app-1" not in manager._lease_tasks
+
+
+@pytest.mark.asyncio
+async def test_lease_refresh_failure_stops_local_channel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FailingRedisClient()
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("src.infra.channel.feishu.manager.asyncio.sleep", _sleep)
+
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+    channel = _FakeChannel(_config(), None)
+    await channel.start()
+    manager._channels["user-1:inst-1"] = channel
+    manager._active_app_ids["app-1"] = "user-1:inst-1"
+    manager._ensure_lease_refresh_task("app-1")
+
+    task = manager._lease_tasks["app-1"]
+    await task
+
+    assert channel.stopped is True
+    assert "user-1:inst-1" not in manager._channels
+    assert "app-1" not in manager._active_app_ids
+    assert "app-1" not in manager._lease_tasks
+
+
+@pytest.mark.asyncio
+async def test_lease_refresh_does_not_take_over_foreign_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _ForeignLeaseRedisClient()
+    fake_redis.values["feishu:lease:app-1"] = "instance-b"
+    monkeypatch.setattr(
+        "src.infra.channel.feishu.manager.create_redis_client",
+        lambda isolated_pool=False: fake_redis,
+    )
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("src.infra.channel.feishu.manager.asyncio.sleep", _sleep)
+
+    manager = FeishuChannelManager()
+    manager._instance_id = "instance-a"
+    channel = _FakeChannel(_config(), None)
+    await channel.start()
+    manager._channels["user-1:inst-1"] = channel
+    manager._active_app_ids["app-1"] = "user-1:inst-1"
+    manager._ensure_lease_refresh_task("app-1")
+
+    task = manager._lease_tasks["app-1"]
+    await task
+
+    assert fake_redis.values["feishu:lease:app-1"] == "instance-b"
+    assert channel.stopped is True
+    assert "user-1:inst-1" not in manager._channels
+    assert "app-1" not in manager._active_app_ids

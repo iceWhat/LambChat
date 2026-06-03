@@ -5,6 +5,7 @@ API 入口点。
 """
 
 import asyncio
+import warnings
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -61,6 +62,9 @@ from src.infra.share.seo import (
     inject_share_seo_into_html,
 )
 from src.kernel.config import initialize_settings, settings
+
+# Suppress SyntaxWarning from oss2 SDK (invalid escape sequence in their source)
+warnings.filterwarnings("ignore", message=".*invalid escape sequence.*", category=SyntaxWarning)
 
 logger = get_logger(__name__)
 

@@ -4,6 +4,8 @@ Provides endpoints for managing per-user channel configurations.
 Supports multiple channel types and multiple instances per channel type.
 """
 
+import inspect
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.deps import get_current_user_required, require_permissions
@@ -93,6 +95,16 @@ async def _validate_persona_preset_id(persona_preset_id: str | None, user: Token
         raise HTTPException(status_code=400, detail="Persona preset does not exist")
     except AuthorizationError:
         raise HTTPException(status_code=403, detail="Persona preset is not allowed")
+
+
+async def _is_manager_connected(manager, user_id: str, instance_id: str) -> bool:
+    distributed_checker = getattr(manager, "is_connected_distributed", None)
+    if callable(distributed_checker):
+        result = distributed_checker(user_id, instance_id)
+        if inspect.isawaitable(result):
+            return bool(await result)
+        return bool(result)
+    return bool(manager.is_connected(user_id, instance_id))
 
 
 @router.get(
@@ -569,7 +581,7 @@ async def get_channel_instance_status(
     if manager_class:
         try:
             manager = manager_class.get_instance()
-            connected = manager.is_connected(user.sub, instance_id)
+            connected = await _is_manager_connected(manager, user.sub, instance_id)
             status.connected = connected
         except Exception as e:
             logger.warning(
@@ -611,11 +623,11 @@ async def test_channel_instance_connection(
     if manager_class:
         try:
             manager = manager_class.get_instance()
-            connected = manager.is_connected(user.sub, instance_id)
+            connected = await _is_manager_connected(manager, user.sub, instance_id)
 
             if not connected:
                 await manager.reload_user(user.sub, instance_id)
-                connected = manager.is_connected(user.sub, instance_id)
+                connected = await _is_manager_connected(manager, user.sub, instance_id)
 
             if connected:
                 return {
