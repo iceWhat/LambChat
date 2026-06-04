@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { RevealedFileItem } from "../../../services/api";
-import { getFullUrl } from "../../../services/api";
+import { buildUploadProxyUrl, getFullUrl } from "../../../services/api/config";
 
 const PREVIEW_MAX_LINES = 6;
 const PREVIEW_MAX_SIZE = 1024 * 1024; // 1 MB
@@ -41,8 +41,9 @@ export function useCodePreview(file: RevealedFileItem): string | null {
     let cancelled = false;
     const fullUrl = getFullUrl(file.url);
     if (!fullUrl) return;
+    const readUrl = buildUploadProxyUrl(file.url) || fullUrl;
 
-    fetch(fullUrl)
+    fetch(readUrl)
       .then((res: Response) =>
         res.ok ? res.text() : Promise.reject(res.status),
       )

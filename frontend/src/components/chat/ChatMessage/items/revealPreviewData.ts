@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
-import { getFullUrl } from "../../../../services/api/config";
+import {
+  buildUploadProxyUrl,
+  getFullUrl,
+} from "../../../../services/api/config";
 import { rewriteProjectTextFiles } from "./projectRevealAssetUtils";
 
 export type ProjectTemplate =
@@ -205,7 +208,8 @@ export async function loadProjectRevealFiles(
     textEntries.map(async ([path, entry]): Promise<[string, string] | null> => {
       try {
         const fullUrl = getFullUrl(entry.url) || entry.url;
-        const resp = await fetch(fullUrl);
+        const readUrl = buildUploadProxyUrl(entry.url) || fullUrl;
+        const resp = await fetch(readUrl);
         if (!resp.ok) {
           console.warn(
             `[reveal_project] Failed to fetch ${path}: ${resp.status}`,

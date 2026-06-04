@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFullUrl } from "../../../services/api";
+import { buildUploadProxyUrl, getFullUrl } from "../../../services/api/config";
 
 /**
  * Renders a thumbnail preview of an excalidraw file on a file card.
@@ -12,11 +12,12 @@ export function ExcalidrawCardPreview({ url }: { url: string }) {
 
   useEffect(() => {
     const fullUrl = getFullUrl(url) ?? url;
+    const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
     let cancelled = false;
 
     const load = async () => {
       try {
-        const res = await fetch(fullUrl);
+        const res = await fetch(readUrl);
         if (!res.ok || cancelled) return;
         const data = await res.text();
         if (cancelled) return;

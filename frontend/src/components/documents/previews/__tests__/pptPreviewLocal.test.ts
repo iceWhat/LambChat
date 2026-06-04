@@ -28,7 +28,7 @@ test("PPT preview receives file bytes for browser-side rendering", () => {
   )?.groups?.body;
 
   assert.ok(pptBranch, "pptFile branch should exist");
-  assert.match(pptBranch, /fetchDocumentArrayBuffer\(url\)/);
+  assert.match(pptBranch, /fetchDocumentArrayBuffer\(readUrl\)/);
   assert.match(pptBranch, /setPptxBuffer\(buffer\)/);
   assert.doesNotMatch(pptBranch, /setPptUrl\(url\)/);
 });

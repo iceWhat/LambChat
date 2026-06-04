@@ -462,7 +462,9 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
       getFullUrl(signedUrl) || resolvedUrl || getFullUrl(externalImageUrl);
     if (downloadUrl) {
       try {
-        const response = await fetch(downloadUrl);
+        const response = await fetch(
+          buildUploadProxyUrl(downloadUrl) || downloadUrl,
+        );
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");

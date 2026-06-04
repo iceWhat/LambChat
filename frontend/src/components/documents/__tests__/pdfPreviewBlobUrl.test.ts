@@ -17,7 +17,7 @@ test("PDF preview uses a local PDF blob URL instead of embedding the download UR
   )?.groups?.body;
 
   assert.ok(pdfBranch, "resolvedPdfFile branch should exist");
-  assert.match(pdfBranch, /fetchDocumentArrayBuffer\(url\)/);
+  assert.match(pdfBranch, /fetchDocumentArrayBuffer\(readUrl\)/);
   assert.match(
     pdfBranch,
     /new Blob\(\[.*\], \{ type: "application\/pdf" \}\)/s,

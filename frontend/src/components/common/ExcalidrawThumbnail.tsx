@@ -1,4 +1,5 @@
 import { memo, useEffect, useState, useRef } from "react";
+import { buildUploadProxyUrl, getFullUrl } from "../../services/api/config";
 
 // Types for Excalidraw
 interface ExcalidrawElement {
@@ -42,11 +43,13 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
 
   useEffect(() => {
     mountedRef.current = true;
+    const fullUrl = getFullUrl(url) ?? url;
+    const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
 
     const load = async () => {
       try {
         // Fetch excalidraw file content
-        const res = await fetch(url);
+        const res = await fetch(readUrl);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const raw = await res.text();
 
@@ -104,7 +107,9 @@ export const ExcalidrawThumbnail = memo(function ExcalidrawThumbnail({
   if (hasError) {
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-stone-100 dark:bg-stone-800 rounded">
-        <span className="text-xs text-stone-400 truncate px-1">{alt || "…"}</span>
+        <span className="text-xs text-stone-400 truncate px-1">
+          {alt || "…"}
+        </span>
       </div>
     );
   }

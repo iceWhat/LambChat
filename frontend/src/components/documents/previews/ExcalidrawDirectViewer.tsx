@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getFullUrl } from "../../../services/api";
+import { buildUploadProxyUrl, getFullUrl } from "../../../services/api/config";
 import { ExcalidrawFullscreenViewer } from "./ExcalidrawPreview";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
 import { useTranslation } from "react-i18next";
@@ -22,11 +22,12 @@ export function ExcalidrawDirectViewer({
 
   useEffect(() => {
     const fullUrl = getFullUrl(url) ?? url;
+    const readUrl = buildUploadProxyUrl(url) ?? fullUrl;
     let cancelled = false;
 
     const load = async () => {
       try {
-        const res = await fetch(fullUrl);
+        const res = await fetch(readUrl);
         if (!res.ok || cancelled) throw new Error("Failed to fetch");
         const data = await res.text();
         if (cancelled) return;

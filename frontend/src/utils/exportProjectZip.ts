@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { buildUploadProxyUrl } from "../services/api/config";
 
 export async function exportProjectZip(
   files: Record<string, string>,
@@ -20,7 +21,8 @@ export async function exportProjectZip(
     await Promise.all(
       Object.entries(binaryFiles).map(async ([path, url]) => {
         try {
-          const resp = await fetch(url);
+          const readUrl = buildUploadProxyUrl(url) || url;
+          const resp = await fetch(readUrl);
           if (!resp.ok) return;
           const buffer = await resp.arrayBuffer();
           const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
