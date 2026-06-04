@@ -1,15 +1,6 @@
 import { memo, useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import {
-  ChevronDown,
-  Check,
-  Info,
-  Pin,
-  PinOff,
-  Eye,
-  Star,
-  Search,
-} from "lucide-react";
+import { ChevronDown, Check, Info, Pin, Eye, Star, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { ModelIconImg } from "./modelIcon.tsx";
@@ -117,20 +108,20 @@ const ModelItem = memo(function ModelItem({
   })();
 
   return (
-    <div className="group/model-item relative px-1 py-0.5">
+    <div className="group/model-item relative px-1 py-px">
       <div
-        className={`relative flex min-h-[46px] items-center gap-2.5 rounded-lg px-3 py-2.5 transition-all duration-150 ${
+        className={`relative flex min-h-[38px] items-center gap-2 rounded-md px-2.5 py-1.5 transition-all duration-150 ${
           isSelected
             ? "text-[var(--theme-text)]"
-            : "hover:bg-stone-100/70 dark:hover:bg-stone-700/45"
+            : "hover:bg-stone-100/80 dark:hover:bg-stone-700/45"
         }`}
         style={
           isSelected
             ? {
                 background:
-                  "color-mix(in srgb, var(--theme-primary) 7%, var(--theme-bg-card))",
+                  "color-mix(in srgb, var(--theme-primary) 6%, var(--theme-bg-card))",
                 boxShadow:
-                  "inset 0 0 0 1px color-mix(in srgb, var(--theme-primary) 10%, transparent)",
+                  "inset 0 0 0 1px color-mix(in srgb, var(--theme-primary) 12%, transparent)",
               }
             : undefined
         }
@@ -139,17 +130,17 @@ const ModelItem = memo(function ModelItem({
           type="button"
           onClick={onSelect}
           aria-current={isSelected ? "true" : undefined}
-          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           <ModelIconImg
             model={model.value}
             provider={model.provider}
             icon={model.icon}
-            size={22}
+            size={20}
           />
-          <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span
-              className={`truncate text-sm ${
+              className={`truncate text-[13px] leading-5 ${
                 isSelected
                   ? "text-[var(--theme-text)]"
                   : "text-stone-700 dark:text-stone-200"
@@ -161,7 +152,7 @@ const ModelItem = memo(function ModelItem({
               <Tooltip content="Vision">
                 <span className="inline-flex items-center shrink-0 ml-0.5">
                   <Eye
-                    size={14}
+                    size={13}
                     className="text-stone-400 dark:text-stone-500"
                   />
                 </span>
@@ -176,7 +167,7 @@ const ModelItem = memo(function ModelItem({
                 onTouchStart={toggle}
               >
                 <Info
-                  size={14}
+                  size={13}
                   className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300 transition-colors"
                 />
                 {showTip && (
@@ -197,23 +188,26 @@ const ModelItem = memo(function ModelItem({
             )}
           </div>
         </button>
-        {!isDefault && (
-          <Tooltip content={t("profile.setDefault")}>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSetDefault();
-              }}
-              className="shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-opacity cursor-pointer opacity-0 group-hover/model-item:opacity-100"
-            >
-              <Star
-                size={14}
-                className="text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
-              />
-            </button>
-          </Tooltip>
-        )}
+        <Tooltip content={t("profile.setDefault")}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSetDefault();
+            }}
+            className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md transition-opacity cursor-pointer"
+          >
+            <Star
+              size={13}
+              className={
+                isDefault
+                  ? "text-amber-400 dark:text-amber-500"
+                  : "text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
+              }
+              fill={isDefault ? "currentColor" : "none"}
+            />
+          </button>
+        </Tooltip>
         <Tooltip
           content={
             isPinned
@@ -228,34 +222,25 @@ const ModelItem = memo(function ModelItem({
             onClick={() => {
               if (canPin || isPinned) onTogglePin();
             }}
-            className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition-opacity ${
-              isPinned
-                ? "opacity-100"
-                : "opacity-0 group-hover/model-item:opacity-100"
-            } ${
+            className={`shrink-0 flex items-center justify-center w-5 h-5 rounded-md transition-opacity ${
               !canPin && !isPinned ? "cursor-not-allowed" : "cursor-pointer"
             }`}
           >
-            {isPinned ? (
-              <Pin
-                size={14}
-                className="text-stone-500 dark:text-stone-400"
-                fill="currentColor"
-              />
-            ) : (
-              <PinOff
-                size={14}
-                className={
-                  canPin
+            <Pin
+              size={13}
+              className={
+                isPinned
+                  ? "text-stone-500 dark:text-stone-400"
+                  : canPin
                     ? "text-stone-400 hover:text-stone-600 dark:text-stone-500 dark:hover:text-stone-300"
                     : "text-stone-300 dark:text-stone-600"
-                }
-              />
-            )}
+              }
+              fill={isPinned ? "currentColor" : "none"}
+            />
           </button>
         </Tooltip>
         <span
-          className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-full transition-all duration-150 ${
+          className={`shrink-0 flex items-center justify-center w-5 h-5 rounded-full transition-all duration-150 ${
             isSelected ? "opacity-100" : "opacity-0"
           }`}
           style={
@@ -269,7 +254,7 @@ const ModelItem = memo(function ModelItem({
           aria-hidden="true"
         >
           <Check
-            size={13}
+            size={12}
             className="text-[var(--theme-primary)]"
             strokeWidth={2.4}
           />
@@ -363,12 +348,12 @@ const ModelSelector = memo(function ModelSelector({
   const dropdownStyle = (() => {
     if (!showSelector || !containerRef.current) return undefined;
     const rect = containerRef.current.getBoundingClientRect();
-    const dropdownWidth = Math.min(448, window.innerWidth - 16);
+    const dropdownWidth = Math.min(384, window.innerWidth - 12);
     return {
-      top: rect.bottom + 8,
+      top: rect.bottom + 6,
       left: Math.min(
-        Math.max(rect.left, 8),
-        window.innerWidth - dropdownWidth - 8,
+        Math.max(rect.left, 6),
+        window.innerWidth - dropdownWidth - 6,
       ),
     };
   })();
@@ -443,9 +428,6 @@ const ModelSelector = memo(function ModelSelector({
     return { pinned: pinnedOrdered, unpinned };
   }, [filteredModels, pinnedModelIds, pinnedSet]);
 
-  const hasPinned = sortedModels.pinned.length > 0;
-  const hasUnpinned = sortedModels.unpinned.length > 0;
-
   const isModelDefault = useCallback(
     (modelId: string) => {
       void defaultTick;
@@ -481,12 +463,12 @@ const ModelSelector = memo(function ModelSelector({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed z-[301] w-[min(calc(100vw-1rem),28rem)] rounded-xl bg-white dark:bg-stone-800 shadow-lg border border-stone-200 dark:border-stone-700 overflow-hidden animate-scale-in"
+            className="fixed z-[301] w-[min(calc(100vw-0.75rem),24rem)] rounded-lg bg-white/95 dark:bg-stone-800/95 shadow-[0_14px_36px_-22px_rgba(0,0,0,0.45)] border border-stone-200/90 dark:border-stone-700/90 overflow-hidden backdrop-blur-sm animate-scale-in"
             style={dropdownStyle}
           >
-            <div className="px-4 pt-3 pb-2">
+            <div className="px-3 pt-2 pb-1.5">
               <div
-                className="flex gap-2 overflow-x-auto whitespace-nowrap py-1 -my-1 overscroll-x-contain"
+                className="flex gap-1.5 overflow-x-auto whitespace-nowrap py-0.5 -my-0.5 overscroll-x-contain"
                 style={{ scrollbarWidth: "none" }}
               >
                 {filterOptions.map((option) => {
@@ -497,7 +479,7 @@ const ModelSelector = memo(function ModelSelector({
                       type="button"
                       onClick={() => setActiveFilter(option.key)}
                       aria-pressed={selected}
-                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium leading-5 transition-colors ${
                         selected
                           ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-900"
                           : "bg-stone-100 text-stone-600 hover:bg-stone-200 dark:bg-stone-700/60 dark:text-stone-300 dark:hover:bg-stone-700"
@@ -519,23 +501,23 @@ const ModelSelector = memo(function ModelSelector({
               </div>
             </div>
 
-            <div className="border-t border-stone-100 dark:border-stone-700/70 px-4 py-2.5">
-              <div className="flex items-center gap-2.5 text-stone-400 dark:text-stone-500">
-                <Search size={15} strokeWidth={2.2} className="shrink-0" />
+            <div className="border-t border-stone-100 dark:border-stone-700/70 px-3 py-2">
+              <div className="flex items-center gap-2 text-stone-400 dark:text-stone-500">
+                <Search size={14} strokeWidth={2.2} className="shrink-0" />
                 <input
                   value={modelSearch}
                   onChange={(e) => setModelSearch(e.target.value)}
                   placeholder={t("profile.searchModels", "搜索模型")}
                   autoComplete="off"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
+                  className="min-w-0 flex-1 bg-transparent text-[13px] leading-5 text-stone-700 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
                 />
               </div>
             </div>
 
             <div className="border-t border-stone-100 dark:border-stone-700/70">
-              <div className="max-h-80 overflow-y-auto overscroll-contain py-1.5">
+              <div className="max-h-72 overflow-y-auto overscroll-contain py-1">
                 {filteredModels.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-sm text-stone-400 dark:text-stone-500">
+                  <div className="px-3 py-6 text-center text-[13px] text-stone-400 dark:text-stone-500">
                     {t("common.noSearchResults", "没有找到匹配结果")}
                   </div>
                 ) : (
@@ -557,12 +539,6 @@ const ModelSelector = memo(function ModelSelector({
                         canPin={true}
                       />
                     ))}
-                    {hasPinned && hasUnpinned && (
-                      <div
-                        className="mx-4 my-1 border-t"
-                        style={{ borderColor: "var(--theme-border)" }}
-                      />
-                    )}
                     {sortedModels.unpinned.map((model) => (
                       <ModelItem
                         key={model.id}

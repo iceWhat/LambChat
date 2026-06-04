@@ -1,6 +1,11 @@
 import { SkeletonLine } from "./primitives";
 import { SidebarSkeleton } from "./SidebarSkeleton";
 
+const appSafeAreaTop =
+  "max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px))";
+const appSafeAreaBottom =
+  "max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px))";
+
 /** Files content area skeleton (toolbar + grid cards, no sidebar/header) */
 export function FilesContentSkeleton() {
   return (
@@ -104,10 +109,9 @@ export function FilesPageSkeleton() {
       style={{
         backgroundColor: "var(--theme-bg)",
         boxSizing: "content-box",
-        paddingTop: "var(--app-safe-area-top, 0px)",
-        paddingBottom: "var(--app-safe-area-bottom, 0px)",
-        height:
-          "calc(100dvh - var(--app-safe-area-top, 0px) - var(--app-safe-area-bottom, 0px))",
+        paddingTop: appSafeAreaTop,
+        paddingBottom: appSafeAreaBottom,
+        height: `calc(100dvh - ${appSafeAreaTop} - ${appSafeAreaBottom})`,
       }}
     >
       <SidebarSkeleton />

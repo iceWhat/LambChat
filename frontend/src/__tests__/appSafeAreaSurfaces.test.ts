@@ -12,22 +12,30 @@ test("safe-area utility classes map to native inset variables", () => {
 
   assert.match(
     utilities,
-    /\.safe-area-top\s*\{[\s\S]*padding-top:\s*calc\(var\(--app-safe-area-top, 0px\) \+ var\(--safe-area-top-extra, 0px\)\)/,
+    /\.safe-area-top\s*\{[\s\S]*padding-top:\s*calc\(\s*var\(--app-safe-area-top, 0px\) \+ var\(--safe-area-top-extra, 0px\)/,
   );
   assert.match(
     utilities,
-    /\.safe-area-bottom\s*\{[\s\S]*padding-bottom:\s*calc\(var\(--app-safe-area-bottom, 0px\) \+ var\(--safe-area-bottom-extra, 0px\)\)/,
+    /\.safe-area-bottom\s*\{[\s\S]*padding-bottom:\s*calc\(\s*var\(--app-safe-area-bottom, 0px\) \+ var\(--safe-area-bottom-extra, 0px\)/,
   );
 });
 
 test("the authenticated app shell reserves both status bar and home indicator areas", () => {
   const shell = readSource("../components/layout/AppContent/AppShell.tsx");
 
-  assert.match(shell, /paddingTop:\s*"var\(--app-safe-area-top, 0px\)"/);
-  assert.match(shell, /paddingBottom:\s*"var\(--app-safe-area-bottom, 0px\)"/);
   assert.match(
     shell,
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top, 0px\) - var\(--app-safe-area-bottom, 0px\)\)"/,
+    /const appSafeAreaTop =\s*"max\(var\(--app-safe-area-top, 0px\), var\(--app-fullscreen-safe-area-top, 0px\)\)"/,
+  );
+  assert.match(
+    shell,
+    /const appSafeAreaBottom =\s*"max\(var\(--app-safe-area-bottom, 0px\), var\(--app-fullscreen-safe-area-bottom, 0px\)\)"/,
+  );
+  assert.match(shell, /paddingTop:\s*appSafeAreaTop/);
+  assert.match(shell, /paddingBottom:\s*appSafeAreaBottom/);
+  assert.match(
+    shell,
+    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\}\)`/,
   );
 });
 

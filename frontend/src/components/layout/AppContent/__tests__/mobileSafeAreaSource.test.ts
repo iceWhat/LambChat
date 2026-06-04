@@ -14,11 +14,21 @@ test("app shell reserves native mobile status bar safe area", () => {
     tokens,
     /--app-safe-area-top:\s*env\(safe-area-inset-top, 0px\)/,
   );
+  assert.match(tokens, /--app-fullscreen-safe-area-top:\s*0px/);
+  assert.match(tokens, /--app-fullscreen-safe-area-bottom:\s*0px/);
+  assert.match(
+    tokens,
+    /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-top:\s*12px/,
+  );
+  assert.match(
+    tokens,
+    /@media \(display-mode: standalone\), \(display-mode: fullscreen\)\s*\{[\s\S]*--app-fullscreen-safe-area-bottom:\s*12px/,
+  );
   assert.match(shell, /boxSizing:\s*"content-box"/);
-  assert.match(shell, /paddingTop:\s*"var\(--app-safe-area-top, 0px\)"/);
-  assert.match(shell, /paddingBottom:\s*"var\(--app-safe-area-bottom, 0px\)"/);
+  assert.match(shell, /paddingTop:\s*appSafeAreaTop/);
+  assert.match(shell, /paddingBottom:\s*appSafeAreaBottom/);
   assert.match(
     shell,
-    /height:\s*"calc\(var\(--app-viewport-height, 100dvh\) - var\(--app-safe-area-top, 0px\) - var\(--app-safe-area-bottom, 0px\)\)"/,
+    /height:\s*`calc\(var\(--app-viewport-height, 100dvh\) - \$\{appSafeAreaTop\} - \$\{appSafeAreaBottom\}\)`/,
   );
 });

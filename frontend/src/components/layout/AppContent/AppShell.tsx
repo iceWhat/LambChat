@@ -97,6 +97,11 @@ export function AppShell({
   showOutlineButton,
   onToggleOutline,
 }: AppShellProps) {
+  const appSafeAreaTop =
+    "max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px))";
+  const appSafeAreaBottom =
+    "max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px))";
+
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
 
@@ -286,10 +291,9 @@ export function AppShell({
         style={{
           backgroundColor: "var(--theme-bg)",
           boxSizing: "content-box",
-          paddingTop: "var(--app-safe-area-top, 0px)",
-          paddingBottom: "var(--app-safe-area-bottom, 0px)",
-          height:
-            "calc(var(--app-viewport-height, 100dvh) - var(--app-safe-area-top, 0px) - var(--app-safe-area-bottom, 0px))",
+          paddingTop: appSafeAreaTop,
+          paddingBottom: appSafeAreaBottom,
+          height: `calc(var(--app-viewport-height, 100dvh) - ${appSafeAreaTop} - ${appSafeAreaBottom})`,
           transform: "translate3d(0, var(--app-viewport-offset-top, 0px), 0)",
         }}
       >
