@@ -1,13 +1,10 @@
-import { memo, useEffect, useState, useRef, useCallback } from "react";
+import { memo, useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
-import {
-  AlertCircle,
-  Download,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-} from "lucide-react";
+import { ViewerToolbar } from "../../common/ViewerToolbar";
+import { AlertCircle, Check, Copy, Download, Maximize2, X } from "lucide-react";
+import { copyToClipboard } from "../../../utils/clipboard";
 
 // Types for Excalidraw
 interface ExcalidrawElement {
@@ -41,6 +38,15 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
   const [isLoading, setIsLoading] = useState(true);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopySvg = useCallback(() => {
+    if (!svgContent) return;
+    copyToClipboard(svgContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [svgContent]);
 
   // Touch zoom state
   const [touchStart, setTouchStart] = useState<{
@@ -215,37 +221,8 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
     setIsDragging(false);
   }, []);
 
-  // Zoom controls
-  const handleZoomIn = useCallback(() => {
-    setScale((s) => Math.min(s * 1.25, 5));
-  }, []);
-
-  const handleZoomOut = useCallback(() => {
-    setScale((s) => Math.max(s / 1.25, 0.1));
-  }, []);
-
-  const handleFitToScreen = useCallback(() => {
-    if (containerRef.current) {
-      const container = containerRef.current;
-      const svgElement = container.querySelector("svg");
-      if (svgElement) {
-        const containerWidth = container.clientWidth;
-        const containerHeight = container.clientHeight;
-        const svgWidth = svgElement.getBoundingClientRect().width;
-        const svgHeight = svgElement.getBoundingClientRect().height;
-
-        const scaleX = containerWidth / svgWidth;
-        const scaleY = containerHeight / svgHeight;
-        const fitScale = Math.min(scaleX, scaleY, 1);
-
-        setScale(fitScale);
-        setTranslate({ x: 0, y: 0 });
-      }
-    }
-  }, []);
-
   // Download handlers
-  const handleDownloadSVG = useCallback(() => {
+  const handleDownloadSVG = () => {
     if (!svgContent) return;
 
     const blob = new Blob([svgContent], { type: "image/svg+xml" });
@@ -257,13 +234,12 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [svgContent]);
+  };
 
-  const handleDownloadPNG = useCallback(async () => {
+  const handleDownloadPNG = async () => {
     if (!svgContent) return;
 
     try {
-      // Create image from SVG
       const img = new Image();
       const svgBlob = new Blob([svgContent], { type: "image/svg+xml" });
       const url = URL.createObjectURL(svgBlob);
@@ -274,9 +250,8 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         img.src = url;
       });
 
-      // Draw to canvas
       const canvas = document.createElement("canvas");
-      const renderScale = 2; // Higher resolution
+      const renderScale = 2;
       canvas.width = img.width * renderScale;
       canvas.height = img.height * renderScale;
       const ctx = canvas.getContext("2d");
@@ -287,7 +262,6 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
         ctx.drawImage(img, 0, 0);
       }
 
-      // Download
       canvas.toBlob((blob) => {
         if (blob) {
           const pngUrl = URL.createObjectURL(blob);
@@ -305,7 +279,18 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
     } catch (err) {
       console.error("Failed to export PNG:", err);
     }
-  }, [svgContent]);
+  };
+
+  // Download dropdown state
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!showDownloadMenu) return;
+    const handleClickOutside = () => setShowDownloadMenu(false);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showDownloadMenu]);
 
   // Error state
   if (error) {
@@ -341,57 +326,91 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800/50 shrink-0">
-        {/* Zoom controls */}
-        <button
-          onClick={handleZoomOut}
-          className="flex items-center justify-center w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 transition-colors"
-          title={t("documents.zoomOut")}
-        >
-          <ZoomOut size={16} />
-        </button>
-
-        <span className="text-xs text-stone-500 dark:text-stone-400 min-w-[50px] text-center">
-          {Math.round(scale * 100)}%
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-stone-200/70 dark:bg-stone-800/50 shrink-0">
+        <span className="text-xs font-medium text-stone-500 dark:text-stone-400">
+          excalidraw
         </span>
-
-        <button
-          onClick={handleZoomIn}
-          className="flex items-center justify-center w-8 h-8 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-600 dark:text-stone-300 transition-colors"
-          title={t("documents.zoomIn")}
-        >
-          <ZoomIn size={16} />
-        </button>
-
-        <button
-          onClick={handleFitToScreen}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title={t("documents.fitToScreen")}
-        >
-          <Maximize2 size={14} />
-          <span className="hidden sm:inline">Fit</span>
-        </button>
-
-        <div className="h-4 w-px bg-stone-200 dark:bg-stone-700" />
-
-        {/* Download buttons */}
-        <button
-          onClick={handleDownloadSVG}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title={`${t("documents.download")} SVG`}
-        >
-          <Download size={14} />
-          <span className="hidden sm:inline">SVG</span>
-        </button>
-
-        <button
-          onClick={handleDownloadPNG}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
-          title={`${t("documents.download")} PNG`}
-        >
-          <Download size={14} />
-          <span className="hidden sm:inline">PNG</span>
-        </button>
+        <div className="flex items-center gap-1">
+          {/* Copy */}
+          <button
+            onClick={handleCopySvg}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all min-h-[32px] min-w-[32px] touch-manipulation"
+            title={copied ? t("chat.message.copied") : t("chat.message.copy")}
+          >
+            {copied ? (
+              <>
+                <Check
+                  size={14}
+                  className="text-green-600 dark:text-green-400"
+                />
+                <span className="hidden xs:inline text-green-600 dark:text-green-400">
+                  {t("chat.message.copied")}
+                </span>
+              </>
+            ) : (
+              <>
+                <Copy
+                  size={14}
+                  className="text-stone-500 dark:text-stone-400"
+                />
+                <span className="hidden xs:inline text-stone-500 dark:text-stone-400">
+                  {t("chat.message.copy")}
+                </span>
+              </>
+            )}
+          </button>
+          {/* Download dropdown */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDownloadMenu(!showDownloadMenu);
+              }}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:bg-stone-300/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
+              title={t("documents.download")}
+            >
+              <Download
+                size={14}
+                className="text-stone-500 dark:text-stone-400"
+              />
+            </button>
+            {showDownloadMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg overflow-hidden">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadSVG();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                >
+                  SVG
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadPNG();
+                    setShowDownloadMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
+                >
+                  PNG
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Fullscreen */}
+          <button
+            onClick={() => setIsFullscreen(true)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:bg-stone-300/50 dark:hover:bg-stone-700/50 min-h-[32px] min-w-[32px] touch-manipulation"
+            title={t("imageViewer.fullscreen", "Fullscreen")}
+          >
+            <Maximize2
+              size={14}
+              className="text-stone-500 dark:text-stone-400"
+            />
+          </button>
+        </div>
       </div>
 
       {/* SVG Container with touch and drag support */}
@@ -424,8 +443,328 @@ const ExcalidrawPreview = memo(function ExcalidrawPreview({
           </p>
         )}
       </div>
+
+      {/* Fullscreen viewer */}
+      {isFullscreen && svgContent && (
+        <ExcalidrawFullscreenViewer
+          svgContent={svgContent}
+          onClose={() => setIsFullscreen(false)}
+        />
+      )}
     </div>
   );
 });
+
+// Fullscreen viewer for excalidraw diagrams (matches ImageViewer/MermaidViewer pattern)
+function ExcalidrawFullscreenViewer({
+  svgContent,
+  onClose,
+}: {
+  svgContent: string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [scale, setScale] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const MIN_SCALE = 0.1;
+  const MAX_SCALE = 20;
+  const SCALE_STEP = 0.25;
+
+  // Ref to read current position/scale inside native event listeners
+  const gestureStateRef = useRef({ position: { x: 0, y: 0 }, scale: 1 });
+  gestureStateRef.current = { position, scale };
+
+  // Render SVG as <img> via blob URL for GPU-accelerated transforms
+  const svgBlobUrl = useMemo(() => {
+    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    return URL.createObjectURL(blob);
+  }, [svgContent]);
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(svgBlobUrl);
+  }, [svgBlobUrl]);
+
+  // Body scroll lock
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  // Escape to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Native non-passive wheel handler — no ctrlKey required (matches ImageViewer)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? -SCALE_STEP : SCALE_STEP;
+      setScale((prev) =>
+        Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev + delta)),
+      );
+    };
+
+    container.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener("wheel", handleNativeWheel);
+    };
+  }, []);
+
+  // Mouse drag to pan
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+    },
+    [position],
+  );
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+    };
+    const handleMouseUp = () => setIsDragging(false);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, dragStart]);
+
+  // Native non-passive touch listeners (pinch zoom + pan)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let ts: { x: number; y: number } | null = null;
+    let pinchDist: number | null = null;
+    let pinchScale = 1;
+
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const pos = gestureStateRef.current.position;
+        ts = { x: touch.clientX - pos.x, y: touch.clientY - pos.y };
+        setIsDragging(true);
+      } else if (e.touches.length === 2) {
+        setIsDragging(false);
+        ts = null;
+        pinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        );
+        pinchScale = gestureStateRef.current.scale;
+      }
+    };
+
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      if (e.touches.length === 1 && ts) {
+        const touch = e.touches[0];
+        setPosition({
+          x: touch.clientX - ts.x,
+          y: touch.clientY - ts.y,
+        });
+      } else if (e.touches.length === 2 && pinchDist !== null) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY,
+        );
+        const sf = dist / pinchDist;
+        setScale(() =>
+          Math.min(MAX_SCALE, Math.max(MIN_SCALE, pinchScale * sf)),
+        );
+      }
+    };
+
+    const onEnd = () => {
+      setIsDragging(false);
+      ts = null;
+      pinchDist = null;
+    };
+
+    container.addEventListener("touchstart", onStart, { passive: true });
+    container.addEventListener("touchmove", onMove, { passive: false });
+    container.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      container.removeEventListener("touchstart", onStart);
+      container.removeEventListener("touchmove", onMove);
+      container.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
+  // Download handlers for fullscreen top bar
+  const handleDownloadSVG = () => {
+    const blob = new Blob([svgContent], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "excalidraw-diagram.svg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPNG = async () => {
+    try {
+      const img = new Image();
+      const svgBlob = new Blob([svgContent], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(svgBlob);
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = url;
+      });
+
+      const canvas = document.createElement("canvas");
+      const renderScale = 2;
+      canvas.width = img.width * renderScale;
+      canvas.height = img.height * renderScale;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(renderScale, renderScale);
+        ctx.drawImage(img, 0, 0);
+      }
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const pngUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = pngUrl;
+          a.download = "excalidraw-diagram.png";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(pngUrl);
+        }
+      }, "image/png");
+
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to export PNG:", err);
+    }
+  };
+
+  const handleBackgroundClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) onClose();
+    },
+    [onClose],
+  );
+
+  const btnCls =
+    "flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
+
+  return createPortal(
+    <div
+      data-yields-sidebar
+      className="fixed inset-0 z-[300] flex flex-col bg-black/90"
+      onClick={handleBackgroundClick}
+    >
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
+        <button
+          type="button"
+          onClick={onClose}
+          className={btnCls}
+          aria-label={t("common.close")}
+        >
+          <X size={20} className="text-white/70" />
+        </button>
+
+        <div className="flex items-center gap-1">
+          {/* Download SVG */}
+          <button
+            type="button"
+            onClick={handleDownloadSVG}
+            className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
+            aria-label={`${t("documents.download")} SVG`}
+          >
+            <Download size={18} className="text-white/70" />
+            <span className="hidden sm:inline">SVG</span>
+          </button>
+
+          {/* Download PNG */}
+          <button
+            type="button"
+            onClick={handleDownloadPNG}
+            className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
+            aria-label={`${t("documents.download")} PNG`}
+          >
+            <Download size={18} className="text-white/70" />
+            <span className="hidden sm:inline">PNG</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main area */}
+      <div ref={containerRef} className="flex-1 overflow-hidden relative">
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            cursor: scale > 1 ? (isDragging ? "grabbing" : "grab") : "default",
+          }}
+          onMouseDown={handleMouseDown}
+        >
+          <img
+            src={svgBlobUrl}
+            alt={t("documents.excalidrawDiagram", "Excalidraw diagram")}
+            className="max-w-[90vw] max-h-[85dvh] object-contain select-none"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+              transition: isDragging ? "none" : "transform 0.1s ease-out",
+              touchAction: "none",
+            }}
+            draggable={false}
+          />
+        </div>
+
+        {/* Floating bottom controls — shared ViewerToolbar */}
+        <ViewerToolbar
+          scale={scale}
+          minScale={MIN_SCALE}
+          maxScale={MAX_SCALE}
+          onZoomIn={() =>
+            setScale((prev) => Math.min(MAX_SCALE, prev + SCALE_STEP))
+          }
+          onZoomOut={() =>
+            setScale((prev) => Math.max(MIN_SCALE, prev - SCALE_STEP))
+          }
+          onRotateLeft={() => setRotation((prev) => prev - 90)}
+          onRotateRight={() => setRotation((prev) => prev + 90)}
+          onReset={() => {
+            setScale(1);
+            setRotation(0);
+            setPosition({ x: 0, y: 0 });
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 export default ExcalidrawPreview;
