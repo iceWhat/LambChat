@@ -13,3 +13,8 @@ test("ImageViewer captures wheel zoom locally instead of letting the page zoom",
   assert.match(source, /event\.preventDefault\(\)/);
   assert.match(source, /setScale/);
 });
+
+test("ImageViewer fullscreen chrome respects top and bottom safe areas", () => {
+  assert.match(source, /safe-area-top/);
+  assert.match(source, /safe-area-bottom/);
+});

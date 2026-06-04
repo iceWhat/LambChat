@@ -24,6 +24,29 @@ test("extracts generated image uploads from Image Generate tool results", () => 
   ]);
 });
 
+test("resolves generated image upload URLs through the configured API base", () => {
+  const result = {
+    success: true,
+    images: [
+      {
+        url: "/api/upload/file/generated-images/local.png",
+        content_type: "image/png",
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    extractGeneratedImageResults(result, "https://chat.example.com/"),
+    [
+      {
+        url: "https://chat.example.com/api/upload/file/generated-images/local.png",
+        name: "local.png",
+        contentType: "image/png",
+      },
+    ],
+  );
+});
+
 test("ignores non-image upload entries", () => {
   assert.deepEqual(
     extractGeneratedImageResults({

@@ -229,7 +229,7 @@ export function ImageViewer({
       onClick={handleBackgroundClick}
     >
       {/* Top bar */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
+      <div className="safe-area-top flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
         <button
           type="button"
           onClick={onClose}
@@ -332,6 +332,7 @@ export function ImageViewer({
           scale={scale}
           minScale={MIN_SCALE}
           maxScale={MAX_SCALE}
+          className="safe-area-bottom"
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
           onRotateLeft={rotateLeft}

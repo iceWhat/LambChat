@@ -8,6 +8,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { uploadApi } from "../../services/api";
+import { getFullUrl } from "../../services/api/config";
 import {
   getSidebarHistoryLength,
   goBackSidebar,
@@ -270,7 +271,7 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
         return;
       }
 
-      if (content !== undefined) {
+      if (content !== undefined && !(pptFile && (s3Key || signedUrl))) {
         if (unsupportedPreviewFile) {
           setData({ content, path });
           setLoading(false);
@@ -309,8 +310,10 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
 
       if (s3Key || signedUrl) {
         try {
+          const resolvedSignedUrl = getFullUrl(signedUrl) || signedUrl;
           const url =
-            signedUrl || (s3Key ? await uploadApi.getSignedUrl(s3Key) : null);
+            resolvedSignedUrl ||
+            (s3Key ? await uploadApi.getSignedUrl(s3Key) : null);
 
           if (!url) {
             throw new Error("No URL available");
@@ -358,7 +361,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
           }
 
           if (pptFile) {
-            setPptUrl(url);
+            const buffer = await fetchDocumentArrayBuffer(url);
+            setPptxBuffer(buffer);
             setData({ content: "", path });
             setLoading(false);
             return;
@@ -446,7 +450,8 @@ export function useDocumentPreviewState(props: DocumentPreviewProps) {
   };
 
   const handleDownload = async () => {
-    const downloadUrl = signedUrl || resolvedUrl || externalImageUrl;
+    const downloadUrl =
+      getFullUrl(signedUrl) || resolvedUrl || getFullUrl(externalImageUrl);
     if (downloadUrl) {
       try {
         const response = await fetch(downloadUrl);

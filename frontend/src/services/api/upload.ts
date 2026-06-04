@@ -3,7 +3,7 @@
  */
 
 import type { FileCheckResult, UploadConfig, UploadResult } from "../../types";
-import { API_BASE } from "./config";
+import { API_BASE, getFullUrl } from "./config";
 import { authFetch } from "./fetch";
 import { authenticatedRequest } from "./authenticatedRequest";
 import {
@@ -248,7 +248,7 @@ export const uploadApi = {
     if (result.error || !result.url) {
       throw new Error(result.error || "Failed to get signed URL");
     }
-    return result.url;
+    return getFullUrl(result.url) || result.url;
   },
 
   /**
@@ -258,10 +258,20 @@ export const uploadApi = {
     keys: string[],
     expires: number = 3600,
   ): Promise<{ urls: SignedUrlItem[]; expires_in: number }> {
-    return authFetch(`${API_BASE}/api/upload/signed-urls`, {
+    const result = await authFetch<{
+      urls: SignedUrlItem[];
+      expires_in: number;
+    }>(`${API_BASE}/api/upload/signed-urls`, {
       method: "POST",
       body: JSON.stringify({ keys, expires }),
     });
+    return {
+      ...result,
+      urls: result.urls.map((item) => ({
+        ...item,
+        url: item.url ? getFullUrl(item.url) || item.url : item.url,
+      })),
+    };
   },
 
   /**

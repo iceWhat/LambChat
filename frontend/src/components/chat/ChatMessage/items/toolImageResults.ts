@@ -1,3 +1,5 @@
+import { getFullUrl } from "../../../../services/api/config";
+
 export interface GeneratedImageResult {
   url: string;
   name: string;
@@ -39,6 +41,7 @@ function isImageEntry(entry: Record<string, unknown>): boolean {
 
 export function extractGeneratedImageResults(
   result: unknown,
+  apiBase?: string,
 ): GeneratedImageResult[] {
   if (!isRecord(result) || !Array.isArray(result.images)) return [];
 
@@ -47,6 +50,7 @@ export function extractGeneratedImageResults(
     .filter((entry) => typeof entry.url === "string" && isImageEntry(entry))
     .map((entry) => {
       const url = entry.url as string;
+      const resolvedUrl = getFullUrl(url, apiBase) || url;
       const contentType =
         typeof entry.content_type === "string"
           ? entry.content_type
@@ -55,7 +59,7 @@ export function extractGeneratedImageResults(
             : undefined;
 
       return {
-        url,
+        url: resolvedUrl,
         name: fileNameFromUrl(url),
         contentType,
       };

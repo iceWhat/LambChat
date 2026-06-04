@@ -67,6 +67,17 @@ test("upload attachment fallback URLs use the configured backend base", () => {
   assert.doesNotMatch(source, /url:\s*c\.url \|\| `\/api\/upload\/file/);
 });
 
+test("signed upload URLs are resolved for packaged app document fetches", () => {
+  const source = readSource("../upload.ts");
+
+  assert.match(source, /import \{[^}]*getFullUrl[^}]*\} from "\.\/config"/);
+  assert.match(source, /return getFullUrl\(result\.url\) \|\| result\.url/);
+  assert.match(
+    source,
+    /url:\s*item\.url \? getFullUrl\(item\.url\) \|\| item\.url : item\.url/,
+  );
+});
+
 test("attachment previews resolve backend-relative image URLs", () => {
   const attachmentPreview = readSource(
     "../../../components/chat/AttachmentPreview.tsx",

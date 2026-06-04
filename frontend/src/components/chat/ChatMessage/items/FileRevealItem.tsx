@@ -155,6 +155,7 @@ export function FileRevealItem({
           filePath = r.file.path;
           description = r.file.description || "";
           s3Key = r.file.s3_key || "";
+          s3Url = getFullUrl(r.file.s3_url) || "";
           fileSize = r.file.size;
           error = r.file.error || "";
         }
