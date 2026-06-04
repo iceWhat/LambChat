@@ -24,13 +24,9 @@ test("release workflow publishes branded desktop and mobile artifacts", () => {
   assert.match(workflow, /continue-on-error: true/);
   assert.match(workflow, /-workspace App\.xcworkspace/);
   assert.match(workflow, /CARGO_BUILD_JOBS/);
-  assert.match(workflow, /cargo_target_dir: \/tmp\/lambchat-cargo-target/);
-  assert.match(workflow, /cargo_target_dir: D:\\cargo-target/);
-  assert.match(
-    workflow,
-    /CARGO_TARGET_DIR: \$\{\{ matrix\.cargo_target_dir \}\}/,
-  );
-  assert.doesNotMatch(workflow, /CARGO_TARGET_DIR:.*\|\| ''/);
+  assert.match(workflow, /pnpm config set store-dir D:\\pnpm-store/);
+  assert.match(workflow, /npm_config_cache=D:\\npm-cache/);
+  assert.doesNotMatch(workflow, /CARGO_TARGET_DIR:/);
   assert.match(workflow, /timeout-minutes: 45/);
   assert.match(workflow, /runner: windows-2022/);
   assert.doesNotMatch(workflow, /mapfile/);

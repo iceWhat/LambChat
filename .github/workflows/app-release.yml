@@ -37,17 +37,14 @@ jobs:
             runner: ubuntu-latest
             targets: deb
             artifact_slug: linux
-            cargo_target_dir: /tmp/lambchat-cargo-target
           - label: Windows
             runner: windows-2022
             targets: msi
             artifact_slug: windows
-            cargo_target_dir: D:\cargo-target
           - label: macOS
             runner: macos-latest
             targets: dmg
             artifact_slug: macos
-            cargo_target_dir: /tmp/lambchat-cargo-target
 
     steps:
       - name: Checkout repository
@@ -96,11 +93,20 @@ jobs:
         run: pnpm brand:assets:check
         working-directory: frontend
 
+      - name: Shorten Windows package cache paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pnpm config set store-dir D:\pnpm-store
+          "npm_config_cache=D:\npm-cache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TEMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TMP=D:\temp" | Out-File -FilePath $env:GITHUB_ENV -Append
+          New-Item -ItemType Directory -Force D:\pnpm-store,D:\npm-cache,D:\temp | Out-Null
+
       - name: Build desktop package with Pake
         env:
           PAKE_TARGETS: ${{ matrix.targets }}
           CARGO_BUILD_JOBS: 1
-          CARGO_TARGET_DIR: ${{ matrix.cargo_target_dir }}
         run: pnpm package:desktop
         working-directory: frontend
 
