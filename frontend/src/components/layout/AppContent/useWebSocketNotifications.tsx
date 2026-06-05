@@ -8,6 +8,7 @@ import { useBrowserNotification } from "../../../hooks/useBrowserNotification";
 import { sessionApi } from "../../../services/api";
 import { appNotificationService } from "../../../services/notifications/appNotificationService";
 import {
+  shouldAttemptAppTaskNotification,
   shouldAttemptBrowserNotification,
   shouldSurfaceTaskNotification,
 } from "./taskNotificationGuards";
@@ -77,8 +78,15 @@ export function useWebSocketNotifications({
         currentSessionId: sessionId,
         visibilityState,
       });
+      const appNotificationRuntime = appNotificationService.getRuntime();
+      const shouldAttemptAppNotification = shouldAttemptAppTaskNotification({
+        appRuntime: appNotificationRuntime,
+        notificationSessionId: session_id,
+        currentSessionId: sessionId,
+        visibilityState,
+      });
 
-      if (!shouldSurface) {
+      if (!shouldSurface && !shouldAttemptAppNotification) {
         sessionApi.markRead(session_id).catch(() => {});
         onSessionUnreadRef.current?.(session_id, 0, project_id, is_favorite);
         return;
@@ -119,17 +127,24 @@ export function useWebSocketNotifications({
         });
       };
       const notificationRoute = `/chat/${session_id}`;
-      const isAppNotificationRuntime =
-        appNotificationService.getRuntime() !== "unsupported";
+      const isAppNotificationRuntime = appNotificationRuntime !== "unsupported";
 
-      void appNotificationService.notify({
-        type: "task",
-        title: notificationCopy.title,
-        body: notificationCopy.body,
-        route: notificationRoute,
-        dedupeKey: `task:${run_id}:${status}`,
-        importance: status === "completed" ? "normal" : "high",
-      });
+      if (shouldAttemptAppNotification) {
+        void appNotificationService.notify({
+          type: "task",
+          title: notificationCopy.title,
+          body: notificationCopy.body,
+          route: notificationRoute,
+          dedupeKey: `task:${run_id}:${status}`,
+          importance: status === "completed" ? "normal" : "high",
+        });
+      }
+
+      if (!shouldSurface) {
+        sessionApi.markRead(session_id).catch(() => {});
+        onSessionUnreadRef.current?.(session_id, 0, project_id, is_favorite);
+        return;
+      }
 
       // Show browser notification (if permitted)
       if (
@@ -137,6 +152,9 @@ export function useWebSocketNotifications({
         shouldAttemptBrowserNotification({
           isSupported,
           cachedPermission: permission,
+          notificationSessionId: session_id,
+          currentSessionId: sessionId,
+          visibilityState,
         })
       ) {
         notify(notificationCopy.title, {
@@ -145,6 +163,16 @@ export function useWebSocketNotifications({
           url: notificationRoute,
         });
       }
+
+      if (visibilityState !== "visible") {
+        return;
+      }
+
+      const toastDuration = notificationCopy.isSuccess
+        ? 5_000
+        : isMobileDevice()
+          ? 7_000
+          : 10_000;
 
       toast.custom(
         (visible) => (
@@ -191,7 +219,7 @@ export function useWebSocketNotifications({
           </div>
         ),
         {
-          duration: isMobileDevice() ? 5_000 : 10_000,
+          duration: toastDuration,
           position: "top-right",
           style: {
             background: "transparent",

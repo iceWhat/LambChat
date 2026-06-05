@@ -98,9 +98,9 @@ export function AppShell({
   onToggleOutline,
 }: AppShellProps) {
   const appSafeAreaTop =
-    "max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px))";
+    "var(--app-safe-area-top-active, max(var(--app-safe-area-top, 0px), var(--app-fullscreen-safe-area-top, 0px)))";
   const appSafeAreaBottom =
-    "max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px))";
+    "var(--app-safe-area-bottom-active, max(var(--app-safe-area-bottom, 0px), var(--app-fullscreen-safe-area-bottom, 0px)))";
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;

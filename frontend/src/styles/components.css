@@ -563,9 +563,9 @@
 
 /* Desktop: right sidebar */
 .editor-sidebar--sidebar {
-  top: 0;
+  top: var(--app-safe-area-top-active, var(--app-safe-area-top, 0px));
   right: 0;
-  bottom: 0;
+  bottom: var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px));
   width: var(--editor-sidebar-width, 30%);
   min-width: 18rem;
   max-width: 75vw;
@@ -589,8 +589,15 @@
 .editor-sidebar--mobile {
   left: 0;
   right: 0;
-  bottom: 0;
-  max-height: 92dvh;
+  bottom: var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px));
+  max-height: min(
+    92dvh,
+    calc(
+      var(--app-viewport-height, 100dvh) -
+        var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)) -
+        var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px))
+    )
+  );
   border-radius: 1rem 1rem 0 0;
   box-shadow: 0 -8px 40px -8px var(--theme-shadow-lg);
 }
@@ -753,7 +760,10 @@
     var(--theme-primary-light)
   );
   padding: 0.625rem 1rem;
-  padding-bottom: max(0.625rem, env(safe-area-inset-bottom));
+  padding-bottom: max(
+    0.625rem,
+    var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px))
+  );
 }
 
 @media (min-width: 640px) {

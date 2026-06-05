@@ -76,7 +76,7 @@ function DeleteConfirmModal({
         onClick={onCancel}
       />
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="safe-area-viewport-padding fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
           className="w-full max-w-md transform overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] p-6 text-left align-middle shadow-xl transition-all"
           onClick={(e) => e.stopPropagation()}
@@ -141,7 +141,7 @@ function FeedbackDetailModal({
         onClick={onClose}
       />
       {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="safe-area-viewport-padding fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
           className="w-full max-w-lg transform overflow-hidden rounded-2xl bg-[var(--theme-bg-card)] p-6 text-left align-middle shadow-xl transition-all"
           onClick={(e) => e.stopPropagation()}

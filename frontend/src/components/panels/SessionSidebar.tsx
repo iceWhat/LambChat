@@ -625,9 +625,9 @@ export const SessionSidebar = forwardRef<
           mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
         style={{
-          top: "env(safe-area-inset-top)",
+          top: "var(--app-safe-area-top-active, var(--app-safe-area-top, 0px))",
           height:
-            "calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top))",
+            "calc(var(--app-viewport-height, 100dvh) - var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)) - var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px)))",
         }}
         onClick={onMobileClose}
       />
@@ -637,10 +637,11 @@ export const SessionSidebar = forwardRef<
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
-          top: "env(safe-area-inset-top)",
+          top: "var(--app-safe-area-top-active, var(--app-safe-area-top, 0px))",
           height:
-            "calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top))",
-          paddingBottom: "env(safe-area-inset-bottom)",
+            "calc(var(--app-viewport-height, 100dvh) - var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)) - var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px)))",
+          paddingBottom:
+            "var(--app-safe-area-bottom-active, var(--app-safe-area-bottom, 0px))",
         }}
       >
         {isMobile ? (
