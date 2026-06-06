@@ -1,0 +1,247 @@
+"""Tests for ScheduledTaskService business logic."""
+
+from __future__ import annotations
+
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.infra.scheduler.service import ScheduledTaskService
+from src.kernel.schemas.scheduled_task import (
+    RunStatus,
+    ScheduledTask,
+    ScheduledTaskCreate,
+    ScheduledTaskStatus,
+    ScheduledTaskUpdate,
+    TriggerType,
+)
+
+
+def _make_task(**overrides: Any) -> ScheduledTask:
+    defaults = dict(
+        _id="task_1",
+        name="Test Task",
+        agent_id="agent_1",
+        trigger_type=TriggerType.INTERVAL,
+        trigger_config={"seconds": 300},
+        input_payload={"message": "hello"},
+        status=ScheduledTaskStatus.ACTIVE,
+        enabled=True,
+        owner_id="user_1",
+    )
+    defaults.update(overrides)
+    return ScheduledTask(**defaults)
+
+
+@pytest.fixture
+def service() -> ScheduledTaskService:
+    return ScheduledTaskService()
+
+
+@pytest.fixture
+def mock_scheduler():
+    with patch("src.infra.scheduler.service.get_runtime_scheduler") as mock:
+        scheduler = MagicMock()
+        mock.return_value = scheduler
+        scheduler.register_job = MagicMock()
+        scheduler.unregister_job = MagicMock()
+        yield scheduler
+
+
+@pytest.fixture
+def mock_storage():
+    with patch("src.infra.scheduler.service.get_scheduled_task_storage") as mock:
+        storage = AsyncMock()
+        mock.return_value = storage
+        yield storage
+
+
+@pytest.mark.asyncio
+async def test_create_task_persists_and_registers(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    request = ScheduledTaskCreate(
+        name="My Task",
+        agent_id="agent_1",
+        trigger_type=TriggerType.INTERVAL,
+        trigger_config={"seconds": 300},
+        input_payload={"message": "run report"},
+    )
+
+    mock_storage.create_task = AsyncMock(return_value=None)
+
+    task = await service.create_task(request, owner_id="user_1")
+
+    mock_storage.create_task.assert_called_once()
+    mock_scheduler.register_job.assert_called_once()
+    assert task.owner_id == "user_1"
+    assert task.trigger_type == TriggerType.INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_create_cron_task(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    request = ScheduledTaskCreate(
+        name="Weekly Report",
+        agent_id="agent_1",
+        trigger_type=TriggerType.CRON,
+        trigger_config={"day_of_week": "mon", "hour": "9", "minute": "0"},
+        input_payload={"message": "weekly report"},
+    )
+
+    task = await service.create_task(request, owner_id="user_1")
+    assert task.trigger_type == TriggerType.CRON
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_task_invalid_trigger_raises(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    request = ScheduledTaskCreate(
+        name="Bad Task",
+        agent_id="agent_1",
+        trigger_type=TriggerType.INTERVAL,
+        trigger_config={"seconds": -1},  # invalid
+        input_payload={},
+    )
+
+    with pytest.raises(Exception):
+        await service.create_task(request, owner_id="user_1")
+
+
+@pytest.mark.asyncio
+async def test_pause_task_unregisters(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    task = _make_task()
+    mock_storage.get_task = AsyncMock(return_value=task)
+    mock_storage.update_task = AsyncMock(return_value=True)
+    paused_task = _make_task(status=ScheduledTaskStatus.PAUSED, enabled=False)
+    mock_storage.get_task = AsyncMock(
+        side_effect=[task, paused_task]
+    )
+
+    result = await service.pause_task("task_1")
+
+    mock_storage.update_task.assert_called_once_with(
+        "task_1",
+        {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
+    )
+    mock_scheduler.unregister_job.assert_called_once_with("task_1")
+
+
+@pytest.mark.asyncio
+async def test_resume_task_registers(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    paused = _make_task(status=ScheduledTaskStatus.PAUSED, enabled=False)
+    resumed = _make_task(status=ScheduledTaskStatus.ACTIVE, enabled=True)
+    mock_storage.get_task = AsyncMock(side_effect=[paused, resumed])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    result = await service.resume_task("task_1")
+
+    mock_storage.update_task.assert_called_once_with(
+        "task_1",
+        {"status": ScheduledTaskStatus.ACTIVE, "enabled": True},
+    )
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_task_soft_deletes(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    mock_storage.delete_task = AsyncMock(return_value=True)
+
+    deleted = await service.delete_task("task_1")
+
+    assert deleted is True
+    mock_scheduler.unregister_job.assert_called_once_with("task_1")
+    mock_storage.delete_task.assert_called_once_with("task_1")
+
+
+@pytest.mark.asyncio
+async def test_load_persisted_tasks(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    tasks = [
+        _make_task(_id=f"task_{i}", name=f"Task {i}")
+        for i in range(3)
+    ]
+    mock_storage.list_active_tasks = AsyncMock(return_value=tasks)
+
+    count = await service.load_persisted_tasks()
+
+    assert count == 3
+    assert mock_scheduler.register_job.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_update_task_refreshes_scheduler(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    original = _make_task()
+    updated = _make_task(trigger_config={"seconds": 600})
+    mock_storage.get_task = AsyncMock(side_effect=[original, updated])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    request = ScheduledTaskUpdate(trigger_config={"seconds": 600})
+    result = await service.update_task("task_1", request)
+
+    mock_storage.update_task.assert_called_once()
+    mock_scheduler.register_job.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_to_response() -> None:
+    task = _make_task()
+    response = ScheduledTaskService.to_response(task)
+
+    assert response.id == "task_1"
+    assert response.name == "Test Task"
+    assert response.agent_id == "agent_1"
+    assert response.trigger_type == TriggerType.INTERVAL
+    assert response.owner_id == "user_1"
+
+
+def test_build_trigger_interval() -> None:
+    trigger = ScheduledTaskService._build_trigger(
+        TriggerType.INTERVAL, {"seconds": 300}
+    )
+    from apscheduler.triggers.interval import IntervalTrigger
+
+    assert isinstance(trigger, IntervalTrigger)
+
+
+def test_build_trigger_cron() -> None:
+    trigger = ScheduledTaskService._build_trigger(
+        TriggerType.CRON, {"hour": "9", "minute": "0"}
+    )
+    from apscheduler.triggers.cron import CronTrigger
+
+    assert isinstance(trigger, CronTrigger)
+
+
+def test_build_trigger_unsupported_raises() -> None:
+    with pytest.raises(ValueError, match="Unsupported"):
+        ScheduledTaskService._build_trigger("unknown", {})

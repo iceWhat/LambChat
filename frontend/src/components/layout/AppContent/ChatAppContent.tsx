@@ -580,12 +580,13 @@ export function ChatAppContent({
   useWebSocketNotifications({
     sessionId,
     enabled: isAuthenticated,
-    onSessionUnread: (sid, count, projectId, isFavorite) => {
+    onSessionUnread: (sid, count, projectId, isFavorite, scheduledTaskId) => {
       sidebarRef.current?.updateSessionUnread(
         sid,
         count,
         projectId,
         isFavorite,
+        scheduledTaskId,
       );
     },
   });

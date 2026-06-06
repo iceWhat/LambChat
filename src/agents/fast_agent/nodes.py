@@ -160,6 +160,19 @@ async def fast_agent_node(state: Dict[str, Any], config: RunnableConfig) -> Dict
             )
             filtered_tools.append(search_tool)
 
+    # Diagnostic: log tool names passed to the LLM
+    if filtered_tools is not None:
+        tool_names = [getattr(t, "name", str(t)) for t in filtered_tools]
+        has_sched = any("scheduled_task" in n for n in tool_names)
+        logger.info(
+            "[FastAgent] Passing %d tools to create_deep_agent (scheduled_task=%s): %s",
+            len(filtered_tools),
+            has_sched,
+            tool_names,
+        )
+    else:
+        logger.warning("[FastAgent] filtered_tools is None — no tools will be passed to LLM!")
+
     # 创建内层 graph (deep agent)
     checkpointer_start = time.time()
     inner_checkpointer = await get_async_checkpointer(thread_id=state.get("session_id"))

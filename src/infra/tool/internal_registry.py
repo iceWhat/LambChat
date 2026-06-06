@@ -13,6 +13,7 @@ from src.infra.tool.env_var_tool import get_env_var_tools
 from src.infra.tool.image_generation_tool import get_image_generation_tool
 from src.infra.tool.mcp_client import MCPToolWithRetry
 from src.infra.tool.persona_preset_tool import get_persona_preset_tools
+from src.infra.tool.scheduled_task_tool import get_scheduled_task_tools
 from src.infra.tool.team_tool import get_team_tools
 from src.kernel.config import settings
 from src.kernel.schemas.mcp import (
@@ -27,6 +28,9 @@ INTERNAL_MCP_SERVER_NAME = "lambchat_internal"
 
 def build_internal_tools() -> list[BaseTool]:
     """Build the internal tool set that LambChat exposes to agents."""
+    from src.infra.logging import get_logger
+
+    logger = get_logger(__name__)
     tools: list[BaseTool] = []
 
     if settings.ENABLE_IMAGE_GENERATION:
@@ -35,9 +39,29 @@ def build_internal_tools() -> list[BaseTool]:
     if settings.ENABLE_AUDIO_TRANSCRIPTION:
         tools.append(get_audio_transcribe_tool())
 
+    if settings.ENABLE_SCHEDULED_TASK:
+        try:
+            scheduled_tools = get_scheduled_task_tools()
+            tools.extend(scheduled_tools)
+            logger.info(
+                "[InternalRegistry] ENABLE_SCHEDULED_TASK=True, added %d scheduled task tools: %s",
+                len(scheduled_tools),
+                [t.name for t in scheduled_tools],
+            )
+        except Exception as e:
+            logger.error("[InternalRegistry] Failed to load scheduled task tools: %s", e, exc_info=True)
+    else:
+        logger.info("[InternalRegistry] ENABLE_SCHEDULED_TASK=False, skipping scheduled task tools")
+
     tools.extend(get_env_var_tools())
     tools.extend(get_persona_preset_tools())
     tools.extend(get_team_tools())
+
+    logger.info(
+        "[InternalRegistry] Total %d internal tools built: %s",
+        len(tools),
+        [t.name for t in tools],
+    )
     return tools
 
 

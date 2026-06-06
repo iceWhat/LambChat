@@ -289,6 +289,9 @@ class Settings(BaseSettings):
     # Memory Settings (Master Switch)
     ENABLE_MEMORY: bool = False
 
+    # Scheduled Task Settings
+    ENABLE_SCHEDULED_TASK: bool = False
+
     # Native Memory Settings (MongoDB-backed, zero external deps)
     NATIVE_MEMORY_EMBEDDING_API_BASE: str = ""
     NATIVE_MEMORY_EMBEDDING_API_KEY: str = ""

@@ -119,6 +119,12 @@ class SessionStorage:
                 background=True,
                 sparse=True,
             )
+            await collection.create_index(
+                [("metadata.scheduled_task_id", 1), ("updated_at", -1)],
+                name="scheduled_task_sessions_idx",
+                background=True,
+                sparse=True,
+            )
             return True
         except Exception:
             # Search index creation is best-effort and should not block the app.
@@ -362,6 +368,7 @@ class SessionStorage:
         skip = max(int(skip or 0), 0)
         limit = min(max(int(limit or 1), 1), SESSION_LIST_LOOKUP_LIMIT)
         query: dict[str, Any] = {}
+        query["metadata.hidden_from_conversation_list"] = {"$ne": True}
         if user_id is not None:
             # 严格匹配用户ID，空字符串也会被当作过滤条件
             query["user_id"] = user_id
@@ -419,6 +426,40 @@ class SessionStorage:
                     )
             sessions.append(session)
 
+        return sessions, total
+
+    async def list_sessions_for_task(
+        self,
+        scheduled_task_id: str,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[Session], int]:
+        """List sessions created by a scheduled task.
+
+        Unlike list_sessions(), this does NOT filter out
+        hidden_from_conversation_list — scheduled task sessions
+        are intentionally hidden from the regular sidebar but
+        should be visible in the task drill-down view.
+        """
+        await self.ensure_indexes_if_needed()
+        skip = max(int(skip or 0), 0)
+        limit = min(max(int(limit or 1), 1), SESSION_LIST_LOOKUP_LIMIT)
+        query: dict[str, Any] = {
+            "user_id": user_id,
+            "metadata.scheduled_task_id": scheduled_task_id,
+        }
+        total = await self.collection.count_documents(query)
+        cursor = (
+            self.collection.find(query)
+            .skip(skip)
+            .limit(limit)
+            .sort("updated_at", -1)
+        )
+        sessions = []
+        for session_dict in await cursor.to_list(length=limit):
+            session = self._build_session(session_dict)
+            sessions.append(session)
         return sessions, total
 
     async def get(self, session_id: str) -> Optional[Session]:

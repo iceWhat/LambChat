@@ -262,3 +262,20 @@ export interface ProjectUpdate {
   icon?: string;
   sort_order?: number;
 }
+
+// ============================================
+// Scheduled Task Types
+// ============================================
+export type {
+  TriggerType,
+  ScheduledTaskStatus as ScheduledTaskStatusType,
+  RunStatus,
+  IntervalTriggerConfig,
+  CronTriggerConfig,
+  ScheduledTask,
+  ScheduledTaskCreate,
+  ScheduledTaskUpdate,
+  TaskRun,
+  ScheduledTaskListResponse,
+  TaskRunListResponse,
+} from "./scheduledTask";

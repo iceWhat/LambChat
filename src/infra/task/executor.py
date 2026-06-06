@@ -441,6 +441,9 @@ class TaskExecutor:
                     notification["data"]["project_id"] = (
                         session.metadata.get("project_id") if session.metadata else None
                     )
+                    notification["data"]["scheduled_task_id"] = (
+                        session.metadata.get("scheduled_task_id") if session.metadata else None
+                    )
                     notification["data"]["is_favorite"] = is_session_favorite(
                         session.metadata,
                         favorites_project_id,

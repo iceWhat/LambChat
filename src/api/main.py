@@ -45,6 +45,7 @@ from src.api.routes import (
     version,
     websocket,
 )
+from src.api.routes import scheduled_task
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
 from src.api.routes.agent import model as agent_model
@@ -669,6 +670,10 @@ def create_app() -> FastAPI:
     app.include_router(notification.router, prefix="/api/notifications", tags=["Notifications"])
     # Generic channel configuration
     app.include_router(channels.router, prefix="/api/channels", tags=["Channels"])
+    # Scheduled tasks
+    app.include_router(
+        scheduled_task.router, prefix="/api/scheduled-tasks", tags=["Scheduled Tasks"]
+    )
     # WebSocket 路由: /ws 用于实时通知
     app.include_router(websocket.router, tags=["WebSocket"])
 

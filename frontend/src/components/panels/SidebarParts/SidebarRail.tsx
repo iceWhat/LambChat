@@ -25,6 +25,7 @@ interface SidebarRailProps {
   onOpenSearch: () => void;
   onOpenRecentChats: () => void;
   onOpenFileLibrary: () => void;
+  onOpenScheduledTasks: () => void;
   onOpenPersonaPlaza: () => void;
   onOpenTeamBuilder: () => void;
   onOpenSkills: () => void;
@@ -45,6 +46,7 @@ export function SidebarRail({
   onOpenSearch,
   onOpenRecentChats,
   onOpenFileLibrary,
+  onOpenScheduledTasks,
   onOpenPersonaPlaza,
   onOpenTeamBuilder,
   hasMoreMenuItems,
@@ -117,6 +119,15 @@ export function SidebarRail({
           aria-label={t("sidebar.searchSessions")}
         >
           <Search size={20} />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenScheduledTasks}
+          className={railBtn}
+          title={t("nav.scheduledTasks")}
+          aria-label={t("nav.scheduledTasks")}
+        >
+          <Clock size={20} />
         </button>
         <button
           type="button"

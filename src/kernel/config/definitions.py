@@ -763,6 +763,17 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "depends_on": "ENABLE_IMAGE_GENERATION",
     },
     # ============================================
+    # Scheduled Task Settings
+    # ============================================
+    "ENABLE_SCHEDULED_TASK": {
+        "type": SettingType.BOOLEAN,
+        "category": SettingCategory.SCHEDULED_TASK,
+        "subcategory": "general",
+        "description": "settingDesc.ENABLE_SCHEDULED_TASK",
+        "default": False,
+        "frontend_visible": True,
+    },
+    # ============================================
     # MongoDB Settings
     # ============================================
     "MONGODB_URL": {

@@ -48,6 +48,11 @@ const MemoryPanel = lazy(() =>
     default: m.MemoryPanel,
   })),
 );
+const ScheduledTaskPanel = lazy(() =>
+  import("../../panels/ScheduledTaskPanel").then((m) => ({
+    default: m.ScheduledTaskPanel,
+  })),
+);
 const PersonaPlazaPanel = lazy(() =>
   import("../../persona/PersonaPlazaPanel").then((m) => ({
     default: m.PersonaPlazaPanel,
@@ -77,6 +82,7 @@ const panelMap: Record<
   team: TeamBuilderPanel,
   notifications: NotificationPanel,
   memory: MemoryPanel,
+  "scheduled-tasks": ScheduledTaskPanel,
 };
 
 function PanelLoader() {

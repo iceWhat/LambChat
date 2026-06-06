@@ -16,6 +16,8 @@ from src.infra.monitoring.event_loop import (
     stop_event_loop_lag_monitor,
 )
 from src.infra.scheduler import get_runtime_scheduler
+from src.infra.scheduler.service import ScheduledTaskService
+from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.settings.pubsub import get_settings_pubsub
 from src.infra.task.arq_runtime import start_arq_runtime, stop_arq_runtime
 from src.infra.task.manager import get_task_manager
@@ -113,6 +115,12 @@ async def start_runtime_services() -> None:
 
     if settings.ENABLE_MEMORY:
         start_memory_compaction_agent()
+
+    # Load dynamically-created scheduled tasks from DB
+    await get_scheduled_task_storage().ensure_indexes()
+    scheduled_task_service = ScheduledTaskService()
+    await scheduled_task_service.load_persisted_tasks()
+
     get_runtime_scheduler().start()
 
 
