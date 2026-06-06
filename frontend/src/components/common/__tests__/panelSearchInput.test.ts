@@ -60,6 +60,7 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   assert.match(panelHeader, /panel-header__mobile-actions--search/);
   assert.match(panelHeader, /panel-header__mobile-more--inline/);
   assert.match(panelHeader, /panel-header__mobile-menu/);
+  assert.match(panelHeader, /closest\("\[data-panel-header-dropdown\]"\)/);
   assert.match(panelHeader, /panel-header__search-accessory/);
   assert.match(panelHeader, /searchActions/);
   assert.match(panelHeader, /panel-header__search-actions/);
@@ -70,6 +71,10 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   assert.match(componentsCss, /\.panel-header__mobile-actions/);
   assert.match(componentsCss, /\.panel-header__search-accessory/);
   assert.match(componentsCss, /\.panel-header__mobile-menu-accessory/);
+  assert.match(
+    componentsCss,
+    /\.panel-header__actions > :is\(button, a\),[\s\S]*?\.panel-header__search-actions > \.flex > :is\(button, a\)\s*\{[\s\S]*?height:\s*2\.5rem;[\s\S]*?min-height:\s*2\.5rem;/,
+  );
   assert.match(
     componentsCss,
     /\.panel-header__mobile-menu-accessory > :is\(\.relative, \.flex\),\s*\.panel-header__mobile-menu-item > :is\(\.relative, \.flex\)\s*\{[\s\S]*?display:\s*grid;[\s\S]*?width:\s*100%;[\s\S]*?gap:\s*0\.375rem;/,
@@ -105,11 +110,11 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   );
   assert.match(
     componentsCss,
-    /\.panel-header__mobile-menu-item > :is\(button, a\) > svg:last-child,[\s\S]*?\.panel-header__mobile-menu-accessory \[data-filter-menu\] > button > svg:last-child\s*\{[\s\S]*?margin-left:\s*auto;/,
+    /\.panel-header__mobile-menu-item > :is\(button, a\) > svg:last-child,[\s\S]*?\.panel-header__mobile-menu-accessory[\s\S]*?\[data-filter-menu\][\s\S]*?> button[\s\S]*?> svg:last-child\s*\{[\s\S]*?margin-left:\s*auto;/,
   );
   assert.match(
     componentsCss,
-    /\.panel-header__mobile-menu \.skill-filter-dropdown\s*\{[\s\S]*?position:\s*static;[\s\S]*?width:\s*100%;/,
+    /\.panel-header__mobile-menu \.skill-filter-dropdown\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?width:\s*100%;[\s\S]*?max-height:\s*min\(46dvh,\s*18rem\);[\s\S]*?overflow-y:\s*auto;/,
   );
   assert.match(
     componentsCss,
@@ -146,6 +151,43 @@ test("panel headers move mobile actions into a search-row overflow menu", () => 
   assert.doesNotMatch(
     panelHeader,
     /className="btn-secondary panel-header__mobile-more/,
+  );
+});
+
+test("panel header dropdown portals are viewport-aware and do not collapse the parent mobile menu", () => {
+  const scopeDropdown = source("../../persona/PersonaScopeDropdown.tsx");
+  const tagDropdown = source("../../persona/PersonaTagFilterDropdown.tsx");
+  const teamPanel = source("../../team/TeamBuilderWrapper.tsx");
+  const personaPanel = source("../../persona/PersonaPlazaPanel.tsx");
+
+  for (const file of [scopeDropdown, tagDropdown]) {
+    assert.match(file, /data-panel-header-dropdown/);
+    assert.match(file, /getDropdownPosition/);
+    assert.match(file, /DROPDOWN_GUTTER/);
+    assert.match(file, /window\.innerWidth/);
+    assert.match(file, /onPointerDown=\{onClose\}/);
+    assert.match(file, /onPointerDown=\{\(e\) => e\.stopPropagation\(\)\}/);
+    assert.match(file, /event\.key === "Escape"/);
+    assert.match(file, /role="menu"/);
+  }
+
+  assert.match(scopeDropdown, /role="menuitemradio"/);
+  assert.match(scopeDropdown, /aria-checked=\{scopeFilter === key\}/);
+  assert.match(tagDropdown, /aria-pressed=\{activeTag === tag\}/);
+
+  for (const file of [teamPanel, personaPanel]) {
+    assert.match(file, /aria-haspopup="menu"/);
+    assert.match(file, /aria-expanded=\{isScopeOpen\}/);
+    assert.match(file, /aria-expanded=\{isFilterOpen\}/);
+  }
+});
+
+test("marketplace refresh action has a mobile menu label", () => {
+  const marketplacePanel = source("../../panels/MarketplacePanel.tsx");
+
+  assert.match(
+    marketplacePanel,
+    /<RotateCw size=\{16\} \/>\s*<span className="hidden sm:inline">\s*\{t\("common\.refresh"\)\}\s*<\/span>/,
   );
 });
 

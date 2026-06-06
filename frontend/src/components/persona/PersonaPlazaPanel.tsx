@@ -110,6 +110,8 @@ export function PersonaPlazaPanel() {
               <button
                 ref={scopeBtnRef}
                 type="button"
+                aria-haspopup="menu"
+                aria-expanded={isScopeOpen}
                 onClick={() => {
                   setIsScopeOpen((prev) => !prev);
                   setIsFilterOpen(false);
@@ -143,6 +145,8 @@ export function PersonaPlazaPanel() {
                 <button
                   ref={tagBtnRef}
                   type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={isFilterOpen}
                   onClick={() => {
                     setIsFilterOpen((prev) => !prev);
                     setIsScopeOpen(false);

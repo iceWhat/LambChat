@@ -38,13 +38,16 @@ export function MemoryFilter({
   const hasFilter = typeValue || sourceValue;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0" data-filter-menu>
       <button
-        onClick={() => setOpen(!open)}
-        className="panel-search h-10 !pl-3 !pr-3 inline-flex items-center gap-1.5 font-sans cursor-pointer text-sm text-[var(--theme-text)]"
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        className="btn-secondary panel-filter-trigger h-10 px-3"
       >
-        <Filter size={14} className="text-[var(--theme-text-secondary)]" />
-        <span>
+        <Filter size={16} />
+        <span className="hidden sm:inline panel-filter-trigger__label">
           {hasFilter
             ? [
                 activeType && t(activeType.labelKey),
@@ -55,7 +58,7 @@ export function MemoryFilter({
             : t("memory.allTypes")}
         </span>
         <ChevronDown
-          size={14}
+          size={16}
           className={`text-[var(--theme-text-secondary)] transition-transform ${
             open ? "rotate-180" : ""
           }`}
@@ -63,7 +66,10 @@ export function MemoryFilter({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] py-2 shadow-xl dark:shadow-black/40 animate-in fade-in-0 zoom-in-95 duration-100">
+        <div
+          className="panel-filter-menu absolute right-0 top-[calc(100%+0.375rem)] z-20 w-44 rounded-xl border py-2 animate-in fade-in-0 zoom-in-95 duration-100"
+          role="menu"
+        >
           <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--theme-text-secondary)]">
             {t("memory.typeLabel")}
           </div>
@@ -72,6 +78,8 @@ export function MemoryFilter({
             return (
               <button
                 key={opt.value}
+                type="button"
+                aria-pressed={typeValue === opt.value}
                 onClick={() => typeOnChange(opt.value)}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
                   typeValue === opt.value
@@ -99,6 +107,8 @@ export function MemoryFilter({
             return (
               <button
                 key={opt.value}
+                type="button"
+                aria-pressed={sourceValue === opt.value}
                 onClick={() => sourceOnChange(opt.value)}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
                   sourceValue === opt.value

@@ -470,6 +470,8 @@ export function TeamBuilderWrapper() {
               <button
                 ref={scopeBtnRef}
                 type="button"
+                aria-haspopup="menu"
+                aria-expanded={isScopeOpen}
                 onClick={() => {
                   setIsScopeOpen((prev) => !prev);
                   setIsFilterOpen(false);
@@ -497,6 +499,8 @@ export function TeamBuilderWrapper() {
                 <button
                   ref={tagBtnRef}
                   type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={isFilterOpen}
                   onClick={() => {
                     setIsFilterOpen((prev) => !prev);
                     setIsScopeOpen(false);

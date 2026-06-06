@@ -253,15 +253,19 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
     <div className="relative shrink-0" data-filter-menu>
       <button
         type="button"
+        aria-haspopup="menu"
+        aria-expanded={isFilterOpen}
         onClick={() => setIsFilterOpen((prev) => !prev)}
-        className={`btn-secondary h-10 px-3 ${
+        className={`btn-secondary panel-filter-trigger h-10 px-3 ${
           selectedTags.length > 0
             ? "border-[var(--theme-primary)] text-[var(--theme-text)]"
             : ""
         }`}
       >
         <Tag size={16} />
-        <span className="hidden sm:inline">{t("adminMarketplace.tags")}</span>
+        <span className="hidden sm:inline panel-filter-trigger__label">
+          {t("adminMarketplace.tags")}
+        </span>
         {selectedTags.length > 0 && (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--theme-primary-light)] px-1 text-[11px]">
             {selectedTags.length}
@@ -273,7 +277,10 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
         />
       </button>
       {isFilterOpen && (
-        <div className="skill-filter-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border  p-3 shadow-lg">
+        <div
+          className="skill-filter-dropdown panel-filter-menu absolute right-0 top-[calc(100%+0.5rem)] z-20 w-72 rounded-2xl border  p-3 shadow-lg"
+          role="menu"
+        >
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--theme-text-secondary)]">
               {t("adminMarketplace.tags")}
@@ -293,6 +300,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
               <button
                 key={tag}
                 type="button"
+                aria-pressed={selectedTags.includes(tag)}
                 onClick={() => toggleTag(tag)}
                 className={`skill-tag-chip ${
                   selectedTags.includes(tag) ? "skill-tag-chip--active" : ""
@@ -323,6 +331,7 @@ export function MarketplacePanel({ embedded = false }: MarketplacePanelProps) {
         title={t("common.refresh")}
       >
         <RotateCw size={16} />
+        <span className="hidden sm:inline">{t("common.refresh")}</span>
       </button>
     </>
   );

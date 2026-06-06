@@ -86,10 +86,15 @@ export function PanelHeader({
     if (!isMobileMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
       if (
-        mobileMenuRef.current &&
-        !mobileMenuRef.current.contains(event.target as Node)
+        target instanceof Element &&
+        target.closest("[data-panel-header-dropdown]")
       ) {
+        return;
+      }
+
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(target)) {
         setIsMobileMenuOpen(false);
       }
     };
