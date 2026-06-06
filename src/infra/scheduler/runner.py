@@ -12,9 +12,11 @@ import uuid
 from typing import Any, Optional
 
 from src.infra.logging import get_logger
+from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.locks import acquire_task_lock, release_task_lock
 from src.infra.scheduler.runtime import get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
+from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
@@ -23,11 +25,33 @@ from src.kernel.schemas.scheduled_task import (
     TaskRunRecord,
     TriggerType,
 )
+from src.kernel.schemas.user import TokenPayload
 
 logger = get_logger(__name__)
 
 _POLL_INTERVAL = 2  # seconds between status checks when waiting for completion
 _DEFAULT_TIMEOUT = 600  # 10 minutes
+
+
+async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
+    user = await UserStorage().get_by_id(user_id)
+    if not user:
+        return None
+
+    roles = await RoleStorage().get_by_names(user.roles or [])
+    permissions: set[str] = set()
+    for role in roles:
+        for permission in role.permissions:
+            permissions.add(
+                permission if isinstance(permission, str) else permission.value
+            )
+
+    return TokenPayload(
+        sub=user.id,
+        username=user.username,
+        roles=[r.name for r in roles],
+        permissions=sorted(permissions),
+    )
 
 
 class ScheduledTaskRunner:
@@ -161,6 +185,16 @@ class ScheduledTaskRunner:
         # but scheduled tasks have no user interaction to provide one — we must
         # supply it explicitly.
         message = f"[Current time: {utc_now_iso()}]\n\n{message}"
+        agent_options = task.input_payload.get("agent_options")
+        if isinstance(agent_options, dict):
+            from src.api.routes.chat import validate_agent_model_access
+
+            user = await _resolve_task_owner(task.owner_id)
+            if user is None:
+                raise RuntimeError(f"Scheduled task owner '{task.owner_id}' not found")
+            await validate_agent_model_access(agent_options, user)
+        else:
+            agent_options = None
 
         _, trace_id = await task_manager.submit(
             session_id=session_id,
@@ -170,7 +204,7 @@ class ScheduledTaskRunner:
             executor=executor_fn,
             run_id=run_id,
             disabled_tools=task.input_payload.get("disabled_tools"),
-            agent_options=task.input_payload.get("agent_options"),
+            agent_options=agent_options,
             project_id=None,
             session_name=f"[Scheduled] {task.name}",
             write_user_message_immediately=True,

@@ -32,6 +32,7 @@ import { scheduledTaskApi } from "../../services/api/scheduledTask";
 import { sessionApi } from "../../services/api/session";
 import { agentApi } from "../../services/api/agent";
 import { useAuth } from "../../hooks/useAuth";
+import { useSettingsContext } from "../../contexts/SettingsContext";
 import { Permission } from "../../types";
 import type {
   ScheduledTask,
@@ -43,6 +44,7 @@ import type {
   ScheduledTaskStatus as ScheduledTaskStatusType,
 } from "../../types/scheduledTask";
 import type { AgentInfo } from "../../types/agent";
+import type { AvailableModel } from "../../contexts/SettingsContext";
 import type { SSEEventRecord } from "../../types/session";
 import { formatDateTimeShort } from "../../utils/datetime";
 import {
@@ -57,6 +59,48 @@ interface RunConversationMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+}
+
+const SCHEDULED_TASK_DEFAULTS_KEY = "lambchat_scheduled_task_defaults";
+
+interface ScheduledTaskDefaults {
+  agentId?: string;
+  modelId?: string;
+  modelValue?: string;
+}
+
+function readScheduledTaskDefaults(): ScheduledTaskDefaults {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SCHEDULED_TASK_DEFAULTS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as ScheduledTaskDefaults;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function getAgentOptionsFromPayload(
+  payload: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const options = payload?.agent_options;
+  return options && typeof options === "object" && !Array.isArray(options)
+    ? (options as Record<string, unknown>)
+    : {};
+}
+
+function withoutModelOptions(
+  options: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...options };
+  delete next.model_id;
+  delete next.model;
+  delete next._resolved_model_config;
+  delete next._resolved_supports_vision;
+  delete next._resolved_fallback_model;
+  delete next._resolved_model_profile;
+  return next;
 }
 
 function extractRunConversationMessages(
@@ -517,20 +561,41 @@ function DeleteConfirmModal({
 function TaskFormModal({
   task,
   agents,
+  availableModels,
+  defaultAgentId,
+  defaultModelId,
+  defaultModelValue,
   onSave,
   onClose,
 }: {
   task: ScheduledTask | null;
   agents: AgentInfo[];
+  availableModels: AvailableModel[] | null;
+  defaultAgentId?: string;
+  defaultModelId?: string;
+  defaultModelValue?: string;
   onSave: (data: ScheduledTaskCreate) => Promise<void>;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const isEdit = !!task;
+  const taskAgentOptions = getAgentOptionsFromPayload(task?.input_payload);
+  const initialModelId =
+    (typeof taskAgentOptions.model_id === "string"
+      ? taskAgentOptions.model_id
+      : "") ||
+    defaultModelId ||
+    "";
+  const initialModelValue =
+    (typeof taskAgentOptions.model === "string" ? taskAgentOptions.model : "") ||
+    defaultModelValue ||
+    "";
 
   const [name, setName] = useState(task?.name ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
-  const [agentId, setAgentId] = useState(task?.agent_id ?? "");
+  const [agentId, setAgentId] = useState(task?.agent_id ?? defaultAgentId ?? "");
+  const [modelId, setModelId] = useState(initialModelId);
+  const [modelValue, setModelValue] = useState(initialModelValue);
   const [triggerType, setTriggerType] = useState<TriggerType>(
     task?.trigger_type ?? "interval",
   );
@@ -638,12 +703,26 @@ function TaskFormModal({
 
     setIsSaving(true);
     try {
+      const selectedModel = availableModels?.find((m) => m.id === modelId);
+      const nextAgentOptions = {
+        ...withoutModelOptions(getAgentOptionsFromPayload(payload)),
+        ...(modelId ? { model_id: modelId } : {}),
+        ...(selectedModel?.value || modelValue
+          ? { model: selectedModel?.value || modelValue }
+          : {}),
+      };
+      const nextPayload = {
+        ...payload,
+        ...(Object.keys(nextAgentOptions).length > 0
+          ? { agent_options: nextAgentOptions }
+          : {}),
+      };
       await onSave({
         name: name.trim(),
         agent_id: agentId,
         trigger_type: triggerType,
         trigger_config: triggerConfig,
-        input_payload: payload,
+        input_payload: nextPayload,
         description: description.trim() || null,
         enabled,
         run_on_start: triggerType === "date" ? false : runOnStart,
@@ -726,6 +805,32 @@ function TaskFormModal({
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Model selector */}
+            <div>
+              <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
+                {t("scheduledTask.model")}
+              </label>
+              <select
+                value={modelId}
+                onChange={(e) => {
+                  const nextModel = availableModels?.find(
+                    (model) => model.id === e.target.value,
+                  );
+                  setModelId(e.target.value);
+                  setModelValue(nextModel?.value || "");
+                }}
+                className={inputClass}
+                disabled={!availableModels || availableModels.length === 0}
+              >
+                <option value="">{t("scheduledTask.modelPlaceholder")}</option>
+                {(availableModels || []).map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.label || model.value}
                   </option>
                 ))}
               </select>
@@ -1362,9 +1467,22 @@ function TaskSessionList({
 
 // ── Main Panel ──────────────────────────────────────
 
-export function ScheduledTaskPanel() {
+export function ScheduledTaskPanel({
+  agents: providedAgents,
+  currentAgent,
+  availableModels: providedAvailableModels,
+  currentModelId,
+  currentModelValue,
+}: {
+  agents?: AgentInfo[];
+  currentAgent?: string;
+  availableModels?: AvailableModel[] | null;
+  currentModelId?: string;
+  currentModelValue?: string;
+} = {}) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
+  const { availableModels: settingsAvailableModels } = useSettingsContext();
   const canWrite = hasPermission(Permission.SCHEDULED_TASK_WRITE);
   const canDelete = hasPermission(Permission.SCHEDULED_TASK_DELETE);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1382,7 +1500,18 @@ export function ScheduledTaskPanel() {
   const [runHistoryTask, setRunHistoryTask] = useState<ScheduledTask | null>(
     null,
   );
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agents, setAgents] = useState<AgentInfo[]>(providedAgents || []);
+  const [apiDefaultAgentId, setApiDefaultAgentId] = useState("");
+  const defaults = readScheduledTaskDefaults();
+  const effectiveAvailableModels =
+    providedAvailableModels ?? settingsAvailableModels ?? null;
+  const fallbackDefaultModel = effectiveAvailableModels?.[0] || null;
+  const effectiveDefaultAgentId =
+    currentAgent || defaults.agentId || apiDefaultAgentId || "";
+  const effectiveDefaultModelId =
+    currentModelId || defaults.modelId || fallbackDefaultModel?.id || "";
+  const effectiveDefaultModelValue =
+    currentModelValue || defaults.modelValue || fallbackDefaultModel?.value || "";
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskName, setSelectedTaskName] = useState<string>("");
   const taskIdFromQuery = searchParams.get("taskId");
@@ -1390,11 +1519,18 @@ export function ScheduledTaskPanel() {
 
   // Fetch agents once for the form selector
   useEffect(() => {
+    if (providedAgents) {
+      setAgents(providedAgents);
+      return;
+    }
     agentApi
       .list()
-      .then((res) => setAgents(res.agents))
+      .then((res) => {
+        setAgents(res.agents);
+        setApiDefaultAgentId(res.default_agent || "");
+      })
       .catch(() => {});
-  }, []);
+  }, [providedAgents]);
 
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
@@ -1464,6 +1600,7 @@ export function ScheduledTaskPanel() {
     try {
       const updateData: ScheduledTaskUpdate = {};
       if (data.name !== editingTask.name) updateData.name = data.name;
+      if (data.agent_id !== editingTask.agent_id) updateData.agent_id = data.agent_id;
       if (JSON.stringify(data.trigger_config) !== JSON.stringify(editingTask.trigger_config))
         updateData.trigger_config = data.trigger_config;
       if (JSON.stringify(data.input_payload) !== JSON.stringify(editingTask.input_payload))
@@ -1584,6 +1721,17 @@ export function ScheduledTaskPanel() {
     return `${t("scheduledTask.cron")}: ${parts.join(" ")}`;
   };
 
+  const formatTaskModel = (task: ScheduledTask): string | null => {
+    const options = getAgentOptionsFromPayload(task.input_payload);
+    const modelId = typeof options.model_id === "string" ? options.model_id : "";
+    const modelValue = typeof options.model === "string" ? options.model : "";
+    if (!modelId && !modelValue) return null;
+    const model = effectiveAvailableModels?.find(
+      (item) => item.id === modelId || item.value === modelValue,
+    );
+    return model?.label || modelValue || modelId;
+  };
+
   return (
     <div className="glass-shell flex h-full flex-col min-h-0">
       {selectedTaskId ? (
@@ -1667,6 +1815,7 @@ export function ScheduledTaskPanel() {
               const agentName =
                 agents.find((a) => a.id === task.agent_id)?.name ??
                 task.agent_id;
+              const modelName = formatTaskModel(task);
 
               return (
                 <div
@@ -1699,6 +1848,7 @@ export function ScheduledTaskPanel() {
                           {formatTriggerInfo(task)}
                         </span>
                         <span>{agentName}</span>
+                        {modelName && <span>{modelName}</span>}
                         {task.total_runs > 0 && (
                           <span>
                             {t("scheduledTask.totalRuns")}: {task.total_runs}
@@ -1808,6 +1958,10 @@ export function ScheduledTaskPanel() {
         <TaskFormModal
           task={null}
           agents={agents}
+          availableModels={effectiveAvailableModels}
+          defaultAgentId={effectiveDefaultAgentId}
+          defaultModelId={effectiveDefaultModelId}
+          defaultModelValue={effectiveDefaultModelValue}
           onSave={handleCreate}
           onClose={() => setIsCreating(false)}
         />
@@ -1818,6 +1972,10 @@ export function ScheduledTaskPanel() {
         <TaskFormModal
           task={editingTask}
           agents={agents}
+          availableModels={effectiveAvailableModels}
+          defaultAgentId={effectiveDefaultAgentId}
+          defaultModelId={effectiveDefaultModelId}
+          defaultModelValue={effectiveDefaultModelValue}
           onSave={handleUpdate}
           onClose={() => setEditingTask(null)}
         />

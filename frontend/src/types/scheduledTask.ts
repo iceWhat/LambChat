@@ -79,6 +79,7 @@ export interface ScheduledTaskCreate {
 // Update request
 export interface ScheduledTaskUpdate {
   name?: string;
+  agent_id?: string;
   trigger_config?: Record<string, unknown>;
   input_payload?: Record<string, unknown>;
   description?: string | null;

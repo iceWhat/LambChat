@@ -1544,6 +1544,8 @@
     "invalidJson": "JSON 格式无效",
     "lastRun": "上次运行",
     "maxRetries": "最大重试",
+    "model": "LLM 模型",
+    "modelPlaceholder": "使用当前/默认模型",
     "name": "任务名称",
     "namePlaceholder": "输入任务名称...",
     "nameRequired": "任务名称不能为空",

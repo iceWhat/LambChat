@@ -48,6 +48,20 @@ def _json(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
 
 
+def _strip_resolved_agent_options(options: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in options.items()
+        if key
+        not in {
+            "_resolved_model_config",
+            "_resolved_supports_vision",
+            "_resolved_fallback_model",
+            "_resolved_model_profile",
+        }
+    }
+
+
 async def _resolve_user(user_id: str) -> TokenPayload | None:
     """Resolve the latest roles and permissions for a user ID."""
     user = await UserStorage().get_by_id(user_id)
@@ -70,6 +84,35 @@ async def _resolve_user(user_id: str) -> TokenPayload | None:
         roles=[r.name for r in roles],
         permissions=sorted(permissions),
     )
+
+
+async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any]]:
+    """Return agent/model defaults from the conversation that invoked the tool."""
+    from src.infra.logging.context import TraceContext
+    from src.infra.session.manager import SessionManager
+
+    ctx = TraceContext.get_request_context()
+    if not ctx.session_id:
+        return None, {}
+
+    try:
+        session = await SessionManager().get_session(ctx.session_id)
+    except Exception as e:
+        logger.warning("[ScheduledTask] Failed to load source session defaults: %s", e)
+        return None, {}
+
+    metadata = session.metadata if session else {}
+    if not isinstance(metadata, dict):
+        return None, {}
+
+    agent_id = metadata.get("agent_id")
+    raw_options = metadata.get("agent_options")
+    agent_options = (
+        _strip_resolved_agent_options(dict(raw_options))
+        if isinstance(raw_options, dict)
+        else {}
+    )
+    return agent_id if isinstance(agent_id, str) and agent_id else None, agent_options
 
 
 async def _permission_error(
@@ -153,7 +196,7 @@ def _format_approval_message(preview: dict[str, Any]) -> str:
         f"**Schedule:** {preview['schedule']}\n\n"
         f"**Immediate run after creation:** {immediate}\n\n"
         f"**Timeout:** {preview['timeout_seconds']} seconds\n\n"
-        "**Execution effect:**\n\n"
+        "**What this scheduled task will do:**\n\n"
         f"{preview['effect']}\n\n"
         "**Prompt sent on each run:**\n\n"
         f"```text\n{preview['message']}\n```"
@@ -297,9 +340,17 @@ async def scheduled_task_create(
         "Cron month pattern (1-12). Only used when trigger_type='cron'. Default: every month.",
     ] = None,
     agent_id: Annotated[
-        str,
-        "Agent ID to execute. Usually 'fast'.",
-    ] = "fast",
+        str | None,
+        "Agent ID to execute. If omitted, use the current conversation's agent.",
+    ] = None,
+    model_id: Annotated[
+        str | None,
+        "LLM model ID to use. If omitted, use the current conversation's model.",
+    ] = None,
+    model: Annotated[
+        str | None,
+        "LLM model value/name to use. Usually omit this unless model_id is unavailable.",
+    ] = None,
     description: Annotated[
         str | None,
         "Optional description of what this task does",
@@ -320,8 +371,9 @@ async def scheduled_task_create(
     Use trigger_type='interval' for periodic tasks (e.g. every 5 minutes),
     or trigger_type='cron' for calendar-based schedules (e.g. every weekday at 9 AM UTC).
     Each run creates a new session under the user's account.
-    Before creation, this tool shows the user a preview of the execution effect
-    and waits for explicit human confirmation."""
+    Before calling this tool, explain in the current conversation what the scheduled
+    task will do. This tool does not run the task once for preview; it only asks
+    for explicit human confirmation before creating the schedule."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
@@ -383,13 +435,21 @@ async def scheduled_task_create(
         if "minute" not in trigger_config:
             trigger_config["minute"] = "0"
 
+    session_agent_id, session_agent_options = await _get_current_session_defaults()
+    effective_agent_id = agent_id or session_agent_id or "fast"
+    effective_agent_options = dict(session_agent_options)
+    if model_id:
+        effective_agent_options["model_id"] = model_id
+    if model:
+        effective_agent_options["model"] = model
+
     effective_run_on_start = False if trigger_enum == TriggerType.DATE else run_on_start
     preview = _build_task_preview(
         name=name,
         message=message,
         trigger_type=trigger_enum,
         trigger_config=trigger_config,
-        agent_id=agent_id,
+        agent_id=effective_agent_id,
         description=description,
         timeout_seconds=timeout_seconds,
         run_on_start=effective_run_on_start,
@@ -415,10 +475,17 @@ async def scheduled_task_create(
         task = await service.create_task(
             request=ScheduledTaskCreate(
                 name=name,
-                agent_id=agent_id,
+                agent_id=effective_agent_id,
                 trigger_type=trigger_enum,
                 trigger_config=trigger_config,
-                input_payload={"message": message},
+                input_payload={
+                    "message": message,
+                    **(
+                        {"agent_options": effective_agent_options}
+                        if effective_agent_options
+                        else {}
+                    ),
+                },
                 description=description,
                 timeout_seconds=timeout_seconds,
                 run_on_start=effective_run_on_start,

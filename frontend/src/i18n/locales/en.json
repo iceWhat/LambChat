@@ -1544,6 +1544,8 @@
     "invalidJson": "Invalid JSON format",
     "lastRun": "Last Run",
     "maxRetries": "Max Retries",
+    "model": "LLM Model",
+    "modelPlaceholder": "Use current/default model",
     "name": "Task Name",
     "namePlaceholder": "Enter task name...",
     "nameRequired": "Task name is required",
