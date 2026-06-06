@@ -23,13 +23,11 @@ from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
     DateTriggerConfig,
     IntervalTriggerConfig,
-    RunStatus,
     ScheduledTask,
     ScheduledTaskCreate,
     ScheduledTaskResponse,
     ScheduledTaskStatus,
     ScheduledTaskUpdate,
-    TaskRunListResponse,
     TaskRunResponse,
     TriggerType,
 )
@@ -54,7 +52,7 @@ class ScheduledTaskService:
         now = utc_now()
         task_id = str(uuid4())
         task = ScheduledTask(
-            _id=task_id,
+            id=task_id,
             name=request.name,
             description=request.description,
             agent_id=request.agent_id,
@@ -286,14 +284,16 @@ class ScheduledTaskService:
         """Register a persisted task with the in-process APScheduler."""
         trigger = self._build_trigger(task.trigger_type, task.trigger_config)
         runner = get_scheduled_task_runner()
+        task_id = task.id
+        trigger_type_value = task.trigger_type.value
 
         # Capture task.id via default arg to avoid late-binding issues
         job = ScheduledJob(
-            id=task.id,
+            id=task_id,
             name=task.name,
             trigger=trigger,
-            handler=lambda tid=task.id: runner.run(
-                tid, trigger_type=task.trigger_type.value
+            handler=lambda: runner.run(
+                task_id, trigger_type=trigger_type_value
             ),
             enabled=task.enabled,
             run_on_start=task.run_on_start,
@@ -308,24 +308,24 @@ class ScheduledTaskService:
     ) -> BaseTrigger:
         """Build an APScheduler trigger from the stored config dict."""
         if trigger_type == TriggerType.INTERVAL:
-            cfg = IntervalTriggerConfig(**config)
-            return IntervalTrigger(seconds=cfg.seconds)
+            interval_cfg = IntervalTriggerConfig(**config)
+            return IntervalTrigger(seconds=interval_cfg.seconds)
         if trigger_type == TriggerType.CRON:
-            cfg = CronTriggerConfig(**config)
+            cron_cfg = CronTriggerConfig(**config)
             return CronTrigger(
-                year=cfg.year,
-                month=cfg.month,
-                day=cfg.day,
-                week=cfg.week,
-                day_of_week=cfg.day_of_week,
-                hour=cfg.hour,
-                minute=cfg.minute,
-                second=cfg.second,
+                year=cron_cfg.year,
+                month=cron_cfg.month,
+                day=cron_cfg.day,
+                week=cron_cfg.week,
+                day_of_week=cron_cfg.day_of_week,
+                hour=cron_cfg.hour,
+                minute=cron_cfg.minute,
+                second=cron_cfg.second,
                 timezone="UTC",
             )
         if trigger_type == TriggerType.DATE:
-            cfg = DateTriggerConfig(**config)
-            return DateTrigger(run_date=ensure_utc(cfg.run_date), timezone="UTC")
+            date_cfg = DateTriggerConfig(**config)
+            return DateTrigger(run_date=ensure_utc(date_cfg.run_date), timezone="UTC")
         raise ValueError(f"Unsupported trigger type: {trigger_type}")
 
     @staticmethod

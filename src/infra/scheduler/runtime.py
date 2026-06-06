@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeAlias
 
 from apscheduler.jobstores.base import JobLookupError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 IntervalValue = int | Callable[[], int]
 EnabledValue = bool | Callable[[], bool]
 JobHandler = Callable[[], Awaitable[Any]]
-TriggerValue = BaseTrigger | Callable[[], BaseTrigger]
+TriggerValue: TypeAlias = BaseTrigger | Callable[[], BaseTrigger]
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,10 +202,10 @@ class RuntimeScheduler:
     @staticmethod
     def _resolve_interval_seconds(job: ScheduledJob) -> int:
         """Legacy helper: resolve interval from an IntervalTrigger-based job."""
-        from apscheduler.triggers.interval import IntervalTrigger as IT
+        from apscheduler.triggers.interval import IntervalTrigger
 
-        trigger = job.trigger() if callable(job.trigger) else job.trigger
-        if isinstance(trigger, IT):
+        trigger = RuntimeScheduler._resolve_trigger(job)
+        if isinstance(trigger, IntervalTrigger):
             return max(1, int(trigger.interval_length))
         return 0
 

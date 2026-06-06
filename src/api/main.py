@@ -36,6 +36,7 @@ from src.api.routes import (
     project,
     revealed_file,
     role,
+    scheduled_task,
     session,
     share,
     skill,
@@ -45,7 +46,6 @@ from src.api.routes import (
     version,
     websocket,
 )
-from src.api.routes import scheduled_task
 from src.api.routes import settings as settings_router
 from src.api.routes.agent import config as agent_config
 from src.api.routes.agent import model as agent_model

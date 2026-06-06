@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from collections.abc import Awaitable
+from typing import Any, Optional, cast
 
 from src.infra.logging import get_logger
 from src.infra.storage.redis import get_redis_client
@@ -62,7 +63,7 @@ async def release_task_lock(task_id: str, token: str) -> None:
     """Release the execution lock (only if *token* matches the current holder)."""
     redis = get_redis_client()
     lock_key = f"{_LOCK_PREFIX}{task_id}"
-    await redis.eval(_RELEASE_LOCK_LUA, 1, lock_key, token)
+    await cast(Awaitable[Any], redis.eval(_RELEASE_LOCK_LUA, 1, lock_key, token))
     logger.debug("[SchedulerLock] released lock for task=%s", task_id)
 
 
@@ -75,5 +76,8 @@ async def extend_task_lock(
     """
     redis = get_redis_client()
     lock_key = f"{_LOCK_PREFIX}{task_id}"
-    result = await redis.eval(_EXTEND_LOCK_LUA, 1, lock_key, token, str(extra_seconds))
+    result = await cast(
+        Awaitable[Any],
+        redis.eval(_EXTEND_LOCK_LUA, 1, lock_key, token, str(extra_seconds)),
+    )
     return bool(result)

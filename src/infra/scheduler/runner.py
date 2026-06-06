@@ -96,7 +96,7 @@ class ScheduledTaskRunner:
         now = utc_now()
         base_session_id = self._build_session_id(task_id, run_id)
         record = TaskRunRecord(
-            _id=run_id,
+            id=run_id,
             task_id=task_id,
             agent_id=task.agent_id,
             trigger_type=trigger_type,
@@ -307,12 +307,17 @@ class ScheduledTaskRunner:
         timeout_seconds: int = _DEFAULT_TIMEOUT,
     ) -> dict:
         """Poll task status until completion or timeout."""
-        from src.infra.task.status import TaskStatus as TS
+        from src.infra.task.status import TaskStatus
 
         start = time.monotonic()
         while time.monotonic() - start < timeout_seconds:
             status = await task_manager.get_run_status(session_id, run_id)
-            if status in (TS.COMPLETED, TS.FAILED, TS.CANCELLED, TS.EXPIRED):
+            if status in (
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
+                TaskStatus.EXPIRED,
+            ):
                 return {
                     "session_status": (
                         status.value if hasattr(status, "value") else str(status)

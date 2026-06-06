@@ -387,6 +387,7 @@ async def scheduled_task_create(
     except ValueError:
         return _json({"error": f"Invalid trigger_type '{trigger_type}'. Use 'date', 'interval', or 'cron'."})
 
+    trigger_config: dict[str, Any]
     if trigger_enum == TriggerType.DATE:
         if delay_seconds is None and run_at_iso is None:
             return _json(
@@ -418,7 +419,7 @@ async def scheduled_task_create(
         trigger_config = {"seconds": interval_seconds}
     else:
         # Cron trigger — at least one cron field should be provided
-        trigger_config: dict[str, Any] = {}
+        trigger_config = {}
         if cron_hour is not None:
             trigger_config["hour"] = cron_hour
         if cron_minute is not None:

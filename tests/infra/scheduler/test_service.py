@@ -10,7 +10,6 @@ import pytest
 
 from src.infra.scheduler.service import ScheduledTaskService
 from src.kernel.schemas.scheduled_task import (
-    RunStatus,
     ScheduledTask,
     ScheduledTaskCreate,
     ScheduledTaskStatus,

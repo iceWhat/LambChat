@@ -35,6 +35,23 @@ class _FakeWebSocketManager(_FakeAsyncService):
         self.stop_calls += 1
 
 
+class _FakeScheduledTaskStorage:
+    def __init__(self) -> None:
+        self.ensure_indexes_calls = 0
+
+    async def ensure_indexes(self) -> None:
+        self.ensure_indexes_calls += 1
+
+
+class _FakeScheduledTaskService:
+    def __init__(self) -> None:
+        self.load_calls = 0
+
+    async def load_persisted_tasks(self) -> int:
+        self.load_calls += 1
+        return 0
+
+
 @pytest.mark.asyncio
 async def test_start_runtime_services_starts_all_distributed_listeners(
     monkeypatch: pytest.MonkeyPatch,
@@ -51,6 +68,8 @@ async def test_start_runtime_services_starts_all_distributed_listeners(
     scheduler = SimpleNamespace(start_calls=0)
     arq_runtime = SimpleNamespace(start_calls=0)
     lag_monitor = SimpleNamespace(start_calls=0)
+    scheduled_task_storage = _FakeScheduledTaskStorage()
+    scheduled_task_service = _FakeScheduledTaskService()
 
     async def _start_arq_runtime() -> None:
         arq_runtime.start_calls += 1
@@ -96,6 +115,18 @@ async def test_start_runtime_services_starts_all_distributed_listeners(
         ),
         raising=False,
     )
+    monkeypatch.setattr(
+        runtime_services,
+        "get_scheduled_task_storage",
+        lambda: scheduled_task_storage,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "ScheduledTaskService",
+        lambda: scheduled_task_service,
+        raising=False,
+    )
 
     await runtime_services.start_runtime_services()
 
@@ -110,6 +141,8 @@ async def test_start_runtime_services_starts_all_distributed_listeners(
     assert tool_cache_pubsub.start_calls == 1
     assert mcp_cache_pubsub.start_calls == 1
     assert memory_compaction.start_calls == 1
+    assert scheduled_task_storage.ensure_indexes_calls == 1
+    assert scheduled_task_service.load_calls == 1
     assert scheduler.start_calls == 1
 
 
@@ -125,6 +158,8 @@ async def test_start_runtime_services_skips_memory_pubsub_when_memory_disabled(
     channel_pubsub = _FakeAsyncService()
     tool_cache_pubsub = _FakeAsyncService()
     mcp_cache_pubsub = _FakeAsyncService()
+    scheduled_task_storage = _FakeScheduledTaskStorage()
+    scheduled_task_service = _FakeScheduledTaskService()
 
     async def _noop() -> None:
         return None
@@ -163,6 +198,18 @@ async def test_start_runtime_services_skips_memory_pubsub_when_memory_disabled(
         lambda: SimpleNamespace(start=lambda: None),
         raising=False,
     )
+    monkeypatch.setattr(
+        runtime_services,
+        "get_scheduled_task_storage",
+        lambda: scheduled_task_storage,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "ScheduledTaskService",
+        lambda: scheduled_task_service,
+        raising=False,
+    )
 
     await runtime_services.start_runtime_services()
 
@@ -170,6 +217,8 @@ async def test_start_runtime_services_skips_memory_pubsub_when_memory_disabled(
     assert model_config_pubsub.start_calls == 1
     assert memory_pubsub.start_calls == 0
     assert websocket_manager.start_calls == 1
+    assert scheduled_task_storage.ensure_indexes_calls == 1
+    assert scheduled_task_service.load_calls == 1
 
 
 @pytest.mark.asyncio

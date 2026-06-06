@@ -13,7 +13,6 @@ from src.kernel.schemas.scheduled_task import (
     ScheduledTaskStatus,
     ScheduledTaskUpdate,
     TaskRunListResponse,
-    TaskRunResponse,
     TaskSessionListResponse,
     TaskSessionResponse,
 )
