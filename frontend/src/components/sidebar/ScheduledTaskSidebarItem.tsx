@@ -242,11 +242,13 @@ export const ScheduledTaskSidebarItem = forwardRef<
         }`}
         title={task.name}
       >
-        <span
-          className={`h-2 w-2 shrink-0 rounded-full ${
-            task.status === "active" ? "bg-emerald-500" : "bg-stone-400"
-          }`}
-        />
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+          <span
+            className={`h-2 w-2 rounded-full ${
+              task.status === "active" ? "bg-emerald-500" : "bg-stone-400"
+            }`}
+          />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] text-stone-600 transition-colors group-hover:text-stone-700 dark:text-stone-400 dark:group-hover:text-stone-300">
             {task.name}
