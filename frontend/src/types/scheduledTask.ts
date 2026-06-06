@@ -80,6 +80,7 @@ export interface ScheduledTaskCreate {
 export interface ScheduledTaskUpdate {
   name?: string;
   agent_id?: string;
+  trigger_type?: TriggerType;
   trigger_config?: Record<string, unknown>;
   input_payload?: Record<string, unknown>;
   description?: string | null;

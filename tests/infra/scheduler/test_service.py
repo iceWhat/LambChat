@@ -214,6 +214,64 @@ async def test_update_task_refreshes_scheduler(
 
 
 @pytest.mark.asyncio
+async def test_update_task_can_change_trigger_type(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    original = _make_task(
+        trigger_type=TriggerType.INTERVAL,
+        trigger_config={"seconds": 300},
+    )
+    updated = _make_task(
+        trigger_type=TriggerType.DATE,
+        trigger_config={"run_date": "2026-01-01T12:05:00+00:00"},
+        run_on_start=False,
+    )
+    mock_storage.get_task = AsyncMock(side_effect=[original, updated])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    request = ScheduledTaskUpdate(
+        trigger_type=TriggerType.DATE,
+        trigger_config={"run_date": "2026-01-01T12:05:00+00:00"},
+        run_on_start=True,
+    )
+    result = await service.update_task("task_1", request)
+
+    mock_storage.update_task.assert_called_once_with(
+        "task_1",
+        {
+            "trigger_type": TriggerType.DATE,
+            "trigger_config": {"run_date": "2026-01-01T12:05:00+00:00"},
+            "run_on_start": False,
+        },
+    )
+    mock_scheduler.register_job.assert_called_once()
+    assert result == updated
+
+
+@pytest.mark.asyncio
+async def test_update_task_can_clear_description(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    original = _make_task(description="old")
+    updated = _make_task(description=None)
+    mock_storage.get_task = AsyncMock(side_effect=[original, updated])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    result = await service.update_task("task_1", ScheduledTaskUpdate(description=None))
+
+    mock_storage.update_task.assert_called_once_with(
+        "task_1",
+        {"description": None},
+    )
+    mock_scheduler.register_job.assert_called_once()
+    assert result == updated
+
+
+@pytest.mark.asyncio
 async def test_to_response() -> None:
     task = _make_task()
     response = ScheduledTaskService.to_response(task)

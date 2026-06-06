@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from src.infra.logging import get_logger
@@ -31,6 +32,13 @@ logger = get_logger(__name__)
 
 _POLL_INTERVAL = 2  # seconds between status checks when waiting for completion
 _DEFAULT_TIMEOUT = 600  # 10 minutes
+
+
+@dataclass(frozen=True)
+class _AttemptResult:
+    status: RunStatus
+    result: dict[str, Any]
+    error_message: str | None = None
 
 
 async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
@@ -86,14 +94,14 @@ class ScheduledTaskRunner:
 
         # 2. Create execution record
         now = utc_now()
-        session_id = self._build_session_id(task_id, run_id)
+        base_session_id = self._build_session_id(task_id, run_id)
         record = TaskRunRecord(
             _id=run_id,
             task_id=task_id,
             agent_id=task.agent_id,
             trigger_type=trigger_type,
             status=RunStatus.PENDING,
-            session_id=session_id,
+            session_id=base_session_id,
             input_snapshot=task.input_payload,
             started_at=now,
             created_at=now,
@@ -102,30 +110,86 @@ class ScheduledTaskRunner:
 
         # 3. Execute
         try:
-            await storage.update_run(run_id, {"status": RunStatus.RUNNING})
-            result = await self._execute_agent(task, run_id, session_id)
+            max_attempts = max(1, int(task.max_retries or 0) + 1)
+            final_attempt: _AttemptResult | None = None
+            for attempt in range(max_attempts):
+                session_id = (
+                    base_session_id
+                    if attempt == 0
+                    else f"{base_session_id}_retry{attempt}"
+                )
+                await storage.update_run(
+                    run_id,
+                    {
+                        "status": RunStatus.RUNNING,
+                        "retry_count": attempt,
+                        "session_id": session_id,
+                    },
+                )
+                try:
+                    result = await self._execute_agent(task, run_id, session_id)
+                    final_attempt = self._classify_attempt_result(result)
+                except Exception as exc:
+                    final_attempt = _AttemptResult(
+                        status=RunStatus.FAILED,
+                        result={},
+                        error_message=str(exc),
+                    )
 
+                if final_attempt.status == RunStatus.SUCCESS:
+                    break
+                if final_attempt.status != RunStatus.FAILED:
+                    break
+                if attempt + 1 < max_attempts:
+                    logger.warning(
+                        "[Runner] task=%s run=%s attempt=%d failed status=%s, retrying",
+                        task_id,
+                        run_id,
+                        attempt,
+                        final_attempt.status.value,
+                    )
+
+            assert final_attempt is not None
             finished = utc_now()
             duration = int((finished - now).total_seconds() * 1000)
-            await storage.update_run(
-                run_id,
-                {
-                    "status": RunStatus.SUCCESS,
-                    "output_result": result,
-                    "session_id": session_id,
-                    "trace_id": result.get("trace_id"),
-                    "finished_at": finished,
-                    "duration_ms": duration,
-                },
-            )
-            await storage.update_task_run_stats(task_id, run_id, RunStatus.SUCCESS)
-            logger.info(
-                "[Runner] task=%s run=%s completed in %dms",
-                task_id,
-                run_id,
-                duration,
-            )
-            return {"run_id": run_id, "status": "success", "result": result}
+            update_payload: dict[str, Any] = {
+                "status": final_attempt.status,
+                "output_result": final_attempt.result,
+                "session_id": final_attempt.result.get("session_id", base_session_id),
+                "trace_id": final_attempt.result.get("trace_id"),
+                "error_message": final_attempt.error_message,
+                "finished_at": finished,
+                "duration_ms": duration,
+            }
+            await storage.update_run(run_id, update_payload)
+            await storage.update_task_run_stats(task_id, run_id, final_attempt.status)
+
+            if final_attempt.status == RunStatus.SUCCESS:
+                logger.info(
+                    "[Runner] task=%s run=%s completed in %dms",
+                    task_id,
+                    run_id,
+                    duration,
+                )
+            else:
+                logger.warning(
+                    "[Runner] task=%s run=%s finished status=%s after %dms: %s",
+                    task_id,
+                    run_id,
+                    final_attempt.status.value,
+                    duration,
+                    final_attempt.error_message,
+                )
+            return {
+                "run_id": run_id,
+                "status": final_attempt.status.value,
+                "result": final_attempt.result,
+                **(
+                    {"error": final_attempt.error_message}
+                    if final_attempt.error_message
+                    else {}
+                ),
+            }
 
         except Exception as exc:
             finished = utc_now()
@@ -147,7 +211,10 @@ class ScheduledTaskRunner:
 
         finally:
             await release_task_lock(task_id, lock_token)
-            if task.trigger_type == TriggerType.DATE and trigger_type == TriggerType.DATE.value:
+            if (
+                task.trigger_type == TriggerType.DATE
+                and trigger_type == TriggerType.DATE.value
+            ):
                 await storage.update_task(
                     task_id,
                     {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
@@ -160,7 +227,9 @@ class ScheduledTaskRunner:
     def _build_session_id(task_id: str, run_id: str) -> str:
         return f"sch_{task_id}_{run_id[:8]}"
 
-    async def _execute_agent(self, task: ScheduledTask, run_id: str, session_id: str) -> dict:
+    async def _execute_agent(
+        self, task: ScheduledTask, run_id: str, session_id: str
+    ) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session."""
         from src.infra.session.manager import SessionManager
         from src.infra.task.concurrency import get_registered_executor
@@ -220,7 +289,7 @@ class ScheduledTaskRunner:
         )
 
         result = await self._wait_for_completion(
-            task_manager, session_id, task.timeout_seconds
+            task_manager, session_id, run_id, task.owner_id, task.timeout_seconds
         )
         result["session_id"] = session_id
         result["trace_id"] = trace_id
@@ -230,6 +299,8 @@ class ScheduledTaskRunner:
         self,
         task_manager: Any,
         session_id: str,
+        run_id: str,
+        user_id: str,
         timeout_seconds: int = _DEFAULT_TIMEOUT,
     ) -> dict:
         """Poll task status until completion or timeout."""
@@ -237,12 +308,49 @@ class ScheduledTaskRunner:
 
         start = time.monotonic()
         while time.monotonic() - start < timeout_seconds:
-            status = await task_manager.get_status(session_id)
-            if status in (TS.COMPLETED, TS.FAILED, TS.CANCELLED):
-                return {"session_status": status.value if hasattr(status, "value") else str(status)}
+            status = await task_manager.get_run_status(session_id, run_id)
+            if status in (TS.COMPLETED, TS.FAILED, TS.CANCELLED, TS.EXPIRED):
+                return {
+                    "session_status": (
+                        status.value if hasattr(status, "value") else str(status)
+                    )
+                }
             await asyncio.sleep(_POLL_INTERVAL)
 
+        try:
+            await task_manager.cancel_run(run_id, user_id=user_id)
+        except Exception as exc:
+            logger.warning(
+                "[Runner] failed to cancel timed-out task run=%s session=%s: %s",
+                run_id,
+                session_id,
+                exc,
+            )
         return {"session_status": "timeout"}
+
+    @staticmethod
+    def _classify_attempt_result(result: dict[str, Any]) -> _AttemptResult:
+        """Map BackgroundTaskManager terminal state into scheduled-task status."""
+        session_status = str(result.get("session_status") or "").lower()
+        if session_status == "completed":
+            return _AttemptResult(status=RunStatus.SUCCESS, result=result)
+        if session_status == "timeout":
+            return _AttemptResult(
+                status=RunStatus.TIMEOUT,
+                result=result,
+                error_message="Scheduled task execution timed out",
+            )
+        if session_status in {"failed", "cancelled", "expired"}:
+            return _AttemptResult(
+                status=RunStatus.FAILED,
+                result=result,
+                error_message=f"Agent run ended with status: {session_status}",
+            )
+        return _AttemptResult(
+            status=RunStatus.FAILED,
+            result=result,
+            error_message=f"Unexpected agent run status: {session_status or 'unknown'}",
+        )
 
 
 # ── Singleton ──────────────────────────────────────

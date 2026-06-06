@@ -93,6 +93,7 @@ class ScheduledTaskUpdate(BaseModel):
 
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     agent_id: Optional[str] = Field(None, min_length=1)
+    trigger_type: Optional[TriggerType] = None
     trigger_config: Optional[dict] = None
     input_payload: Optional[dict] = None
     description: Optional[str] = Field(None, max_length=2000)

@@ -1601,6 +1601,8 @@ export function ScheduledTaskPanel({
       const updateData: ScheduledTaskUpdate = {};
       if (data.name !== editingTask.name) updateData.name = data.name;
       if (data.agent_id !== editingTask.agent_id) updateData.agent_id = data.agent_id;
+      if (data.trigger_type !== editingTask.trigger_type)
+        updateData.trigger_type = data.trigger_type;
       if (JSON.stringify(data.trigger_config) !== JSON.stringify(editingTask.trigger_config))
         updateData.trigger_config = data.trigger_config;
       if (JSON.stringify(data.input_payload) !== JSON.stringify(editingTask.input_payload))
@@ -1619,6 +1621,7 @@ export function ScheduledTaskPanel({
       toast.success(t("scheduledTask.updatedSuccess"));
       setEditingTask(null);
       fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.saveFailed");
@@ -1637,6 +1640,7 @@ export function ScheduledTaskPanel({
       toast.success(t("scheduledTask.deletedSuccess"));
       setDeleteTarget(null);
       fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.deleteFailed");
@@ -1653,6 +1657,7 @@ export function ScheduledTaskPanel({
       await scheduledTaskApi.pause(task.id);
       toast.success(t("scheduledTask.pausedSuccess"));
       fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.operationFailed");
@@ -1669,6 +1674,7 @@ export function ScheduledTaskPanel({
       await scheduledTaskApi.resume(task.id);
       toast.success(t("scheduledTask.resumedSuccess"));
       fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.operationFailed");
@@ -1684,6 +1690,8 @@ export function ScheduledTaskPanel({
     try {
       await scheduledTaskApi.runNow(task.id);
       toast.success(t("scheduledTask.triggeredSuccess"));
+      fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.operationFailed");

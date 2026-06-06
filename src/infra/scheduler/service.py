@@ -97,15 +97,16 @@ class ScheduledTaskService:
         if task is None:
             return None
 
-        updates: dict[str, Any] = {}
-        for field, value in request.model_dump(exclude_unset=True).items():
-            if value is not None:
-                updates[field] = value
+        updates: dict[str, Any] = request.model_dump(exclude_unset=True)
 
-        # Validate new trigger config if provided
-        if "trigger_config" in updates:
+        # Validate trigger changes as one atomic pair. This also supports changing
+        # trigger_type and trigger_config in a single update request.
+        if "trigger_type" in updates or "trigger_config" in updates:
             trigger_type = updates.get("trigger_type", task.trigger_type)
-            self._build_trigger(trigger_type, updates["trigger_config"])
+            trigger_config = updates.get("trigger_config", task.trigger_config)
+            self._build_trigger(trigger_type, trigger_config)
+            if trigger_type == TriggerType.DATE:
+                updates["run_on_start"] = False
 
         if not updates:
             return task
