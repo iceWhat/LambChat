@@ -42,6 +42,9 @@ import { isSessionFavorite } from "../../sidebar/sessionFavorites";
 import type { Project } from "../../../types";
 import type { ScheduledTask } from "../../../types/scheduledTask";
 import { isSidebarProject } from "./projectFilters";
+import {
+  subscribeScheduledTaskMutation,
+} from "../../../stores/scheduledTaskMutationStore";
 
 export interface SessionActions {
   onDeleteSession: (id: string) => void;
@@ -171,6 +174,15 @@ export function SessionListContent({
       setIsScheduledTasksLoading(false);
     }
   }, []);
+
+  // Re-fetch sidebar task list when a task is created/updated/deleted elsewhere
+  useEffect(() => {
+    return subscribeScheduledTaskMutation(() => {
+      if (canReadScheduledTasks && !isScheduledTasksCollapsed) {
+        void loadScheduledTasks();
+      }
+    });
+  }, [canReadScheduledTasks, isScheduledTasksCollapsed, loadScheduledTasks]);
 
   useEffect(() => {
     if (canReadScheduledTasks && !isScheduledTasksCollapsed) {

@@ -51,6 +51,7 @@ import {
   openPersistentToolPanel,
   updatePersistentToolPanel,
 } from "../chat/ChatMessage/items/persistentToolPanelState";
+import { notifyScheduledTaskMutation } from "../../stores/scheduledTaskMutationStore";
 
 interface RunConversationMessage {
   role: "user" | "assistant";
@@ -1446,6 +1447,7 @@ export function ScheduledTaskPanel() {
       toast.success(t("scheduledTask.createdSuccess"));
       setIsCreating(false);
       fetchTasks();
+      notifyScheduledTaskMutation();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : t("common.saveFailed");
