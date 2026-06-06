@@ -1526,7 +1526,7 @@
     "cronMinute": "分",
     "cronMonth": "月",
     "cronSecond": "秒",
-    "create": "新建任务",
+    "create": "任务管理",
     "createdSuccess": "任务创建成功",
     "delete": "删除",
     "deleteConfirm": "确认删除此定时任务？",

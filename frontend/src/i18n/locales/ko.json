@@ -1526,7 +1526,7 @@
     "cronMinute": "분",
     "cronMonth": "월",
     "cronSecond": "초",
-    "create": "새 작업",
+    "create": "작업 관리",
     "createdSuccess": "작업이 생성되었습니다",
     "delete": "삭제",
     "deleteConfirm": "이 예약 작업을 삭제하시겠습니까?",

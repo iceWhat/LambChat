@@ -1526,7 +1526,7 @@
     "cronMinute": "分",
     "cronMonth": "月",
     "cronSecond": "秒",
-    "create": "新規タスク",
+    "create": "タスク管理",
     "createdSuccess": "タスクを作成しました",
     "delete": "削除",
     "deleteConfirm": "この定期タスクを削除しますか？",

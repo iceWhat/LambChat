@@ -1526,7 +1526,7 @@
     "cronMinute": "Minute",
     "cronMonth": "Month",
     "cronSecond": "Second",
-    "create": "New Task",
+    "create": "Task Management",
     "createdSuccess": "Task created successfully",
     "delete": "Delete",
     "deleteConfirm": "Delete this scheduled task?",

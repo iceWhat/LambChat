@@ -1528,7 +1528,7 @@
     "cronMinute": "Минута",
     "cronMonth": "Месяц",
     "cronSecond": "Секунда",
-    "create": "Новая задача",
+    "create": "Управление задачами",
     "createdSuccess": "Задача создана",
     "delete": "Удалить",
     "deleteConfirm": "Удалить эту запланированную задачу?",
