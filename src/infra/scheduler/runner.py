@@ -13,12 +13,15 @@ from typing import Any, Optional
 
 from src.infra.logging import get_logger
 from src.infra.scheduler.locks import acquire_task_lock, release_task_lock
+from src.infra.scheduler.runtime import get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.utils.datetime import utc_now, utc_now_iso
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
+    ScheduledTaskStatus,
     TaskRunRecord,
+    TriggerType,
 )
 
 logger = get_logger(__name__)
@@ -120,6 +123,12 @@ class ScheduledTaskRunner:
 
         finally:
             await release_task_lock(task_id, lock_token)
+            if task.trigger_type == TriggerType.DATE and trigger_type == TriggerType.DATE.value:
+                await storage.update_task(
+                    task_id,
+                    {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
+                )
+                get_runtime_scheduler().unregister_job(task_id)
 
     # ── Internal ───────────────────────────────────
 

@@ -273,6 +273,7 @@ export type {
   RunStatus,
   IntervalTriggerConfig,
   CronTriggerConfig,
+  DateTriggerConfig,
   ScheduledTask,
   ScheduledTaskCreate,
   ScheduledTaskUpdate,

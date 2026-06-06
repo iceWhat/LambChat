@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class TriggerType(str, Enum):
     INTERVAL = "interval"
     CRON = "cron"
+    DATE = "date"
 
 
 class ScheduledTaskStatus(str, Enum):
@@ -54,6 +55,12 @@ class CronTriggerConfig(BaseModel):
     second: Optional[str] = Field("0", description="Second pattern (0-59)")
 
 
+class DateTriggerConfig(BaseModel):
+    """One-time trigger at a specific UTC timestamp."""
+
+    run_date: datetime = Field(..., description="One-time execution datetime")
+
+
 # ── Task models ────────────────────────────────────
 
 
@@ -63,7 +70,7 @@ class ScheduledTaskCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     agent_id: str = Field(..., min_length=1)
     trigger_type: TriggerType
-    trigger_config: dict = Field(..., description="Trigger config (IntervalTriggerConfig | CronTriggerConfig)")
+    trigger_config: dict = Field(..., description="Trigger config (IntervalTriggerConfig | CronTriggerConfig | DateTriggerConfig)")
     input_payload: dict = Field(default_factory=dict, description="Agent input parameters")
     description: Optional[str] = Field(None, max_length=2000)
     enabled: bool = Field(True)
@@ -134,7 +141,7 @@ class TaskRunRecord(BaseModel):
     id: str = Field(..., alias="_id", description="run_id (UUID)")
     task_id: str
     agent_id: str
-    trigger_type: str = Field("cron", description="Trigger mode: cron / interval / manual")
+    trigger_type: str = Field("cron", description="Trigger mode: cron / interval / date / manual")
     status: RunStatus = RunStatus.PENDING
     session_id: Optional[str] = None
     trace_id: Optional[str] = None

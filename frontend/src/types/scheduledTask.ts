@@ -2,7 +2,7 @@
 // Scheduled Task Types
 // ============================================
 
-export type TriggerType = "interval" | "cron";
+export type TriggerType = "interval" | "cron" | "date";
 export type ScheduledTaskStatus = "active" | "paused" | "deleted";
 export type ScheduledTaskCreatedBy = "user" | "agent" | "api";
 export type RunStatus =
@@ -29,6 +29,10 @@ export interface CronTriggerConfig {
   second?: string | null;
 }
 
+export interface DateTriggerConfig {
+  run_date: string;
+}
+
 // Scheduled task (full response)
 export interface ScheduledTask {
   id: string;
@@ -36,7 +40,7 @@ export interface ScheduledTask {
   description: string | null;
   agent_id: string;
   trigger_type: TriggerType;
-  trigger_config: IntervalTriggerConfig | CronTriggerConfig;
+  trigger_config: IntervalTriggerConfig | CronTriggerConfig | DateTriggerConfig;
   input_payload: Record<string, unknown>;
   status: ScheduledTaskStatus;
   enabled: boolean;

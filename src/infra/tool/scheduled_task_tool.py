@@ -7,6 +7,7 @@ Each CRUD operation is a separate @tool function.
 
 import json
 import sys
+from datetime import timedelta
 from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 from langchain_core.tools import BaseTool, InjectedToolArg
@@ -17,6 +18,7 @@ from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.user.storage import UserStorage
+from src.infra.utils.datetime import parse_iso, to_iso, utc_now
 from src.kernel.schemas.scheduled_task import (
     ScheduledTaskCreate,
     ScheduledTaskStatus,
@@ -93,6 +95,10 @@ def _format_trigger_preview(trigger_type: TriggerType, trigger_config: dict[str,
         if seconds % 60 == 0:
             return f"every {seconds // 60} minute(s)"
         return f"every {seconds} second(s)"
+
+    if trigger_type == TriggerType.DATE:
+        run_date = parse_iso(str(trigger_config["run_date"]))
+        return f"once at {to_iso(run_date)} UTC"
 
     minute = trigger_config.get("minute", "0")
     hour = trigger_config.get("hour", "0")
@@ -247,8 +253,19 @@ async def scheduled_task_create(
     ],
     trigger_type: Annotated[
         str,
-        "Trigger type: 'interval' (fixed interval) or 'cron' (cron expression)",
+        "Trigger type: 'date' (run once), 'interval' (fixed interval), or 'cron' (cron expression). "
+        "Use 'date' for one-time requests like 'in 5 minutes', 'tomorrow at 9', or reminders.",
     ],
+    delay_seconds: Annotated[
+        int | None,
+        "Delay in seconds before a one-time run. Use when trigger_type='date' for relative requests "
+        "like '5 minutes later'. Minimum: 1.",
+    ] = None,
+    run_at_iso: Annotated[
+        str | None,
+        "Absolute ISO-8601 datetime for a one-time run. Use when trigger_type='date'. "
+        "If timezone is omitted, UTC is assumed.",
+    ] = None,
     interval_seconds: Annotated[
         int | None,
         "Interval in seconds. Required when trigger_type='interval'. "
@@ -299,6 +316,7 @@ async def scheduled_task_create(
 ) -> str:
     """Create a scheduled task that automatically runs an agent at specified times.
     The agent will receive the 'message' as a user prompt on each execution.
+    Use trigger_type='date' for one-time tasks (e.g. remind me in 5 minutes).
     Use trigger_type='interval' for periodic tasks (e.g. every 5 minutes),
     or trigger_type='cron' for calendar-based schedules (e.g. every weekday at 9 AM UTC).
     Each run creates a new session under the user's account.
@@ -315,9 +333,32 @@ async def scheduled_task_create(
     try:
         trigger_enum = TriggerType(trigger_type)
     except ValueError:
-        return _json({"error": f"Invalid trigger_type '{trigger_type}'. Use 'interval' or 'cron'."})
+        return _json({"error": f"Invalid trigger_type '{trigger_type}'. Use 'date', 'interval', or 'cron'."})
 
-    if trigger_enum == TriggerType.INTERVAL:
+    if trigger_enum == TriggerType.DATE:
+        if delay_seconds is None and run_at_iso is None:
+            return _json(
+                {
+                    "error": (
+                        "delay_seconds or run_at_iso is required when trigger_type='date'. "
+                        "For one-time relative requests such as '5 minutes later', use delay_seconds."
+                    )
+                }
+            )
+        try:
+            if delay_seconds is not None:
+                if delay_seconds < 1:
+                    return _json({"error": "delay_seconds must be at least 1"})
+                run_date = utc_now() + timedelta(seconds=delay_seconds)
+            else:
+                run_date = parse_iso(str(run_at_iso))
+        except Exception as e:
+            return _json({"error": f"Invalid one-time schedule: {e}"})
+
+        if run_date <= utc_now():
+            return _json({"error": "run_at_iso must be in the future"})
+        trigger_config = {"run_date": to_iso(run_date)}
+    elif trigger_enum == TriggerType.INTERVAL:
         if not interval_seconds:
             return _json({"error": "interval_seconds is required when trigger_type='interval'"})
         if interval_seconds < 60:
@@ -342,6 +383,7 @@ async def scheduled_task_create(
         if "minute" not in trigger_config:
             trigger_config["minute"] = "0"
 
+    effective_run_on_start = False if trigger_enum == TriggerType.DATE else run_on_start
     preview = _build_task_preview(
         name=name,
         message=message,
@@ -350,7 +392,7 @@ async def scheduled_task_create(
         agent_id=agent_id,
         description=description,
         timeout_seconds=timeout_seconds,
-        run_on_start=run_on_start,
+        run_on_start=effective_run_on_start,
     )
     confirmation = await _confirm_scheduled_task_creation(preview=preview, user_id=user_id)
     if not confirmation["approved"]:
@@ -379,7 +421,7 @@ async def scheduled_task_create(
                 input_payload={"message": message},
                 description=description,
                 timeout_seconds=timeout_seconds,
-                run_on_start=run_on_start,
+                run_on_start=effective_run_on_start,
                 source_session_id=ctx.session_id or None,
                 source_run_id=ctx.run_id or None,
                 created_by="agent",

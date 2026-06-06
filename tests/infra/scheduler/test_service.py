@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -240,6 +241,17 @@ def test_build_trigger_cron() -> None:
     from apscheduler.triggers.cron import CronTrigger
 
     assert isinstance(trigger, CronTrigger)
+
+
+def test_build_trigger_date() -> None:
+    trigger = ScheduledTaskService._build_trigger(
+        TriggerType.DATE,
+        {"run_date": "2026-01-01T12:05:00+00:00"},
+    )
+    from apscheduler.triggers.date import DateTrigger
+
+    assert isinstance(trigger, DateTrigger)
+    assert trigger.run_date == datetime(2026, 1, 1, 12, 5, tzinfo=timezone.utc)
 
 
 def test_build_trigger_unsupported_raises() -> None:

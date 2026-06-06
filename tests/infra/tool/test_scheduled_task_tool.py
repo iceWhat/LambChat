@@ -1,7 +1,7 @@
 """Tests for scheduled_task_tool — LLM-callable scheduled task management tools."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -121,6 +121,8 @@ def test_create_tool_has_trigger_params() -> None:
     fields = scheduled_task_tool.scheduled_task_create.args_schema.model_fields
     # Structured trigger params should be present
     assert "trigger_type" in fields
+    assert "delay_seconds" in fields
+    assert "run_at_iso" in fields
     assert "interval_seconds" in fields
     assert "cron_hour" in fields
     assert "cron_minute" in fields
@@ -168,6 +170,40 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
     assert request.input_payload == {"message": "Clean up expired cache entries"}
     approval_mock.assert_awaited_once()
     assert approval_mock.call_args.kwargs["preview"]["trigger_config"] == {"seconds": 300}
+
+
+@pytest.mark.asyncio
+async def test_create_date_task_with_delay(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    task = _task(trigger_type=TriggerType.DATE)
+    create_mock = AsyncMock(return_value=task)
+    approval_mock = _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(scheduled_task_tool, "utc_now", lambda: now)
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    result = json.loads(
+        await scheduled_task_tool.scheduled_task_create.coroutine(
+            name="One-time Reminder",
+            message="Send the AI news once",
+            trigger_type="date",
+            delay_seconds=300,
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    assert result["preview"]["trigger_type"] == "date"
+    assert result["preview"]["schedule"] == "once at 2026-01-01T12:05:00+00:00 UTC"
+
+    request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.trigger_type == TriggerType.DATE
+    assert request.trigger_config == {"run_date": "2026-01-01T12:05:00+00:00"}
+    approval_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio

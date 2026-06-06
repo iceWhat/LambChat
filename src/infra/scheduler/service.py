@@ -11,15 +11,17 @@ from uuid import uuid4
 
 from apscheduler.triggers.base import BaseTrigger
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from src.infra.logging import get_logger
 from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
-from src.infra.utils.datetime import utc_now
+from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
+    DateTriggerConfig,
     IntervalTriggerConfig,
     RunStatus,
     ScheduledTask,
@@ -61,7 +63,9 @@ class ScheduledTaskService:
             input_payload=request.input_payload,
             status=ScheduledTaskStatus.ACTIVE,
             enabled=request.enabled,
-            run_on_start=request.run_on_start,
+            run_on_start=False
+            if request.trigger_type == TriggerType.DATE
+            else request.run_on_start,
             max_retries=request.max_retries,
             timeout_seconds=request.timeout_seconds,
             owner_id=owner_id,
@@ -233,7 +237,14 @@ class ScheduledTaskService:
         """
         storage = get_scheduled_task_storage()
         tasks = await storage.list_active_tasks()
+        now = utc_now()
         for task in tasks:
+            if self._is_expired_date_task(task, now):
+                await storage.update_task(
+                    task.id,
+                    {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
+                )
+                continue
             self._register_to_scheduler(task)
         logger.info("[Service] loaded %d persisted tasks into scheduler", len(tasks))
         return len(tasks)
@@ -311,4 +322,19 @@ class ScheduledTaskService:
                 second=cfg.second,
                 timezone="UTC",
             )
+        if trigger_type == TriggerType.DATE:
+            cfg = DateTriggerConfig(**config)
+            return DateTrigger(run_date=ensure_utc(cfg.run_date), timezone="UTC")
         raise ValueError(f"Unsupported trigger type: {trigger_type}")
+
+    @staticmethod
+    def _is_expired_date_task(task: ScheduledTask, now=None) -> bool:
+        if task.trigger_type != TriggerType.DATE:
+            return False
+        if task.total_runs < 1:
+            return False
+        try:
+            cfg = DateTriggerConfig(**task.trigger_config)
+        except Exception:
+            return False
+        return ensure_utc(cfg.run_date) <= (now or utc_now())

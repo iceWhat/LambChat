@@ -159,10 +159,24 @@ function RunStatusBadge({ status }: { status: string }) {
 
 const SESSION_TASK_PANEL_KEY = "session-scheduled-tasks";
 
+function toDateTimeLocalValue(value: string | null | undefined): string {
+  const date = value ? new Date(value) : new Date(Date.now() + 5 * 60 * 1000);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
 function formatTaskTrigger(task: ScheduledTask, t: TFunction): string {
   if (task.trigger_type === "interval") {
     const cfg = task.trigger_config as { seconds?: number };
     return `${t("scheduledTask.interval")}: ${cfg.seconds ?? "-"}s`;
+  }
+
+  if (task.trigger_type === "date") {
+    const cfg = task.trigger_config as { run_date?: string };
+    return `${t("scheduledTask.date")}: ${
+      cfg.run_date ? formatDateTimeShort(cfg.run_date) : "-"
+    }`;
   }
 
   const cfg = task.trigger_config as {
@@ -524,6 +538,11 @@ function TaskFormModal({
       ? String((task?.trigger_config as { seconds?: number })?.seconds ?? 300)
       : "300",
   );
+  const [runDate, setRunDate] = useState(
+    task?.trigger_type === "date"
+      ? toDateTimeLocalValue((task?.trigger_config as { run_date?: string })?.run_date)
+      : toDateTimeLocalValue(null),
+  );
   const [cronHour, setCronHour] = useState(
     task?.trigger_type === "cron"
       ? String((task?.trigger_config as { hour?: string })?.hour ?? "0")
@@ -591,17 +610,30 @@ function TaskFormModal({
     setJsonError(null);
 
     // Build trigger config
-    const triggerConfig: Record<string, unknown> =
-      triggerType === "interval"
-        ? { seconds: Math.max(1, parseInt(intervalSeconds) || 300) }
-        : {
-            hour: cronHour || "0",
-            minute: cronMinute || "0",
-            second: cronSecond || "0",
-            ...(cronDay ? { day: cronDay } : {}),
-            ...(cronMonth ? { month: cronMonth } : {}),
-            ...(cronDayOfWeek ? { day_of_week: cronDayOfWeek } : {}),
-          };
+    let triggerConfig: Record<string, unknown>;
+    if (triggerType === "interval") {
+      triggerConfig = { seconds: Math.max(1, parseInt(intervalSeconds) || 300) };
+    } else if (triggerType === "date") {
+      if (!runDate) {
+        toast.error(t("scheduledTask.runDateRequired"));
+        return;
+      }
+      const date = new Date(runDate);
+      if (Number.isNaN(date.getTime())) {
+        toast.error(t("scheduledTask.runDateRequired"));
+        return;
+      }
+      triggerConfig = { run_date: date.toISOString() };
+    } else {
+      triggerConfig = {
+        hour: cronHour || "0",
+        minute: cronMinute || "0",
+        second: cronSecond || "0",
+        ...(cronDay ? { day: cronDay } : {}),
+        ...(cronMonth ? { month: cronMonth } : {}),
+        ...(cronDayOfWeek ? { day_of_week: cronDayOfWeek } : {}),
+      };
+    }
 
     setIsSaving(true);
     try {
@@ -613,7 +645,7 @@ function TaskFormModal({
         input_payload: payload,
         description: description.trim() || null,
         enabled,
-        run_on_start: runOnStart,
+        run_on_start: triggerType === "date" ? false : runOnStart,
         max_retries: Math.max(0, parseInt(maxRetries) || 0),
         timeout_seconds: Math.max(10, parseInt(timeoutSeconds) || 600),
       });
@@ -704,7 +736,7 @@ function TaskFormModal({
                 {t("scheduledTask.triggerType")}
               </label>
               <div className="flex gap-2">
-                {(["interval", "cron"] as const).map((tt) => (
+                {(["date", "interval", "cron"] as const).map((tt) => (
                   <button
                     key={tt}
                     type="button"
@@ -737,6 +769,18 @@ function TaskFormModal({
                   min={1}
                   value={intervalSeconds}
                   onChange={(e) => setIntervalSeconds(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            ) : triggerType === "date" ? (
+              <div>
+                <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1.5">
+                  {t("scheduledTask.runDate")} *
+                </label>
+                <input
+                  type="datetime-local"
+                  value={runDate}
+                  onChange={(e) => setRunDate(e.target.value)}
                   className={inputClass}
                 />
               </div>
@@ -812,27 +856,28 @@ function TaskFormModal({
                 </button>
               </div>
 
-              {/* Run on start toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900">
-                <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                  {t("scheduledTask.runOnStart")}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setRunOnStart(!runOnStart)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-stone-500/20 ${
-                    runOnStart
-                      ? "bg-emerald-500"
-                      : "bg-stone-300 dark:bg-stone-600"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                      runOnStart ? "translate-x-5" : "translate-x-0"
+              {triggerType !== "date" && (
+                <div className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900">
+                  <p className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    {t("scheduledTask.runOnStart")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRunOnStart(!runOnStart)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-stone-500/20 ${
+                      runOnStart
+                        ? "bg-emerald-500"
+                        : "bg-stone-300 dark:bg-stone-600"
                     }`}
-                  />
-                </button>
-              </div>
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        runOnStart ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Number inputs */}
@@ -1512,6 +1557,12 @@ export function ScheduledTaskPanel() {
     if (task.trigger_type === "interval") {
       const cfg = task.trigger_config as { seconds?: number };
       return `${t("scheduledTask.interval")}: ${cfg.seconds}s`;
+    }
+    if (task.trigger_type === "date") {
+      const cfg = task.trigger_config as { run_date?: string };
+      return `${t("scheduledTask.date")}: ${
+        cfg.run_date ? formatDateTimeShort(cfg.run_date) : "-"
+      }`;
     }
     const cfg = task.trigger_config as {
       hour?: string;
