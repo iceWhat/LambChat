@@ -74,6 +74,8 @@ class ScheduledTaskStorage:
             query["owner_id"] = owner_id
         if status:
             query["status"] = status
+        else:
+            query["status"] = {"$ne": ScheduledTaskStatus.DELETED}
         cursor = self._get_collection(_COLL_TASKS).find(query).sort("created_at", -1)
         return [ScheduledTask(**doc) async for doc in cursor]
 
@@ -88,6 +90,8 @@ class ScheduledTaskStorage:
         query: dict[str, Any] = {"owner_id": owner_id}
         if status:
             query["status"] = status
+        else:
+            query["status"] = {"$ne": ScheduledTaskStatus.DELETED}
         total = await self._get_collection(_COLL_TASKS).count_documents(query)
         cursor = (
             self._get_collection(_COLL_TASKS)
