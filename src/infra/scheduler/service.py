@@ -65,6 +65,9 @@ class ScheduledTaskService:
             max_retries=request.max_retries,
             timeout_seconds=request.timeout_seconds,
             owner_id=owner_id,
+            source_session_id=request.source_session_id,
+            source_run_id=request.source_run_id,
+            created_by=request.created_by,
             created_at=now,
             updated_at=now,
         )
@@ -169,13 +172,20 @@ class ScheduledTaskService:
         self,
         owner_id: str,
         status: Optional[ScheduledTaskStatus] = None,
+        source_session_id: Optional[str] = None,
+        created_by: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
     ) -> tuple[list[ScheduledTaskResponse], int]:
         """List tasks with pagination, scoped by owner_id."""
         storage = get_scheduled_task_storage()
         tasks, total = await storage.list_tasks_paginated(
-            owner_id=owner_id, status=status, skip=skip, limit=limit
+            owner_id=owner_id,
+            status=status,
+            source_session_id=source_session_id,
+            created_by=created_by,
+            skip=skip,
+            limit=limit,
         )
         responses = [self.to_response(t) for t in tasks]
         return responses, total
@@ -247,6 +257,9 @@ class ScheduledTaskService:
             max_retries=task.max_retries,
             timeout_seconds=task.timeout_seconds,
             owner_id=task.owner_id,
+            source_session_id=task.source_session_id,
+            source_run_id=task.source_run_id,
+            created_by=task.created_by,
             last_run_at=task.last_run_at,
             last_run_status=task.last_run_status,
             last_run_id=task.last_run_id,

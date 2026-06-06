@@ -42,6 +42,15 @@ class ScheduledTaskStorage:
         await c_tasks.create_index("owner_id")
         await c_tasks.create_index("status")
         await c_tasks.create_index([("status", 1), ("enabled", 1)])
+        await c_tasks.create_index(
+            [
+                ("owner_id", 1),
+                ("source_session_id", 1),
+                ("status", 1),
+                ("created_at", -1),
+            ],
+            name="owner_source_session_status_created_idx",
+        )
 
         c_runs = self._get_collection(_COLL_RUNS)
         await c_runs.create_index("task_id")
@@ -83,6 +92,8 @@ class ScheduledTaskStorage:
         self,
         owner_id: str,
         status: Optional[ScheduledTaskStatus] = None,
+        source_session_id: Optional[str] = None,
+        created_by: Optional[str] = None,
         skip: int = 0,
         limit: int = 20,
     ) -> tuple[list[ScheduledTask], int]:
@@ -92,6 +103,10 @@ class ScheduledTaskStorage:
             query["status"] = status
         else:
             query["status"] = {"$ne": ScheduledTaskStatus.DELETED}
+        if source_session_id:
+            query["source_session_id"] = source_session_id
+        if created_by:
+            query["created_by"] = created_by
         total = await self._get_collection(_COLL_TASKS).count_documents(query)
         cursor = (
             self._get_collection(_COLL_TASKS)

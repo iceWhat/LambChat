@@ -366,6 +366,9 @@ async def scheduled_task_create(
         )
 
     service = ScheduledTaskService()
+    from src.infra.logging.context import TraceContext
+
+    ctx = TraceContext.get_request_context()
     try:
         task = await service.create_task(
             request=ScheduledTaskCreate(
@@ -377,6 +380,9 @@ async def scheduled_task_create(
                 description=description,
                 timeout_seconds=timeout_seconds,
                 run_on_start=run_on_start,
+                source_session_id=ctx.session_id or None,
+                source_run_id=ctx.run_id or None,
+                created_by="agent",
             ),
             owner_id=user_id,
         )

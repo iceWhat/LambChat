@@ -4,6 +4,7 @@
 
 export type TriggerType = "interval" | "cron";
 export type ScheduledTaskStatus = "active" | "paused" | "deleted";
+export type ScheduledTaskCreatedBy = "user" | "agent" | "api";
 export type RunStatus =
   | "pending"
   | "running"
@@ -43,6 +44,9 @@ export interface ScheduledTask {
   max_retries: number;
   timeout_seconds: number;
   owner_id: string;
+  source_session_id: string | null;
+  source_run_id: string | null;
+  created_by: ScheduledTaskCreatedBy;
   last_run_at: string | null;
   last_run_status: RunStatus | null;
   last_run_id: string | null;
@@ -63,6 +67,9 @@ export interface ScheduledTaskCreate {
   run_on_start?: boolean;
   max_retries?: number;
   timeout_seconds?: number;
+  source_session_id?: string | null;
+  source_run_id?: string | null;
+  created_by?: ScheduledTaskCreatedBy;
 }
 
 // Update request

@@ -269,6 +269,7 @@ export interface ProjectUpdate {
 export type {
   TriggerType,
   ScheduledTaskStatus as ScheduledTaskStatusType,
+  ScheduledTaskCreatedBy,
   RunStatus,
   IntervalTriggerConfig,
   CronTriggerConfig,

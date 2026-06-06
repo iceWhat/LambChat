@@ -1,6 +1,7 @@
 import { authFetch } from "./fetch";
 import type {
   ScheduledTask,
+  ScheduledTaskCreatedBy,
   ScheduledTaskCreate,
   ScheduledTaskListResponse,
   ScheduledTaskStatus,
@@ -16,6 +17,10 @@ export const scheduledTaskApi = {
     skip: number = 0,
     limit: number = 20,
     status?: ScheduledTaskStatus,
+    options?: {
+      sourceSessionId?: string;
+      createdBy?: ScheduledTaskCreatedBy;
+    },
   ): Promise<ScheduledTaskListResponse> {
     const params = new URLSearchParams({
       skip: skip.toString(),
@@ -24,9 +29,26 @@ export const scheduledTaskApi = {
     if (status) {
       params.set("status", status);
     }
+    if (options?.sourceSessionId) {
+      params.set("source_session_id", options.sourceSessionId);
+    }
+    if (options?.createdBy) {
+      params.set("created_by", options.createdBy);
+    }
     return authFetch<ScheduledTaskListResponse>(
       `${API_BASE}/api/scheduled-tasks/?${params}`,
     );
+  },
+
+  async listBySession(
+    sessionId: string,
+    skip: number = 0,
+    limit: number = 20,
+  ): Promise<ScheduledTaskListResponse> {
+    return this.list(skip, limit, undefined, {
+      sourceSessionId: sessionId,
+      createdBy: "agent",
+    });
   },
 
   async get(id: string): Promise<ScheduledTask> {

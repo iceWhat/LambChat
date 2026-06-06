@@ -70,6 +70,15 @@ class ScheduledTaskCreate(BaseModel):
     run_on_start: bool = Field(False)
     max_retries: int = Field(0, ge=0, le=10)
     timeout_seconds: int = Field(600, ge=10, le=3600)
+    source_session_id: Optional[str] = Field(
+        None, description="Conversation session where the task was created"
+    )
+    source_run_id: Optional[str] = Field(
+        None, description="Agent run where the task was created"
+    )
+    created_by: str = Field(
+        "user", description="Creator source: user / agent / api"
+    )
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -103,6 +112,9 @@ class ScheduledTask(BaseModel):
     max_retries: int = 0
     timeout_seconds: int = 600
     owner_id: str = Field(..., description="Creator user_id")
+    source_session_id: Optional[str] = None
+    source_run_id: Optional[str] = None
+    created_by: str = "user"
     last_run_at: Optional[datetime] = None
     last_run_status: Optional[RunStatus] = None
     last_run_id: Optional[str] = None
@@ -155,6 +167,9 @@ class ScheduledTaskResponse(BaseModel):
     max_retries: int
     timeout_seconds: int
     owner_id: str
+    source_session_id: Optional[str] = None
+    source_run_id: Optional[str] = None
+    created_by: str = "user"
     last_run_at: Optional[datetime] = None
     last_run_status: Optional[RunStatus] = None
     last_run_id: Optional[str] = None
