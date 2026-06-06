@@ -245,9 +245,11 @@ class ScheduledTaskRunner:
                 "ensure the chat router is loaded before scheduled tasks run"
             )
 
-        message = task.input_payload.get("message", "")
-        if not message and task.input_payload.get("prompt"):
-            message = task.input_payload["prompt"]
+        display_message = task.input_payload.get("message", "")
+        if not display_message and task.input_payload.get("prompt"):
+            display_message = task.input_payload["prompt"]
+        display_message = str(display_message or "")
+        message = display_message
 
         # Inject current timestamp so the LLM knows the actual execution time.
         # The system prompt tells the LLM that user messages include a timestamp,
@@ -276,6 +278,7 @@ class ScheduledTaskRunner:
             agent_options=agent_options,
             project_id=None,
             session_name=f"[Scheduled] {task.name}",
+            display_message=display_message,
             write_user_message_immediately=True,
         )
         await SessionManager().update_session_metadata(
