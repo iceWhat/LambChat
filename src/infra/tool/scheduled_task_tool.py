@@ -13,14 +13,18 @@ from langchain_core.tools import BaseTool, InjectedToolArg
 
 from src.api.routes.human import create_approval, wait_for_response
 from src.infra.logging import get_logger
+from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.tool.backend_utils import get_user_id_from_runtime
+from src.infra.user.storage import UserStorage
 from src.kernel.schemas.scheduled_task import (
     ScheduledTaskCreate,
     ScheduledTaskStatus,
     ScheduledTaskUpdate,
     TriggerType,
 )
+from src.kernel.schemas.user import TokenPayload
+from src.kernel.types import Permission
 
 if TYPE_CHECKING:
     from langchain.tools import ToolRuntime
@@ -40,6 +44,43 @@ logger = get_logger(__name__)
 
 def _json(data: dict[str, Any]) -> str:
     return json.dumps(data, ensure_ascii=False, default=str)
+
+
+async def _resolve_user(user_id: str) -> TokenPayload | None:
+    """Resolve the latest roles and permissions for a user ID."""
+    user = await UserStorage().get_by_id(user_id)
+    if not user:
+        return None
+
+    role_storage = RoleStorage()
+    roles = await role_storage.get_by_names(user.roles or [])
+
+    permissions: set[str] = set()
+    for role in roles:
+        for permission in role.permissions:
+            permissions.add(
+                permission if isinstance(permission, str) else permission.value
+            )
+
+    return TokenPayload(
+        sub=user.id,
+        username=user.username,
+        roles=[r.name for r in roles],
+        permissions=sorted(permissions),
+    )
+
+
+async def _permission_error(
+    user_id: str,
+    permission: str,
+) -> dict[str, Any] | None:
+    user = await _resolve_user(user_id)
+    if user and permission in set(user.permissions or []):
+        return None
+    return {
+        "error": f"Missing permission: {permission}",
+        "code": "permission_denied",
+    }
 
 
 def _format_trigger_preview(trigger_type: TriggerType, trigger_config: dict[str, Any]) -> str:
@@ -266,6 +307,9 @@ async def scheduled_task_create(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
 
     # Build trigger_config from structured params
     try:
@@ -368,6 +412,9 @@ async def scheduled_task_list(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_READ.value)
+    if error:
+        return _json(error)
 
     status_enum: Optional[ScheduledTaskStatus] = None
     if status:
@@ -402,6 +449,9 @@ async def scheduled_task_get(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_READ.value)
+    if error:
+        return _json(error)
 
     service = ScheduledTaskService()
     try:
@@ -448,6 +498,9 @@ async def scheduled_task_update(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
 
     # Verify ownership first
     service = ScheduledTaskService()
@@ -509,6 +562,9 @@ async def scheduled_task_pause(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
 
     service = ScheduledTaskService()
     task = await service.get_task(task_id)
@@ -544,6 +600,9 @@ async def scheduled_task_resume(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
 
     service = ScheduledTaskService()
     task = await service.get_task(task_id)
@@ -580,6 +639,9 @@ async def scheduled_task_delete(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_DELETE.value)
+    if error:
+        return _json(error)
 
     service = ScheduledTaskService()
     task = await service.get_task(task_id)
@@ -615,6 +677,9 @@ async def scheduled_task_run(
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
+    error = await _permission_error(user_id, Permission.SCHEDULED_TASK_WRITE.value)
+    if error:
+        return _json(error)
 
     service = ScheduledTaskService()
     task = await service.get_task(task_id)

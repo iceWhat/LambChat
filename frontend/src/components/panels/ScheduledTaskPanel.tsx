@@ -30,6 +30,8 @@ import { Pagination } from "../common/Pagination";
 import { scheduledTaskApi } from "../../services/api/scheduledTask";
 import { sessionApi } from "../../services/api/session";
 import { agentApi } from "../../services/api/agent";
+import { useAuth } from "../../hooks/useAuth";
+import { Permission } from "../../types";
 import type {
   ScheduledTask,
   ScheduledTaskCreate,
@@ -1020,6 +1022,9 @@ function TaskSessionList({
 
 export function ScheduledTaskPanel() {
   const { t } = useTranslation();
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission(Permission.SCHEDULED_TASK_WRITE);
+  const canDelete = hasPermission(Permission.SCHEDULED_TASK_DELETE);
   const [searchParams, setSearchParams] = useSearchParams();
   const [tasks, setTasks] = useState<ScheduledTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -1091,6 +1096,10 @@ export function ScheduledTaskPanel() {
   }, [statusFilter]);
 
   const handleCreate = async (data: ScheduledTaskCreate) => {
+    if (!canWrite) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       await scheduledTaskApi.create(data);
       toast.success(t("scheduledTask.createdSuccess"));
@@ -1105,6 +1114,10 @@ export function ScheduledTaskPanel() {
 
   const handleUpdate = async (data: ScheduledTaskCreate) => {
     if (!editingTask) return;
+    if (!canWrite) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       const updateData: ScheduledTaskUpdate = {};
       if (data.name !== editingTask.name) updateData.name = data.name;
@@ -1135,6 +1148,10 @@ export function ScheduledTaskPanel() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
+    if (!canDelete) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       await scheduledTaskApi.delete(deleteTarget.id);
       toast.success(t("scheduledTask.deletedSuccess"));
@@ -1148,6 +1165,10 @@ export function ScheduledTaskPanel() {
   };
 
   const handlePause = async (task: ScheduledTask) => {
+    if (!canWrite) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       await scheduledTaskApi.pause(task.id);
       toast.success(t("scheduledTask.pausedSuccess"));
@@ -1160,6 +1181,10 @@ export function ScheduledTaskPanel() {
   };
 
   const handleResume = async (task: ScheduledTask) => {
+    if (!canWrite) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       await scheduledTaskApi.resume(task.id);
       toast.success(t("scheduledTask.resumedSuccess"));
@@ -1172,6 +1197,10 @@ export function ScheduledTaskPanel() {
   };
 
   const handleRunNow = async (task: ScheduledTask) => {
+    if (!canWrite) {
+      toast.error(t("errors.noPermission"));
+      return;
+    }
     try {
       await scheduledTaskApi.runNow(task.id);
       toast.success(t("scheduledTask.triggeredSuccess"));
@@ -1246,13 +1275,15 @@ export function ScheduledTaskPanel() {
             </select>
 
             {/* Create button */}
-            <button
-              onClick={() => setIsCreating(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
-            >
-              <Plus size={16} />
-              {t("scheduledTask.create")}
-            </button>
+            {canWrite && (
+              <button
+                onClick={() => setIsCreating(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+              >
+                <Plus size={16} />
+                {t("scheduledTask.create")}
+              </button>
+            )}
           </div>
         }
       />
@@ -1350,7 +1381,7 @@ export function ScheduledTaskPanel() {
                       className="flex items-center gap-1 flex-shrink-0"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {task.status === "active" && (
+                      {canWrite && task.status === "active" && (
                         <button
                           onClick={() => handlePause(task)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
@@ -1359,7 +1390,7 @@ export function ScheduledTaskPanel() {
                           <Pause size={16} />
                         </button>
                       )}
-                      {task.status === "paused" && (
+                      {canWrite && task.status === "paused" && (
                         <button
                           onClick={() => handleResume(task)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg text-emerald-500 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
@@ -1368,13 +1399,15 @@ export function ScheduledTaskPanel() {
                           <Play size={16} />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleRunNow(task)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                        title={t("scheduledTask.runNow")}
-                      >
-                        <RotateCcw size={16} />
-                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={() => handleRunNow(task)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                          title={t("scheduledTask.runNow")}
+                        >
+                          <RotateCcw size={16} />
+                        </button>
+                      )}
                       <button
                         onClick={() => setRunHistoryTask(task)}
                         className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
@@ -1382,20 +1415,24 @@ export function ScheduledTaskPanel() {
                       >
                         <History size={16} />
                       </button>
-                      <button
-                        onClick={() => setEditingTask(task)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                        title={t("scheduledTask.edit")}
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(task)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                        title={t("scheduledTask.delete")}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={() => setEditingTask(task)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                          title={t("scheduledTask.edit")}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => setDeleteTarget(task)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                          title={t("scheduledTask.delete")}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1418,7 +1455,7 @@ export function ScheduledTaskPanel() {
       )}
 
       {/* Create Modal */}
-      {isCreating && (
+      {isCreating && canWrite && (
         <TaskFormModal
           task={null}
           agents={agents}
@@ -1428,7 +1465,7 @@ export function ScheduledTaskPanel() {
       )}
 
       {/* Edit Modal */}
-      {editingTask && (
+      {editingTask && canWrite && (
         <TaskFormModal
           task={editingTask}
           agents={agents}
@@ -1438,7 +1475,7 @@ export function ScheduledTaskPanel() {
       )}
 
       {/* Delete Confirmation Modal */}
-      {deleteTarget && (
+      {deleteTarget && canDelete && (
         <DeleteConfirmModal
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}

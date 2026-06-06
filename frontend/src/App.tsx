@@ -578,7 +578,12 @@ function App() {
             <Route
               path="/scheduled-tasks"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute
+                  permissions={[Permission.SCHEDULED_TASK_READ]}
+                  redirectTo="/chat"
+                  showToast
+                  toastMessage={t("errors.noPermission")}
+                >
                   <ScheduledTasksPage />
                 </ProtectedRoute>
               }

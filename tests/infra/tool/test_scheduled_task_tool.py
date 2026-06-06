@@ -89,6 +89,15 @@ def _auto_approve(monkeypatch: pytest.MonkeyPatch, approval_id: str = "approval-
     return approval_mock
 
 
+@pytest.fixture(autouse=True)
+def _allow_scheduled_task_permissions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "_permission_error",
+        AsyncMock(return_value=None),
+    )
+
+
 # ── Tool metadata tests ────────────────────────────────────────
 
 
@@ -417,6 +426,38 @@ async def test_list_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(result["tasks"]) == 2
 
     list_mock.assert_called_once_with(owner_id="user-1", status=None)
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_requires_permission(monkeypatch: pytest.MonkeyPatch) -> None:
+    list_mock = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "_permission_error",
+        AsyncMock(
+            return_value={
+                "error": "Missing permission: scheduled_task:read",
+                "code": "permission_denied",
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(list_tasks=list_mock),
+    )
+
+    result = json.loads(
+        await scheduled_task_tool.scheduled_task_list.coroutine(
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result == {
+        "error": "Missing permission: scheduled_task:read",
+        "code": "permission_denied",
+    }
+    list_mock.assert_not_called()
 
 
 @pytest.mark.asyncio

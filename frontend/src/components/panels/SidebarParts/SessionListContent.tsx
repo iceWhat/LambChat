@@ -150,6 +150,7 @@ export function SessionListContent({
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canReadTeam = hasPermission(Permission.TEAM_READ);
+  const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [scheduledTaskTotal, setScheduledTaskTotal] = useState(0);
   const [isScheduledTasksLoading, setIsScheduledTasksLoading] = useState(false);
@@ -172,12 +173,14 @@ export function SessionListContent({
   }, []);
 
   useEffect(() => {
-    if (!isScheduledTasksCollapsed) {
+    if (canReadScheduledTasks && !isScheduledTasksCollapsed) {
       void loadScheduledTasks();
     } else {
+      setScheduledTasks([]);
+      setScheduledTaskTotal(0);
       setScheduledTaskUnreadByTask(new Map());
     }
-  }, [isScheduledTasksCollapsed, loadScheduledTasks]);
+  }, [canReadScheduledTasks, isScheduledTasksCollapsed, loadScheduledTasks]);
 
   useEffect(() => {
     const taskIds = new Set(scheduledTasks.map((task) => task.id));
@@ -436,93 +439,97 @@ export function SessionListContent({
             <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
           )}
 
-          {/* Scheduled tasks section */}
-          <div
-            onClick={onToggleScheduledTasksCollapsed}
-            className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-                {t("nav.scheduledTasks")}
-              </span>
-              {scheduledTasksUnreadCount > 0 ? (
-                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
-                  {formatUnreadCount(scheduledTasksUnreadCount)}
-                </span>
-              ) : scheduledTaskTotal > 0 ? (
-                <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-stone-200 px-1 text-[10px] font-medium leading-none text-stone-500 dark:bg-stone-700 dark:text-stone-300">
-                  {formatUnreadCount(scheduledTaskTotal)}
-                </span>
-              ) : null}
-            </div>
-            <ChevronDown
-              size={14}
-              className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
-                isScheduledTasksCollapsed ? "-rotate-90" : ""
-              }`}
-            />
-          </div>
-
-          {!isScheduledTasksCollapsed && (
+          {canReadScheduledTasks && (
             <>
-              <button
-                onClick={() => navigate("/scheduled-tasks")}
-                className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+              {/* Scheduled tasks section */}
+              <div
+                onClick={onToggleScheduledTasksCollapsed}
+                className="flex items-center justify-between px-[9px] h-9 cursor-pointer select-none group/section"
               >
-                <Clock size={20} />
-                <span>{t("scheduledTask.create")}</span>
-              </button>
-
-              {isScheduledTasksLoading ? (
-                <div className="space-y-px px-0">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
-                    >
-                      <div
-                        className="skeleton-line h-[13px] rounded-md flex-1"
-                        style={{ width: i === 1 ? "72%" : "58%" }}
-                      />
-                    </div>
-                  ))}
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
+                    {t("nav.scheduledTasks")}
+                  </span>
+                  {scheduledTasksUnreadCount > 0 ? (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+                      {formatUnreadCount(scheduledTasksUnreadCount)}
+                    </span>
+                  ) : scheduledTaskTotal > 0 ? (
+                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-stone-200 px-1 text-[10px] font-medium leading-none text-stone-500 dark:bg-stone-700 dark:text-stone-300">
+                      {formatUnreadCount(scheduledTaskTotal)}
+                    </span>
+                  ) : null}
                 </div>
-              ) : (
-                scheduledTasks.map((task) => (
-                  <ScheduledTaskSidebarItem
-                    key={task.id}
-                    ref={(el) =>
-                      scheduledTaskActions.onSetScheduledTaskRef(task.id, el)
-                    }
-                    task={task}
-                    currentSessionId={currentSessionId}
-                    allProjects={projects}
-                    onSelectSession={sessionActions.onSelectSession}
-                    onDeleteSession={sessionActions.onDeleteSession}
-                    onMoveSession={sessionActions.onMoveSession}
-                    onToggleFavorite={sessionActions.onToggleFavorite}
-                    onShareSession={sessionActions.onShareSession}
-                    onUnreadCountChange={handleScheduledTaskUnreadChange}
-                    scrollRoot={scrollEl}
-                    draggingSessionId={sessionActions.draggingSessionId}
-                    unreadBySession={unreadBySession}
-                  />
-                ))
+                <ChevronDown
+                  size={14}
+                  className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
+                    isScheduledTasksCollapsed ? "-rotate-90" : ""
+                  }`}
+                />
+              </div>
+
+              {!isScheduledTasksCollapsed && (
+                <>
+                  <button
+                    onClick={() => navigate("/scheduled-tasks")}
+                    className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+                  >
+                    <Clock size={20} />
+                    <span>{t("scheduledTask.create")}</span>
+                  </button>
+
+                  {isScheduledTasksLoading ? (
+                    <div className="space-y-px px-0">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
+                        >
+                          <div
+                            className="skeleton-line h-[13px] rounded-md flex-1"
+                            style={{ width: i === 1 ? "72%" : "58%" }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    scheduledTasks.map((task) => (
+                      <ScheduledTaskSidebarItem
+                        key={task.id}
+                        ref={(el) =>
+                          scheduledTaskActions.onSetScheduledTaskRef(task.id, el)
+                        }
+                        task={task}
+                        currentSessionId={currentSessionId}
+                        allProjects={projects}
+                        onSelectSession={sessionActions.onSelectSession}
+                        onDeleteSession={sessionActions.onDeleteSession}
+                        onMoveSession={sessionActions.onMoveSession}
+                        onToggleFavorite={sessionActions.onToggleFavorite}
+                        onShareSession={sessionActions.onShareSession}
+                        onUnreadCountChange={handleScheduledTaskUnreadChange}
+                        scrollRoot={scrollEl}
+                        draggingSessionId={sessionActions.draggingSessionId}
+                        unreadBySession={unreadBySession}
+                      />
+                    ))
+                  )}
+
+                  {scheduledTaskTotal > scheduledTasks.length && (
+                    <button
+                      onClick={() => navigate("/scheduled-tasks")}
+                      className="w-full h-8 rounded-[10px] px-[9px] text-left text-[13px] text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800/40 dark:hover:text-stone-300"
+                    >
+                      {t("nav.more", "更多")}
+                    </button>
+                  )}
+                </>
               )}
 
-              {scheduledTaskTotal > scheduledTasks.length && (
-                <button
-                  onClick={() => navigate("/scheduled-tasks")}
-                  className="w-full h-8 rounded-[10px] px-[9px] text-left text-[13px] text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:text-stone-500 dark:hover:bg-stone-800/40 dark:hover:text-stone-300"
-                >
-                  {t("nav.more", "更多")}
-                </button>
+              {!isScheduledTasksCollapsed && (
+                <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
               )}
             </>
-          )}
-
-          {!isScheduledTasksCollapsed && (
-            <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
           )}
 
           {/* Uncategorized sessions (by time) */}

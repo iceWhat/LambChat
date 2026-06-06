@@ -59,6 +59,7 @@ export function SidebarRail({
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
   const canReadTeam = hasPermission(Permission.TEAM_READ);
+  const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
 
   return (
     <nav
@@ -120,15 +121,17 @@ export function SidebarRail({
         >
           <Search size={20} />
         </button>
-        <button
-          type="button"
-          onClick={onOpenScheduledTasks}
-          className={railBtn}
-          title={t("nav.scheduledTasks")}
-          aria-label={t("nav.scheduledTasks")}
-        >
-          <Clock size={20} />
-        </button>
+        {canReadScheduledTasks && (
+          <button
+            type="button"
+            onClick={onOpenScheduledTasks}
+            className={railBtn}
+            title={t("nav.scheduledTasks")}
+            aria-label={t("nav.scheduledTasks")}
+          >
+            <Clock size={20} />
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenPersonaPlaza}
