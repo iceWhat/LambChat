@@ -31,6 +31,16 @@ from src.api.routes.file_type import (
     get_file_category,
     get_permission_for_category,
 )
+from src.api.routes.upload_signed_urls import (
+    SignedUrlItem,
+    SignedUrlRequest,
+    SignedUrlResponse,
+    get_signed_urls,
+    get_single_signed_url,
+)
+from src.api.routes.upload_signed_urls import (
+    router as signed_url_router,
+)
 from src.infra.async_utils import run_blocking_io
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
 from src.infra.auth.rbac import check_permission
@@ -43,14 +53,6 @@ from src.infra.storage.s3.base import BinaryReadFile
 from src.infra.upload.file_record import FileRecordStorage
 from src.kernel.config import settings
 from src.kernel.schemas.user import TokenPayload
-from src.api.routes.upload_signed_urls import (
-    SignedUrlItem,
-    SignedUrlRequest,
-    SignedUrlResponse,
-    get_signed_urls,
-    get_single_signed_url,
-    router as signed_url_router,
-)
 
 logger = get_logger(__name__)
 
