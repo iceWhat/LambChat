@@ -83,8 +83,9 @@ class ScheduledTaskRunner:
         run_id = str(uuid.uuid4())
 
         # 1. Acquire distributed lock (multi-instance dedup)
+        max_attempts = max(1, int(task.max_retries or 0) + 1)
         lock_token = await acquire_task_lock(
-            task_id, run_id, ttl=task.timeout_seconds
+            task_id, run_id, ttl=task.timeout_seconds * max_attempts
         )
         if lock_token is None:
             return {
@@ -111,7 +112,6 @@ class ScheduledTaskRunner:
 
         # 3. Execute
         try:
-            max_attempts = max(1, int(task.max_retries or 0) + 1)
             final_attempt: _AttemptResult | None = None
             for attempt in range(max_attempts):
                 session_id = (

@@ -56,6 +56,31 @@ def mock_lock():
 
 
 @pytest.mark.asyncio
+async def test_runner_lock_ttl_covers_all_attempts(
+    mock_storage: AsyncMock,
+) -> None:
+    task = _make_task(timeout_seconds=60, max_retries=2)
+    mock_storage.get_task = AsyncMock(return_value=task)
+
+    with (
+        patch(
+            "src.infra.scheduler.runner.acquire_task_lock",
+            new=AsyncMock(return_value="token"),
+        ) as acquire_lock,
+        patch("src.infra.scheduler.runner.release_task_lock", new=AsyncMock()),
+    ):
+        runner = ScheduledTaskRunner()
+        runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
+            return_value={"session_status": "completed", "session_id": "session_1"}
+        )
+
+        await runner.run("task_1")
+
+    acquire_lock.assert_awaited_once()
+    assert acquire_lock.call_args.kwargs["ttl"] >= 180
+
+
+@pytest.mark.asyncio
 async def test_runner_records_failed_agent_status_as_failed(
     mock_storage: AsyncMock,
     mock_lock: None,

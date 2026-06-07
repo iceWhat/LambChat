@@ -645,7 +645,7 @@ async def scheduled_task_update(
     if name is not None:
         updates["name"] = name
     if message is not None:
-        updates["input_payload"] = {"message": message}
+        updates["input_payload"] = {**(task.input_payload or {}), "message": message}
     if description is not None:
         updates["description"] = description
     if enabled is not None:

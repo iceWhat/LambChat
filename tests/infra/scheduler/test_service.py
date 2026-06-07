@@ -195,6 +195,30 @@ async def test_load_persisted_tasks(
 
 
 @pytest.mark.asyncio
+async def test_load_persisted_tasks_pauses_expired_date_task(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    task = _make_task(
+        trigger_type=TriggerType.DATE,
+        trigger_config={"run_date": "2000-01-01T00:00:00+00:00"},
+        total_runs=0,
+    )
+    mock_storage.list_active_tasks = AsyncMock(return_value=[task])
+    mock_storage.update_task = AsyncMock(return_value=True)
+
+    count = await service.load_persisted_tasks()
+
+    assert count == 1
+    mock_storage.update_task.assert_called_once_with(
+        "task_1",
+        {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
+    )
+    mock_scheduler.register_job.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_update_task_refreshes_scheduler(
     service: ScheduledTaskService,
     mock_storage: AsyncMock,
@@ -224,7 +248,7 @@ async def test_update_task_can_change_trigger_type(
     )
     updated = _make_task(
         trigger_type=TriggerType.DATE,
-        trigger_config={"run_date": "2026-01-01T12:05:00+00:00"},
+        trigger_config={"run_date": "2099-01-01T12:05:00+00:00"},
         run_on_start=False,
     )
     mock_storage.get_task = AsyncMock(side_effect=[original, updated])
@@ -232,7 +256,7 @@ async def test_update_task_can_change_trigger_type(
 
     request = ScheduledTaskUpdate(
         trigger_type=TriggerType.DATE,
-        trigger_config={"run_date": "2026-01-01T12:05:00+00:00"},
+        trigger_config={"run_date": "2099-01-01T12:05:00+00:00"},
         run_on_start=True,
     )
     result = await service.update_task("task_1", request)
@@ -241,7 +265,7 @@ async def test_update_task_can_change_trigger_type(
         "task_1",
         {
             "trigger_type": TriggerType.DATE,
-            "trigger_config": {"run_date": "2026-01-01T12:05:00+00:00"},
+            "trigger_config": {"run_date": "2099-01-01T12:05:00+00:00"},
             "run_on_start": False,
         },
     )
@@ -303,12 +327,20 @@ def test_build_trigger_cron() -> None:
 def test_build_trigger_date() -> None:
     trigger = ScheduledTaskService._build_trigger(
         TriggerType.DATE,
-        {"run_date": "2026-01-01T12:05:00+00:00"},
+        {"run_date": "2099-01-01T12:05:00+00:00"},
     )
     from apscheduler.triggers.date import DateTrigger
 
     assert isinstance(trigger, DateTrigger)
-    assert trigger.run_date == datetime(2026, 1, 1, 12, 5, tzinfo=timezone.utc)
+    assert trigger.run_date == datetime(2099, 1, 1, 12, 5, tzinfo=timezone.utc)
+
+
+def test_build_trigger_date_rejects_past_run_date() -> None:
+    with pytest.raises(ValueError, match="future"):
+        ScheduledTaskService._build_trigger(
+            TriggerType.DATE,
+            {"run_date": "2000-01-01T00:00:00+00:00"},
+        )
 
 
 def test_build_trigger_unsupported_raises() -> None:

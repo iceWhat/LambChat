@@ -325,14 +325,15 @@ class ScheduledTaskService:
             )
         if trigger_type == TriggerType.DATE:
             date_cfg = DateTriggerConfig(**config)
-            return DateTrigger(run_date=ensure_utc(date_cfg.run_date), timezone="UTC")
+            run_date = ensure_utc(date_cfg.run_date)
+            if run_date <= utc_now():
+                raise ValueError("date trigger run_date must be in the future")
+            return DateTrigger(run_date=run_date, timezone="UTC")
         raise ValueError(f"Unsupported trigger type: {trigger_type}")
 
     @staticmethod
     def _is_expired_date_task(task: ScheduledTask, now=None) -> bool:
         if task.trigger_type != TriggerType.DATE:
-            return False
-        if task.total_runs < 1:
             return False
         try:
             cfg = DateTriggerConfig(**task.trigger_config)

@@ -657,6 +657,11 @@ async def test_update_task(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.asyncio
 async def test_update_task_with_message(monkeypatch: pytest.MonkeyPatch) -> None:
     original = _task()
+    original.input_payload = {
+        "message": "Old message content",
+        "agent_options": {"model_id": "model-1", "model": "gpt-4.1"},
+        "user_timezone": "Asia/Shanghai",
+    }
     updated = _task()
     get_mock = AsyncMock(side_effect=[original, updated])
     update_mock = AsyncMock(return_value=updated)
@@ -676,10 +681,13 @@ async def test_update_task_with_message(monkeypatch: pytest.MonkeyPatch) -> None
     )
 
     assert result["success"] is True
-    # Verify input_payload was mapped correctly
     call_kwargs = update_mock.call_args
     update_obj = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs.kwargs.get("request")
-    assert update_obj.input_payload == {"message": "New message content"}
+    assert update_obj.input_payload == {
+        "message": "New message content",
+        "agent_options": {"model_id": "model-1", "model": "gpt-4.1"},
+        "user_timezone": "Asia/Shanghai",
+    }
 
 
 @pytest.mark.asyncio

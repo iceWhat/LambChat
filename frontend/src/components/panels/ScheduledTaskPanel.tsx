@@ -48,6 +48,10 @@ import type { AvailableModel } from "../../contexts/SettingsContext";
 import type { SSEEventRecord } from "../../types/session";
 import { formatDateTimeShort } from "../../utils/datetime";
 import {
+  buildScheduledTaskInputPayload,
+  getAgentOptionsFromScheduledTaskPayload,
+} from "./scheduledTaskPayload";
+import {
   closePersistentToolPanel,
   isPersistentToolPanelOpen,
   openPersistentToolPanel,
@@ -79,28 +83,6 @@ function readScheduledTaskDefaults(): ScheduledTaskDefaults {
   } catch {
     return {};
   }
-}
-
-function getAgentOptionsFromPayload(
-  payload: Record<string, unknown> | undefined,
-): Record<string, unknown> {
-  const options = payload?.agent_options;
-  return options && typeof options === "object" && !Array.isArray(options)
-    ? (options as Record<string, unknown>)
-    : {};
-}
-
-function withoutModelOptions(
-  options: Record<string, unknown>,
-): Record<string, unknown> {
-  const next = { ...options };
-  delete next.model_id;
-  delete next.model;
-  delete next._resolved_model_config;
-  delete next._resolved_supports_vision;
-  delete next._resolved_fallback_model;
-  delete next._resolved_model_profile;
-  return next;
 }
 
 function extractRunConversationMessages(
@@ -579,7 +561,9 @@ function TaskFormModal({
 }) {
   const { t } = useTranslation();
   const isEdit = !!task;
-  const taskAgentOptions = getAgentOptionsFromPayload(task?.input_payload);
+  const taskAgentOptions = getAgentOptionsFromScheduledTaskPayload(
+    task?.input_payload,
+  );
   const initialModelId =
     (typeof taskAgentOptions.model_id === "string"
       ? taskAgentOptions.model_id
@@ -703,20 +687,11 @@ function TaskFormModal({
 
     setIsSaving(true);
     try {
-      const selectedModel = availableModels?.find((m) => m.id === modelId);
-      const nextAgentOptions = {
-        ...withoutModelOptions(getAgentOptionsFromPayload(payload)),
-        ...(modelId ? { model_id: modelId } : {}),
-        ...(selectedModel?.value || modelValue
-          ? { model: selectedModel?.value || modelValue }
-          : {}),
-      };
-      const nextPayload = {
-        ...payload,
-        ...(Object.keys(nextAgentOptions).length > 0
-          ? { agent_options: nextAgentOptions }
-          : {}),
-      };
+      const nextPayload = buildScheduledTaskInputPayload(payload, {
+        modelId,
+        modelValue,
+        availableModels,
+      });
       await onSave({
         name: name.trim(),
         agent_id: agentId,
@@ -1730,7 +1705,7 @@ export function ScheduledTaskPanel({
   };
 
   const formatTaskModel = (task: ScheduledTask): string | null => {
-    const options = getAgentOptionsFromPayload(task.input_payload);
+    const options = getAgentOptionsFromScheduledTaskPayload(task.input_payload);
     const modelId = typeof options.model_id === "string" ? options.model_id : "";
     const modelValue = typeof options.model === "string" ? options.model : "";
     if (!modelId && !modelValue) return null;
