@@ -1,4 +1,16 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
+import {
+  SkillsPanelSkeleton,
+  MarketplacePanelSkeleton,
+  UsersPanelSkeleton,
+  RolesPanelSkeleton,
+  MCPPanelSkeleton,
+  FeedbackPanelSkeleton,
+  ScheduledTaskPanelSkeleton,
+  ChannelsGridSkeleton,
+  AgentPanelSkeleton,
+} from "../../skeletons";
+import { PanelLoadingState } from "../../common/PanelLoadingState";
 import type { TabType } from "./types";
 
 const SkillsHubPanel = lazy(() =>
@@ -85,16 +97,17 @@ const panelMap: Record<
   "scheduled-tasks": ScheduledTaskPanel,
 };
 
-function PanelLoader() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <div className="relative h-8 w-8">
-        <div className="absolute inset-0 rounded-full border-2 border-stone-200 dark:border-stone-700" />
-        <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-stone-500 dark:border-t-stone-400 animate-spin will-change-transform" />
-      </div>
-    </div>
-  );
-}
+const skeletonMap: Partial<Record<TabType, ReactNode>> = {
+  skills: <SkillsPanelSkeleton />,
+  marketplace: <MarketplacePanelSkeleton />,
+  users: <UsersPanelSkeleton />,
+  roles: <RolesPanelSkeleton />,
+  mcp: <MCPPanelSkeleton />,
+  feedback: <FeedbackPanelSkeleton />,
+  "scheduled-tasks": <ScheduledTaskPanelSkeleton />,
+  channels: <ChannelsGridSkeleton />,
+  agents: <AgentPanelSkeleton />,
+};
 
 export function TabContent({ activeTab }: { activeTab: TabType }) {
   if (activeTab === "chat") return null;
@@ -105,7 +118,7 @@ export function TabContent({ activeTab }: { activeTab: TabType }) {
   return (
     <main className="flex-1 overflow-hidden bg-[var(--theme-bg)]">
       <div className="mx-auto w-full h-full flex flex-col overflow-hidden lg:max-w-[80rem] xl:max-w-[96rem] 2xl:max-w-[120rem] sm:px-4">
-        <Suspense fallback={<PanelLoader />}>
+        <Suspense fallback={skeletonMap[activeTab] ?? <PanelLoadingState />}>
           <Panel />
         </Suspense>
       </div>

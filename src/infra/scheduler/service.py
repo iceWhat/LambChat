@@ -6,6 +6,7 @@ storage, runner, and scheduler components.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from src.infra.logging import get_logger
 from src.infra.scheduler.runner import get_scheduled_task_runner
 from src.infra.scheduler.runtime import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
+from src.infra.session.storage import SessionStorage
 from src.infra.utils.datetime import ensure_utc, utc_now
 from src.kernel.schemas.scheduled_task import (
     CronTriggerConfig,
@@ -33,6 +35,8 @@ from src.kernel.schemas.scheduled_task import (
 )
 
 logger = get_logger(__name__)
+
+_managed_task_signatures: dict[str, str] = {}
 
 
 class ScheduledTaskService:
@@ -51,27 +55,29 @@ class ScheduledTaskService:
 
         now = utc_now()
         task_id = str(uuid4())
-        task = ScheduledTask(
-            id=task_id,
-            name=request.name,
-            description=request.description,
-            agent_id=request.agent_id,
-            trigger_type=request.trigger_type,
-            trigger_config=request.trigger_config,
-            input_payload=request.input_payload,
-            status=ScheduledTaskStatus.ACTIVE,
-            enabled=request.enabled,
-            run_on_start=False
-            if request.trigger_type == TriggerType.DATE
-            else request.run_on_start,
-            max_retries=request.max_retries,
-            timeout_seconds=request.timeout_seconds,
-            owner_id=owner_id,
-            source_session_id=request.source_session_id,
-            source_run_id=request.source_run_id,
-            created_by=request.created_by,
-            created_at=now,
-            updated_at=now,
+        task = ScheduledTask.model_validate(
+            {
+                "_id": task_id,
+                "name": request.name,
+                "description": request.description,
+                "agent_id": request.agent_id,
+                "trigger_type": request.trigger_type,
+                "trigger_config": request.trigger_config,
+                "input_payload": request.input_payload,
+                "status": ScheduledTaskStatus.ACTIVE,
+                "enabled": request.enabled,
+                "run_on_start": False
+                if request.trigger_type == TriggerType.DATE
+                else request.run_on_start,
+                "max_retries": request.max_retries,
+                "timeout_seconds": request.timeout_seconds,
+                "owner_id": owner_id,
+                "source_session_id": request.source_session_id,
+                "source_run_id": request.source_run_id,
+                "created_by": request.created_by,
+                "created_at": now,
+                "updated_at": now,
+            }
         )
 
         storage = get_scheduled_task_storage()
@@ -118,7 +124,7 @@ class ScheduledTaskService:
         if updated_task.enabled and updated_task.status == ScheduledTaskStatus.ACTIVE:
             self._register_to_scheduler(updated_task)
         else:
-            get_runtime_scheduler().unregister_job(task_id)
+            self._unregister_managed_task(task_id)
 
         return updated_task
 
@@ -131,7 +137,7 @@ class ScheduledTaskService:
         await storage.update_task(
             task_id, {"status": ScheduledTaskStatus.PAUSED, "enabled": False}
         )
-        get_runtime_scheduler().unregister_job(task_id)
+        self._unregister_managed_task(task_id)
         logger.info("[Service] paused task %s", task_id)
         return await storage.get_task(task_id)
 
@@ -152,7 +158,7 @@ class ScheduledTaskService:
 
     async def delete_task(self, task_id: str) -> bool:
         """Soft-delete a task."""
-        get_runtime_scheduler().unregister_job(task_id)
+        self._unregister_managed_task(task_id)
         storage = get_scheduled_task_storage()
         deleted = await storage.delete_task(task_id)
         if deleted:
@@ -190,8 +196,23 @@ class ScheduledTaskService:
             skip=skip,
             limit=limit,
         )
-        responses = [self.to_response(t) for t in tasks]
+        unread_counts = await SessionStorage().get_unread_counts_for_scheduled_tasks(
+            user_id=owner_id,
+            scheduled_task_ids=[task.id for task in tasks],
+        )
+        responses = [
+            self.to_response(t, unread_count=unread_counts.get(t.id, 0))
+            for t in tasks
+        ]
         return responses, total
+
+    async def get_task_response(self, task: ScheduledTask) -> ScheduledTaskResponse:
+        """Convert a task to an API response with unread session totals."""
+        unread_counts = await SessionStorage().get_unread_counts_for_scheduled_tasks(
+            user_id=task.owner_id,
+            scheduled_task_ids=[task.id],
+        )
+        return self.to_response(task, unread_count=unread_counts.get(task.id, 0))
 
     # ── Execution ──────────────────────────────────
 
@@ -237,21 +258,31 @@ class ScheduledTaskService:
         storage = get_scheduled_task_storage()
         tasks = await storage.list_active_tasks()
         now = utc_now()
+        active_task_ids: set[str] = set()
         for task in tasks:
             if self._is_expired_date_task(task, now):
                 await storage.update_task(
                     task.id,
                     {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
                 )
+                self._unregister_managed_task(task.id)
                 continue
+            active_task_ids.add(task.id)
             self._register_to_scheduler(task)
+
+        for task_id in set(_managed_task_signatures) - active_task_ids:
+            self._unregister_managed_task(task_id)
+
         logger.info("[Service] loaded %d persisted tasks into scheduler", len(tasks))
         return len(tasks)
 
     # ── Conversion helpers ─────────────────────────
 
     @staticmethod
-    def to_response(task: ScheduledTask) -> ScheduledTaskResponse:
+    def to_response(
+        task: ScheduledTask,
+        unread_count: int = 0,
+    ) -> ScheduledTaskResponse:
         """Convert a ScheduledTask model to an API response."""
         return ScheduledTaskResponse(
             id=task.id,
@@ -274,6 +305,7 @@ class ScheduledTaskService:
             last_run_status=task.last_run_status,
             last_run_id=task.last_run_id,
             total_runs=task.total_runs,
+            unread_count=unread_count,
             created_at=task.created_at,
             updated_at=task.updated_at,
         )
@@ -282,6 +314,14 @@ class ScheduledTaskService:
 
     def _register_to_scheduler(self, task: ScheduledTask) -> None:
         """Register a persisted task with the in-process APScheduler."""
+        signature = self._scheduler_signature(task)
+        scheduler = get_runtime_scheduler()
+        if (
+            _managed_task_signatures.get(task.id) == signature
+            and scheduler.has_job(task.id)
+        ):
+            return
+
         trigger = self._build_trigger(task.trigger_type, task.trigger_config)
         runner = get_scheduled_task_runner()
         task_id = task.id
@@ -300,7 +340,28 @@ class ScheduledTaskService:
             max_instances=1,
             coalesce=True,
         )
-        get_runtime_scheduler().register_job(job)
+        scheduler.register_job(job)
+        _managed_task_signatures[task_id] = signature
+
+    @staticmethod
+    def _unregister_managed_task(task_id: str) -> None:
+        get_runtime_scheduler().unregister_job(task_id)
+        _managed_task_signatures.pop(task_id, None)
+
+    @staticmethod
+    def _scheduler_signature(task: ScheduledTask) -> str:
+        return json.dumps(
+            {
+                "trigger_type": task.trigger_type.value,
+                "trigger_config": task.trigger_config,
+                "enabled": task.enabled,
+                "status": task.status.value,
+                "run_on_start": task.run_on_start,
+                "name": task.name,
+            },
+            default=str,
+            sort_keys=True,
+        )
 
     @staticmethod
     def _build_trigger(

@@ -20,6 +20,7 @@ from src.infra.scheduler.runtime import get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now
+from src.kernel.config import settings
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
@@ -97,16 +98,18 @@ class ScheduledTaskRunner:
         # 2. Create execution record
         now = utc_now()
         base_session_id = self._build_session_id(task_id, run_id)
-        record = TaskRunRecord(
-            id=run_id,
-            task_id=task_id,
-            agent_id=task.agent_id,
-            trigger_type=trigger_type,
-            status=RunStatus.PENDING,
-            session_id=base_session_id,
-            input_snapshot=task.input_payload,
-            started_at=now,
-            created_at=now,
+        record = TaskRunRecord.model_validate(
+            {
+                "_id": run_id,
+                "task_id": task_id,
+                "agent_id": task.agent_id,
+                "trigger_type": trigger_type,
+                "status": RunStatus.PENDING,
+                "session_id": base_session_id,
+                "input_snapshot": task.input_payload,
+                "started_at": now,
+                "created_at": now,
+            }
         )
         await storage.create_run(record)
 
@@ -237,14 +240,7 @@ class ScheduledTaskRunner:
         from src.infra.task.manager import get_task_manager
 
         task_manager = get_task_manager()
-
-        # Resolve the agent executor from the registry (registered by chat.py)
-        executor_fn = get_registered_executor("agent_stream")
-        if executor_fn is None:
-            raise RuntimeError(
-                "agent_stream executor not registered — "
-                "ensure the chat router is loaded before scheduled tasks run"
-            )
+        use_arq_backend = settings.TASK_BACKEND == "arq"
 
         display_message = task.input_payload.get("message", "")
         if not display_message and task.input_payload.get("prompt"):
@@ -266,21 +262,44 @@ class ScheduledTaskRunner:
         else:
             agent_options = None
 
-        _, trace_id = await task_manager.submit(
-            session_id=session_id,
-            agent_id=task.agent_id,
-            message=message,
-            user_id=task.owner_id,
-            executor=executor_fn,
-            run_id=run_id,
-            disabled_tools=task.input_payload.get("disabled_tools"),
-            agent_options=agent_options,
-            project_id=None,
-            session_name=f"[Scheduled] {task.name}",
-            display_message=display_message,
-            recommendation_input=display_message,
-            write_user_message_immediately=True,
-        )
+        if use_arq_backend:
+            _, trace_id = await task_manager.submit_arq(
+                session_id=session_id,
+                agent_id=task.agent_id,
+                message=message,
+                user_id=task.owner_id,
+                executor_key="agent_stream",
+                run_id=run_id,
+                disabled_tools=task.input_payload.get("disabled_tools"),
+                agent_options=agent_options,
+                project_id=None,
+                session_name=f"{task.name}",
+                display_message=display_message,
+                recommendation_input=display_message,
+                write_user_message_immediately=True,
+            )
+        else:
+            executor_fn = get_registered_executor("agent_stream")
+            if executor_fn is None:
+                raise RuntimeError(
+                    "agent_stream executor not registered — "
+                    "ensure the chat router is loaded before scheduled tasks run"
+                )
+            _, trace_id = await task_manager.submit(
+                session_id=session_id,
+                agent_id=task.agent_id,
+                message=message,
+                user_id=task.owner_id,
+                executor=executor_fn,
+                run_id=run_id,
+                disabled_tools=task.input_payload.get("disabled_tools"),
+                agent_options=agent_options,
+                project_id=None,
+                session_name=f"{task.name}",
+                display_message=display_message,
+                recommendation_input=display_message,
+                write_user_message_immediately=True,
+            )
         await SessionManager().update_session_metadata(
             session_id,
             {

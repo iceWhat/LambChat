@@ -106,6 +106,7 @@ export const SessionSidebar = forwardRef<
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(false);
   const [isScheduledTasksCollapsed, setIsScheduledTasksCollapsed] =
     useState(false);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [isChatsCollapsed, setIsChatsCollapsed] = useState(false);
   const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
   const [unreadBySession, setUnreadBySession] = useState<UnreadBySession>(
@@ -763,6 +764,8 @@ export const SessionSidebar = forwardRef<
             }
             isChatsCollapsed={isChatsCollapsed}
             onToggleChatsCollapsed={() => setIsChatsCollapsed((v) => !v)}
+            isNavCollapsed={isNavCollapsed}
+            onToggleNavCollapsed={() => setIsNavCollapsed((v) => !v)}
             autoExpandProjectId={autoExpandProjectId ?? null}
             onConsumeAutoExpandProjectId={onConsumeAutoExpandProjectId!}
           />
@@ -832,6 +835,8 @@ export const SessionSidebar = forwardRef<
               }
               isChatsCollapsed={isChatsCollapsed}
               onToggleChatsCollapsed={() => setIsChatsCollapsed((v) => !v)}
+              isNavCollapsed={isNavCollapsed}
+              onToggleNavCollapsed={() => setIsNavCollapsed((v) => !v)}
               autoExpandProjectId={autoExpandProjectId ?? null}
               onConsumeAutoExpandProjectId={onConsumeAutoExpandProjectId!}
             />

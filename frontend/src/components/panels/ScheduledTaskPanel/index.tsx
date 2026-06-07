@@ -2,15 +2,33 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Clock, History, Pause, Pencil, Play, Plus, RotateCcw, Timer, Trash2 } from "lucide-react";
+import {
+  Bot,
+  Clock,
+  Cpu,
+  History,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  RotateCcw,
+  Timer,
+  Trash2,
+} from "lucide-react";
 import { PanelHeader } from "../../common/PanelHeader";
+import { ScheduledTaskPanelSkeleton } from "../../skeletons";
 import { Pagination } from "../../common/Pagination";
 import { scheduledTaskApi } from "../../../services/api/scheduledTask";
 import { agentApi } from "../../../services/api/agent";
 import { useAuth } from "../../../hooks/useAuth";
 import { useSettingsContext } from "../../../contexts/SettingsContext";
 import { Permission } from "../../../types";
-import type { ScheduledTask, ScheduledTaskCreate, ScheduledTaskStatus as ScheduledTaskStatusType, ScheduledTaskUpdate } from "../../../types/scheduledTask";
+import type {
+  ScheduledTask,
+  ScheduledTaskCreate,
+  ScheduledTaskStatus as ScheduledTaskStatusType,
+  ScheduledTaskUpdate,
+} from "../../../types/scheduledTask";
 import type { AgentInfo } from "../../../types/agent";
 import type { AvailableModel } from "../../../contexts/SettingsContext";
 import { formatDateTimeShort } from "../../../utils/datetime";
@@ -18,7 +36,7 @@ import { getAgentOptionsFromScheduledTaskPayload } from "../scheduledTaskPayload
 import { notifyScheduledTaskMutation } from "../../../stores/scheduledTaskMutationStore";
 import { RunStatusBadge, StatusBadge } from "./Badges";
 import { DeleteConfirmModal } from "./DeleteConfirmModal";
-import { RunHistoryModal } from "./RunHistoryModal";
+import { StatusFilter } from "./StatusFilter";
 import { TaskFormModal } from "./TaskFormModal";
 import { TaskSessionList } from "./TaskSessionList";
 import { readScheduledTaskDefaults } from "./utils";
@@ -55,9 +73,6 @@ export function ScheduledTaskPanel({
   const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null);
   const [editingTask, setEditingTask] = useState<ScheduledTask | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [runHistoryTask, setRunHistoryTask] = useState<ScheduledTask | null>(
-    null,
-  );
   const [agents, setAgents] = useState<AgentInfo[]>(providedAgents || []);
   const [apiDefaultAgentId, setApiDefaultAgentId] = useState("");
   const defaults = readScheduledTaskDefaults();
@@ -298,8 +313,13 @@ export function ScheduledTaskPanel({
     return model?.label || modelValue || modelId;
   };
 
+  // Show skeleton during initial data loading — consistent with other panels
+  if (isLoading && tasks.length === 0 && !selectedTaskId) {
+    return <ScheduledTaskPanelSkeleton />;
+  }
+
   return (
-    <div className="glass-shell flex h-full flex-col min-h-0">
+    <div className="glass-shell scheduled-task-panel flex h-full flex-col min-h-0">
       {selectedTaskId ? (
         <TaskSessionList
           taskId={selectedTaskId}
@@ -312,71 +332,47 @@ export function ScheduledTaskPanel({
         />
       ) : (
         <>
-          {/* Header */}
           <PanelHeader
-        title={t("scheduledTask.title")}
-        icon={
-          <Clock size={20} className="text-stone-600 dark:text-stone-400" />
-        }
-        actions={
-          <div className="flex items-center gap-3">
-            {/* Status filter */}
-            <select
-              value={statusFilter ?? ""}
-              onChange={(e) =>
-                setStatusFilter(
-                  (e.target.value || undefined) as
-                    | ScheduledTaskStatusType
-                    | undefined,
-                )
-              }
-              className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-700 transition-all focus:border-stone-500 focus:outline-none focus:ring-2 focus:ring-stone-500/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
-            >
-              <option value="">{t("scheduledTask.allStatuses")}</option>
-              <option value="active">{t("scheduledTask.active")}</option>
-              <option value="paused">{t("scheduledTask.paused")}</option>
-            </select>
-
-            {/* Create button */}
-            {canWrite && (
-              <button
-                onClick={() => setIsCreating(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-stone-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
-              >
-                <Plus size={16} />
-                {t("scheduledTask.create")}
-              </button>
-            )}
-          </div>
-        }
-      />
+            title={t("scheduledTask.title")}
+            icon={
+              <Clock size={20} className="text-stone-600 dark:text-stone-400" />
+            }
+            actions={
+              <div className="flex items-center gap-2">
+                <StatusFilter
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                />
+                {canWrite && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreating(true)}
+                    className="btn-primary h-10"
+                  >
+                    <Plus size={16} />
+                    {t("scheduledTask.create")}
+                  </button>
+                )}
+              </div>
+            }
+          />
 
       {/* Task List */}
-      <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4 sm:p-6">
-        {isLoading && tasks.length === 0 ? (
-          <div className="flex h-40 items-center justify-center">
-            <div className="relative h-8 w-8">
-              <div className="absolute inset-0 rounded-full border-2 border-stone-200 dark:border-stone-700" />
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-stone-600 dark:border-t-stone-300 animate-spin will-change-transform" />
+      <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
+        {tasks.length === 0 ? (
+          <div className="scheduled-task-empty-state">
+            <div className="scheduled-task-empty-state__icon">
+              <Clock size={32} />
             </div>
-          </div>
-        ) : !isLoading && tasks.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 dark:bg-stone-800">
-              <Clock
-                size={32}
-                className="text-stone-400 dark:text-stone-500"
-              />
-            </div>
-            <p className="text-lg font-medium text-stone-700 dark:text-stone-300">
+            <p className="scheduled-task-empty-state__title">
               {t("scheduledTask.noTasks")}
             </p>
-            <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+            <p className="scheduled-task-empty-state__body">
               {t("scheduledTask.noTasksDesc")}
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid auto-grid-cols gap-3">
             {tasks.map((task) => {
               const agentName =
                 agents.find((a) => a.id === task.agent_id)?.name ??
@@ -386,119 +382,126 @@ export function ScheduledTaskPanel({
               return (
                 <div
                   key={task.id}
-                  className="glass-card rounded-xl p-4 sm:p-5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors cursor-pointer"
+                  className="glass-card scheduled-task-card"
                   onClick={() => {
                     setSelectedTaskId(task.id);
                     setSelectedTaskName(task.name);
                   }}
                 >
-                  <div className="flex items-start justify-between gap-3 sm:gap-4">
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 sm:gap-3 mb-2">
-                        <p className="font-medium text-stone-900 dark:text-stone-100 break-words line-clamp-1">
-                          {task.name}
-                        </p>
-                        <StatusBadge status={task.status} />
-                      </div>
+                  <div className="scheduled-task-card__content">
+                    <div className="scheduled-task-card__title-row">
+                      <p className="scheduled-task-card__title">
+                        {task.name}
+                      </p>
+                      <StatusBadge status={task.status} />
+                    </div>
 
-                      {task.description && (
-                        <p className="text-sm text-stone-500 dark:text-stone-400 mb-2 line-clamp-2">
-                          {task.description}
-                        </p>
-                      )}
+                    {task.description && (
+                      <p className="scheduled-task-card__description">
+                        {task.description}
+                      </p>
+                    )}
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
-                        <span className="inline-flex items-center gap-1">
-                          <Timer size={12} />
+                    <div className="scheduled-task-meta">
+                      <span className="scheduled-task-meta__item">
+                        <Timer size={12} />
+                        <span className="scheduled-task-meta__text">
                           {formatTriggerInfo(task)}
                         </span>
-                        <span>{agentName}</span>
-                        {modelName && <span>{modelName}</span>}
-                        {task.total_runs > 0 && (
-                          <span>
+                      </span>
+                      <span className="scheduled-task-meta__item">
+                        <Bot size={12} />
+                        <span className="scheduled-task-meta__text">
+                          {t(agentName)}
+                        </span>
+                      </span>
+                      {modelName && (
+                        <span className="scheduled-task-meta__item">
+                          <Cpu size={12} />
+                          <span className="scheduled-task-meta__text">
+                            {modelName}
+                          </span>
+                        </span>
+                      )}
+                      {task.total_runs > 0 && (
+                        <span className="scheduled-task-meta__item">
+                          <History size={12} />
+                          <span className="scheduled-task-meta__text">
                             {t("scheduledTask.totalRuns")}: {task.total_runs}
                           </span>
+                        </span>
+                      )}
+                    </div>
+
+                    {task.last_run_at && (
+                      <div className="scheduled-task-card__subtle flex flex-wrap items-center gap-2">
+                        <span>{t("scheduledTask.lastRun")}:</span>
+                        <span>
+                          {formatDateTimeShort(task.last_run_at)}
+                        </span>
+                        {task.last_run_status && (
+                          <RunStatusBadge status={task.last_run_status} />
                         )}
                       </div>
+                    )}
 
-                      {task.last_run_at && (
-                        <div className="mt-2 flex items-center gap-2 text-xs text-stone-400 dark:text-stone-500">
-                          <span>{t("scheduledTask.lastRun")}:</span>
-                          <span>
-                            {formatDateTimeShort(task.last_run_at)}
-                          </span>
-                          {task.last_run_status && (
-                            <RunStatusBadge status={task.last_run_status} />
-                          )}
-                        </div>
-                      )}
+                    {!task.last_run_at && (
+                      <p className="scheduled-task-card__subtle">
+                        {t("scheduledTask.neverRun")}
+                      </p>
+                    )}
+                  </div>
 
-                      {!task.last_run_at && (
-                        <p className="mt-2 text-xs text-stone-400 dark:text-stone-500">
-                          {t("scheduledTask.neverRun")}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div
-                      className="flex items-center gap-1 flex-shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {canWrite && task.status === "active" && (
-                        <button
-                          onClick={() => handlePause(task)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                          title={t("scheduledTask.pause")}
-                        >
-                          <Pause size={16} />
-                        </button>
-                      )}
-                      {canWrite && task.status === "paused" && (
-                        <button
-                          onClick={() => handleResume(task)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-emerald-500 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                          title={t("scheduledTask.resume")}
-                        >
-                          <Play size={16} />
-                        </button>
-                      )}
-                      {canWrite && (
-                        <button
-                          onClick={() => handleRunNow(task)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
-                          title={t("scheduledTask.runNow")}
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                      )}
+                  {/* Actions */}
+                  <div
+                    className="scheduled-task-card__actions"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {canWrite && task.status === "active" && (
                       <button
-                        onClick={() => setRunHistoryTask(task)}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                        title={t("scheduledTask.runHistory")}
+                        onClick={() => handlePause(task)}
+                        className="scheduled-task-icon-button"
+                        title={t("scheduledTask.pause")}
                       >
-                        <History size={16} />
+                        <Pause size={16} />
                       </button>
-                      {canWrite && (
-                        <button
-                          onClick={() => setEditingTask(task)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-                          title={t("scheduledTask.edit")}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          onClick={() => setDeleteTarget(task)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg text-stone-400 transition-all hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                          title={t("scheduledTask.delete")}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
+                    )}
+                    {canWrite && task.status === "paused" && (
+                      <button
+                        onClick={() => handleResume(task)}
+                        className="scheduled-task-icon-button scheduled-task-icon-button--success"
+                        title={t("scheduledTask.resume")}
+                      >
+                        <Play size={16} />
+                      </button>
+                    )}
+                    {canWrite && (
+                      <button
+                        onClick={() => handleRunNow(task)}
+                        className="scheduled-task-icon-button scheduled-task-icon-button--info"
+                        title={t("scheduledTask.runNow")}
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                    )}
+                    {canWrite && (
+                      <button
+                        onClick={() => setEditingTask(task)}
+                        className="scheduled-task-icon-button"
+                        title={t("scheduledTask.edit")}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => setDeleteTarget(task)}
+                        className="scheduled-task-icon-button scheduled-task-icon-button--danger"
+                        title={t("scheduledTask.delete")}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -555,13 +558,6 @@ export function ScheduledTaskPanel({
         />
       )}
 
-      {/* Run History Modal */}
-      {runHistoryTask && (
-        <RunHistoryModal
-          task={runHistoryTask}
-          onClose={() => setRunHistoryTask(null)}
-        />
-      )}
         </>
       )}
     </div>

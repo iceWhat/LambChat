@@ -869,7 +869,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.REDIS,
         "subcategory": "task",
         "description": "settingDesc.ARQ_WORKER_MAX_JOBS",
-        "default": 64,
+        "default": 128,
         "depends_on": {"key": "TASK_BACKEND", "value": "arq"},
     },
     "ARQ_JOB_TIMEOUT_SECONDS": {

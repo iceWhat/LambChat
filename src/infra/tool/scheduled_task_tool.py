@@ -502,8 +502,10 @@ async def scheduled_task_create(
                     ),
                 },
                 description=description,
+                enabled=True,
                 timeout_seconds=timeout_seconds,
                 run_on_start=effective_run_on_start,
+                max_retries=0,
                 source_session_id=ctx.session_id or None,
                 source_run_id=ctx.run_id or None,
                 created_by="agent",
@@ -531,20 +533,43 @@ async def scheduled_task_create(
 
 @tool
 async def scheduled_task_list(
+    task_id: Annotated[
+        str | None,
+        "Optional scheduled task ID. When provided, returns detailed information for that task.",
+    ] = None,
     status: Annotated[
         str | None,
         "Filter by status: 'active', 'paused', or omit to list all",
     ] = None,
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
-    """List all scheduled tasks owned by the current user.
-    Optionally filter by status ('active' or 'paused')."""
+    """List scheduled tasks owned by the current user. Provide task_id to fetch
+    detailed information for a single task; otherwise optionally filter by
+    status ('active' or 'paused')."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
         return _json({"error": "No user context available"})
     error = await _permission_error(user_id, Permission.SCHEDULED_TASK_READ.value)
     if error:
         return _json(error)
+
+    service = ScheduledTaskService()
+    if task_id:
+        try:
+            task = await service.get_task(task_id)
+        except Exception as e:
+            return _json({"error": f"Failed to get task: {e}"})
+
+        if task is None or task.owner_id != user_id:
+            return _json({"error": f"Task '{task_id}' not found"})
+
+        resp = ScheduledTaskService.to_response(task)
+        return _json(
+            {
+                "success": True,
+                "task": resp.model_dump(mode="json"),
+            }
+        )
 
     status_enum: Optional[ScheduledTaskStatus] = None
     if status:
@@ -553,7 +578,6 @@ async def scheduled_task_list(
         except ValueError:
             return _json({"error": f"Invalid status '{status}'. Use 'active', 'paused', or 'deleted'."})
 
-    service = ScheduledTaskService()
     try:
         tasks = await service.list_tasks(owner_id=user_id, status=status_enum)
     except Exception as e:
@@ -607,6 +631,10 @@ async def scheduled_task_get(
 @tool
 async def scheduled_task_update(
     task_id: Annotated[str, "ID of the task to update"],
+    action: Annotated[
+        str | None,
+        "Optional operation to perform instead of field updates: 'pause', 'resume', or 'run'.",
+    ] = None,
     name: Annotated[str | None, "New task name"] = None,
     message: Annotated[str | None, "New message to send to the agent on each execution"] = None,
     description: Annotated[str | None, "New description"] = None,
@@ -624,6 +652,7 @@ async def scheduled_task_update(
     runtime: Annotated[ToolRuntime, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> str:
     """Update an existing scheduled task. Pass only the fields you want to change.
+    Use action='pause', action='resume', or action='run' for lifecycle operations.
     To change the trigger_type, delete the task and create a new one."""
     user_id = get_user_id_from_runtime(runtime)
     if not user_id:
@@ -639,6 +668,56 @@ async def scheduled_task_update(
         return _json({"error": f"Task '{task_id}' not found"})
     if task.owner_id != user_id:
         return _json({"error": f"Task '{task_id}' not found"})
+
+    if action is not None:
+        if action == "pause":
+            try:
+                updated = await service.pause_task(task_id)
+            except Exception as e:
+                return _json({"error": f"Failed to pause task: {e}"})
+            if updated is None:
+                return _json({"error": f"Task '{task_id}' pause failed"})
+            return _json(
+                {
+                    "success": True,
+                    "action": "paused",
+                    "task_id": task_id,
+                    "name": updated.name,
+                    "message": f"Task '{updated.name}' paused.",
+                }
+            )
+        if action == "resume":
+            try:
+                updated = await service.resume_task(task_id)
+            except Exception as e:
+                return _json({"error": f"Failed to resume task: {e}"})
+            if updated is None:
+                return _json({"error": f"Task '{task_id}' resume failed"})
+            return _json(
+                {
+                    "success": True,
+                    "action": "resumed",
+                    "task_id": task_id,
+                    "name": updated.name,
+                    "message": f"Task '{updated.name}' resumed.",
+                }
+            )
+        if action == "run":
+            try:
+                result = await service.run_task_now(task_id)
+            except Exception as e:
+                return _json({"error": f"Failed to run task: {e}"})
+            return _json(
+                {
+                    "success": True,
+                    "action": "triggered",
+                    "task_id": task_id,
+                    "name": task.name,
+                    "result": result,
+                    "message": f"Task '{task.name}' triggered manually.",
+                }
+            )
+        return _json({"error": "Invalid action. Use 'pause', 'resume', or 'run'."})
 
     # Build update payload
     updates: dict[str, Any] = {}
@@ -843,10 +922,6 @@ def get_scheduled_task_tools() -> list[BaseTool]:
     return [
         scheduled_task_create,
         scheduled_task_list,
-        scheduled_task_get,
         scheduled_task_update,
-        scheduled_task_pause,
-        scheduled_task_resume,
         scheduled_task_delete,
-        scheduled_task_run,
     ]

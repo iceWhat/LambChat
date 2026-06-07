@@ -84,9 +84,11 @@ function SessionScheduledTaskPanelBody({
           <Loader2 className="h-5 w-5 animate-spin text-stone-400" />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-          <CalendarClock className="mb-3 h-9 w-9 text-stone-300 dark:text-stone-600" />
-          <p className="text-sm text-stone-500 dark:text-stone-400">
+        <div className="scheduled-task-empty-state min-h-0 flex-1 px-6">
+          <div className="scheduled-task-empty-state__icon h-12 w-12">
+            <CalendarClock size={24} />
+          </div>
+          <p className="scheduled-task-empty-state__body">
             {t(
               "scheduledTask.noConversationTasks",
               "当前会话暂无 agent 创建的定时任务",
@@ -94,39 +96,39 @@ function SessionScheduledTaskPanelBody({
           </p>
         </div>
       ) : (
-        <div className="flex-1 space-y-2 overflow-y-auto p-3">
+        <div className="scheduled-task-panel flex-1 space-y-2 overflow-y-auto p-3">
           {tasks.map((task) => (
             <div
               key={task.id}
-              className="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-bg-card)] p-3"
+              className="scheduled-task-mini-card"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-sm font-medium text-stone-900 dark:text-stone-100">
+                  <div className="scheduled-task-card__title-row">
+                    <p className="scheduled-task-card__title truncate text-sm">
                       {task.name}
                     </p>
                     <StatusBadge status={task.status} />
                   </div>
                   {task.description && (
-                    <p className="mt-1 line-clamp-2 text-xs text-stone-500 dark:text-stone-400">
+                    <p className="scheduled-task-card__description mt-1 text-xs">
                       {task.description}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="mt-3 space-y-1 text-xs text-stone-500 dark:text-stone-400">
-                <div className="flex items-center gap-1.5">
+              <div className="mt-3 grid gap-1.5 text-xs text-theme-text-secondary">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Timer size={12} />
                   <span className="truncate">{formatTaskTrigger(task, t)}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <Bot size={12} />
                   <span className="truncate">{task.agent_id}</span>
                 </div>
                 {task.last_run_at ? (
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <Clock size={12} />
                     <span>{formatDateTimeShort(task.last_run_at)}</span>
                     {task.last_run_status && (
@@ -150,17 +152,17 @@ function SessionScheduledTaskPanelBody({
                       `/scheduled-tasks?${params.toString()}`,
                     );
                   }}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                  className="scheduled-task-button scheduled-task-button--secondary min-h-8 px-2 text-xs"
                 >
                   <History size={14} />
                   {t("scheduledTask.details", "详情")}
                 </button>
 
-                <div className="flex items-center gap-1">
+                <div className="scheduled-task-actions">
                   {canWrite && task.status === "active" && (
                     <button
                       onClick={() => void runTaskAction(task, "pause")}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+                      className="scheduled-task-icon-button h-8 w-8"
                       title={t("scheduledTask.pause")}
                     >
                       <Pause size={15} />
@@ -169,7 +171,7 @@ function SessionScheduledTaskPanelBody({
                   {canWrite && task.status === "paused" && (
                     <button
                       onClick={() => void runTaskAction(task, "resume")}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-emerald-500 transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                      className="scheduled-task-icon-button scheduled-task-icon-button--success h-8 w-8"
                       title={t("scheduledTask.resume")}
                     >
                       <Play size={15} />
@@ -178,7 +180,7 @@ function SessionScheduledTaskPanelBody({
                   {canWrite && (
                     <button
                       onClick={() => void runTaskAction(task, "runNow")}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-stone-400 transition-colors hover:bg-blue-50 hover:text-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                      className="scheduled-task-icon-button scheduled-task-icon-button--info h-8 w-8"
                       title={t("scheduledTask.runNow")}
                     >
                       <RotateCcw size={15} />
@@ -268,7 +270,7 @@ export function SessionScheduledTasksButton({
   return (
     <button
       onClick={togglePanel}
-      className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-stone-500 shadow-sm backdrop-blur transition-colors hover:bg-stone-100 hover:text-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+      className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm backdrop-blur transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >
       <CalendarClock size={17} />

@@ -193,10 +193,14 @@ export const ScheduledTaskSidebarItem = forwardRef<
     loadedSessions: sessions,
     unreadBySession,
   });
+  const displayedUnreadCount =
+    hasLoadedRef.current && !hasMore
+      ? unreadCount
+      : Math.max(task.unread_count ?? 0, unreadCount);
 
   useEffect(() => {
-    onUnreadCountChange?.(task.id, unreadCount);
-  }, [onUnreadCountChange, task.id, unreadCount]);
+    onUnreadCountChange?.(task.id, displayedUnreadCount);
+  }, [onUnreadCountChange, task.id, displayedUnreadCount]);
 
   useEffect(() => {
     if (isExpanded && !hasLoadedRef.current) {
@@ -232,7 +236,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
   );
 
   return (
-    <div>
+    <div className="scheduled-task-panel">
       <div
         onClick={() => setIsExpanded((value) => !value)}
         className={`group relative flex h-10 cursor-pointer items-center gap-3 rounded-[10px] px-[9px] transition-colors ${
@@ -242,21 +246,17 @@ export const ScheduledTaskSidebarItem = forwardRef<
         }`}
         title={task.name}
       >
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              task.status === "active" ? "bg-emerald-500" : "bg-stone-400"
-            }`}
-          />
+        <span className="shrink-0 inline-flex items-center justify-center overflow-hidden text-[20px]" style={{ width: 20, height: 20, fontSize: 20, lineHeight: 1 }}>
+          {task.status === "active" ? "⏰" : "🕐"}
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] text-stone-600 transition-colors group-hover:text-stone-700 dark:text-stone-400 dark:group-hover:text-stone-300">
             {task.name}
           </div>
         </div>
-        {unreadCount > 0 && (
+        {displayedUnreadCount > 0 && (
           <span className="inline-flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
-            {formatUnreadCount(unreadCount)}
+            {formatUnreadCount(displayedUnreadCount)}
           </span>
         )}
       </div>
@@ -264,7 +264,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
       {isExpanded && (
         <div className="ml-3 mt-0.5 flex flex-col gap-px">
           {isLoading ? (
-            <div className="flex justify-center py-4">
+            <div className="flex justify-center py-3">
               <LoadingSpinner size="sm" color="text-[var(--theme-primary)]" />
             </div>
           ) : sessions.length > 0 ? (
@@ -307,7 +307,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
               )}
             </>
           ) : (
-            <div className="px-[9px] py-2 text-[12px] text-stone-400 dark:text-stone-500">
+            <div className="rounded-lg px-[9px] py-2 text-[12px] text-stone-400 dark:text-stone-500">
               {t("sidebar.noSessions", "暂无会话")}
             </div>
           )}

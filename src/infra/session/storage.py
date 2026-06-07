@@ -462,6 +462,39 @@ class SessionStorage:
             sessions.append(session)
         return sessions, total
 
+    async def get_unread_counts_for_scheduled_tasks(
+        self,
+        user_id: str,
+        scheduled_task_ids: list[str],
+    ) -> dict[str, int]:
+        """Return unread totals keyed by scheduled task id."""
+        await self.ensure_indexes_if_needed()
+        if not scheduled_task_ids:
+            return {}
+
+        pipeline = [
+            {
+                "$match": {
+                    "user_id": user_id,
+                    "metadata.scheduled_task_id": {"$in": scheduled_task_ids},
+                    "unread_count": {"$gt": 0},
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$metadata.scheduled_task_id",
+                    "unread_count": {"$sum": "$unread_count"},
+                }
+            },
+        ]
+
+        counts: dict[str, int] = {}
+        async for item in self.collection.aggregate(pipeline):
+            task_id = item.get("_id")
+            if isinstance(task_id, str):
+                counts[task_id] = int(item.get("unread_count") or 0)
+        return counts
+
     async def get(self, session_id: str) -> Optional[Session]:
         """获取会话 (兼容旧 API)"""
         return await self.get_by_id(session_id)

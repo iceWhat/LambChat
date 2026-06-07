@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from src.api.deps import require_permissions
 from src.infra.scheduler.service import ScheduledTaskService
 from src.kernel.schemas.scheduled_task import (
+    ScheduledTask,
     ScheduledTaskCreate,
     ScheduledTaskListResponse,
     ScheduledTaskResponse,
@@ -26,16 +27,16 @@ def _get_service() -> ScheduledTaskService:
     return ScheduledTaskService()
 
 
-async def _require_owner(
+async def _require_owned_task(
     task_id: str,
     user: TokenPayload,
     service: ScheduledTaskService,
-) -> ScheduledTaskResponse:
+) -> ScheduledTask:
     """Load task and verify ownership. Raises 404 if not found or forbidden."""
     task = await service.get_task(task_id)
     if task is None or task.owner_id != user.sub:
         raise HTTPException(status_code=404, detail="Task not found")
-    return service.to_response(task)
+    return task
 
 
 # ── CRUD ────────────────────────────────────────────
@@ -54,7 +55,7 @@ async def create_scheduled_task(
         task = await service.create_task(body, owner_id=user.sub)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return service.to_response(task)
+    return await service.get_task_response(task)
 
 
 @router.get("/", response_model=ScheduledTaskListResponse)
@@ -90,7 +91,8 @@ async def get_scheduled_task(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Get details of a single scheduled task."""
-    return await _require_owner(task_id, user, service)
+    task = await _require_owned_task(task_id, user, service)
+    return await service.get_task_response(task)
 
 
 @router.put("/{task_id}", response_model=ScheduledTaskResponse)
@@ -103,14 +105,14 @@ async def update_scheduled_task(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Update a scheduled task's configuration."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     try:
         updated = await service.update_task(task_id, body)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if updated is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return service.to_response(updated)
+    return await service.get_task_response(updated)
 
 
 # ── Pause / Resume / Delete ─────────────────────────
@@ -125,11 +127,11 @@ async def pause_scheduled_task(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Pause a scheduled task (removes from scheduler, keeps config)."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     updated = await service.pause_task(task_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return service.to_response(updated)
+    return await service.get_task_response(updated)
 
 
 @router.post("/{task_id}/resume", response_model=ScheduledTaskResponse)
@@ -141,11 +143,11 @@ async def resume_scheduled_task(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Resume a paused scheduled task."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     updated = await service.resume_task(task_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="Task not found")
-    return service.to_response(updated)
+    return await service.get_task_response(updated)
 
 
 @router.delete("/{task_id}", status_code=204)
@@ -157,7 +159,7 @@ async def delete_scheduled_task(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Soft-delete a scheduled task."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     await service.delete_task(task_id)
 
 
@@ -173,7 +175,7 @@ async def run_scheduled_task_now(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Manually trigger a scheduled task execution."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     return await service.run_task_now(task_id)
 
 
@@ -191,7 +193,7 @@ async def list_task_runs(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """View execution history for a scheduled task."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     runs, total = await service.get_task_runs(task_id, limit, offset)
     return TaskRunListResponse(items=runs, total=total)
 
@@ -210,7 +212,7 @@ async def list_task_sessions(
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """List sessions (conversations) created by a scheduled task's executions."""
-    await _require_owner(task_id, user, service)
+    await _require_owned_task(task_id, user, service)
     from src.infra.session.storage import SessionStorage
 
     storage = SessionStorage()

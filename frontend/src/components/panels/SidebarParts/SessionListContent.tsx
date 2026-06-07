@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -14,19 +15,20 @@ import {
   MoreHorizontal,
   UserRound,
   Users,
+  CalendarClock,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../../hooks/useAuth";
 import { Permission } from "../../../types/auth";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { SkeletonList } from "../../skeletons";
 import { BrandWordmark } from "../../common/BrandWordmark";
 import { getFullUrl, type BackendSession } from "../../../services/api";
 import { scheduledTaskApi } from "../../../services/api/scheduledTask";
 import type { ProjectItemHandle } from "../../sidebar/ProjectItem";
 import {
   formatUnreadCount,
-  getExternalUnreadCountForScheduledTasks,
   getUnreadCountForUncategorized,
   type UnreadBySession,
 } from "../../sidebar/unreadCounts";
@@ -108,6 +110,8 @@ interface SessionListContentProps {
   onToggleProjectsCollapsed: () => void;
   isScheduledTasksCollapsed: boolean;
   onToggleScheduledTasksCollapsed: () => void;
+  isNavCollapsed: boolean;
+  onToggleNavCollapsed: () => void;
   isChatsCollapsed: boolean;
   onToggleChatsCollapsed: () => void;
   autoExpandProjectId: string | null | undefined;
@@ -157,9 +161,7 @@ export function SessionListContent({
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [scheduledTaskTotal, setScheduledTaskTotal] = useState(0);
   const [isScheduledTasksLoading, setIsScheduledTasksLoading] = useState(false);
-  const [scheduledTaskUnreadByTask, setScheduledTaskUnreadByTask] = useState(
-    () => new Map<string, number>(),
-  );
+  const scheduledTaskUnreadByTaskRef = useRef(new Map<string, number>());
 
   const loadScheduledTasks = useCallback(async () => {
     setIsScheduledTasksLoading(true);
@@ -190,22 +192,21 @@ export function SessionListContent({
     } else {
       setScheduledTasks([]);
       setScheduledTaskTotal(0);
-      setScheduledTaskUnreadByTask(new Map());
+      scheduledTaskUnreadByTaskRef.current = new Map();
     }
   }, [canReadScheduledTasks, isScheduledTasksCollapsed, loadScheduledTasks]);
 
   useEffect(() => {
     const taskIds = new Set(scheduledTasks.map((task) => task.id));
-    setScheduledTaskUnreadByTask((prev) => {
-      if (Array.from(prev.keys()).every((taskId) => taskIds.has(taskId))) {
-        return prev;
-      }
-      const next = new Map<string, number>();
-      for (const [taskId, unreadCount] of prev) {
-        if (taskIds.has(taskId)) next.set(taskId, unreadCount);
-      }
-      return next;
-    });
+    const prev = scheduledTaskUnreadByTaskRef.current;
+    if (Array.from(prev.keys()).every((taskId) => taskIds.has(taskId))) {
+      return;
+    }
+    const next = new Map<string, number>();
+    for (const [taskId, unreadCount] of prev) {
+      if (taskIds.has(taskId)) next.set(taskId, unreadCount);
+    }
+    scheduledTaskUnreadByTaskRef.current = next;
   }, [scheduledTasks]);
 
   const visibleUncategorizedSessions = uncategorizedSessions.filter(
@@ -219,24 +220,13 @@ export function SessionListContent({
     visibleUncategorizedSessions,
     t,
   );
-  const scheduledTasksUnreadCount =
-    Array.from(scheduledTaskUnreadByTask.values()).reduce(
-      (total, count) => total + count,
-      0,
-    ) +
-    getExternalUnreadCountForScheduledTasks(
-      unreadBySession,
-      new Set(scheduledTaskUnreadByTask.keys()),
-    );
-
   const handleScheduledTaskUnreadChange = useCallback(
     (taskId: string, unreadCount: number) => {
-      setScheduledTaskUnreadByTask((prev) => {
-        if (prev.get(taskId) === unreadCount) return prev;
-        const next = new Map(prev);
-        next.set(taskId, unreadCount);
-        return next;
-      });
+      const prev = scheduledTaskUnreadByTaskRef.current;
+      if (prev.get(taskId) === unreadCount) return;
+      const next = new Map(prev);
+      next.set(taskId, unreadCount);
+      scheduledTaskUnreadByTaskRef.current = next;
     },
     [],
   );
@@ -244,7 +234,7 @@ export function SessionListContent({
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-1 sm:px-4">
+      <div className="flex items-center justify-between px-3 pt-3 pb-3">
         <div className="flex h-7 items-center gap-1.5">
           <img
             src="/images/lamb.webp"
@@ -282,7 +272,7 @@ export function SessionListContent({
       </div>
 
       {/* Action buttons */}
-      <div className="flex flex-col gap-px px-2 py-2 space-y-1">
+      <div className="flex flex-col gap-px px-2 mb-2 space-y-1">
         <button
           onClick={onNewSession}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors group"
@@ -328,6 +318,16 @@ export function SessionListContent({
           </button>
         )}
 
+        {canReadScheduledTasks && (
+          <button
+            onClick={() => navigate("/scheduled-tasks")}
+            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+          >
+            <CalendarClock size={20} />
+            <span>{t("nav.scheduled-tasks")}</span>
+          </button>
+        )}
+
         <button
           onClick={() => navigate("/files")}
           className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
@@ -367,9 +367,8 @@ export function SessionListContent({
             </span>
             <ChevronDown
               size={14}
-              className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
-                isProjectsCollapsed ? "-rotate-90" : ""
-              }`}
+              className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${isProjectsCollapsed ? "-rotate-90" : ""
+                }`}
             />
           </div>
 
@@ -460,23 +459,13 @@ export function SessionListContent({
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="text-[13px] font-medium text-stone-400 dark:text-stone-500 group-hover/section:text-stone-500 dark:group-hover/section:text-stone-400 transition-colors">
-                    {t("nav.scheduledTasks")}
+                    {t("nav.scheduled-tasks")}
                   </span>
-                  {scheduledTasksUnreadCount > 0 ? (
-                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
-                      {formatUnreadCount(scheduledTasksUnreadCount)}
-                    </span>
-                  ) : scheduledTaskTotal > 0 ? (
-                    <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-stone-200 px-1 text-[10px] font-medium leading-none text-stone-500 dark:bg-stone-700 dark:text-stone-300">
-                      {formatUnreadCount(scheduledTaskTotal)}
-                    </span>
-                  ) : null}
                 </div>
                 <ChevronDown
                   size={14}
-                  className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
-                    isScheduledTasksCollapsed ? "-rotate-90" : ""
-                  }`}
+                  className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${isScheduledTasksCollapsed ? "-rotate-90" : ""
+                    }`}
                 />
               </div>
 
@@ -484,26 +473,14 @@ export function SessionListContent({
                 <>
                   <button
                     onClick={() => navigate("/scheduled-tasks")}
-                    className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
+                    className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors cursor-pointer"
                   >
                     <Clock size={20} />
                     <span>{t("scheduledTask.create")}</span>
                   </button>
 
                   {isScheduledTasksLoading ? (
-                    <div className="space-y-px px-0">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
-                        >
-                          <div
-                            className="skeleton-line h-[13px] rounded-md flex-1"
-                            style={{ width: i === 1 ? "72%" : "58%" }}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                    <SkeletonList count={3} compact />
                   ) : (
                     scheduledTasks.map((task) => (
                       <ScheduledTaskSidebarItem
@@ -563,41 +540,19 @@ export function SessionListContent({
                 </div>
                 <ChevronDown
                   size={14}
-                  className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${
-                    isChatsCollapsed ? "-rotate-90" : ""
-                  }`}
+                  className={`text-stone-300 dark:text-stone-600 transition-transform duration-200 ${isChatsCollapsed ? "-rotate-90" : ""
+                    }`}
                 />
               </div>
 
               {!isChatsCollapsed && (
                 <>
                   {isUncategorizedLoading ? (
-                    <div className="space-y-px px-0">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 px-[9px] h-10 rounded-[10px]"
-                        >
-                          <div
-                            className="skeleton-line h-[13px] rounded-md flex-1"
-                            style={{
-                              width:
-                                i === 0
-                                  ? "70%"
-                                  : i === 1
-                                    ? "85%"
-                                    : i === 2
-                                      ? "55%"
-                                      : "65%",
-                            }}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                    <SkeletonList count={5} compact />
                   ) : (
                     groupedUncategorized.map((group) => (
                       <div key={group.label}>
-                        <div className="px-[9px] h-7 flex items-center text-[13px] font-medium text-stone-400 dark:text-stone-500 select-none">
+                        <div className="px-[9px] h-8 flex items-center text-[13px] font-medium text-stone-400 dark:text-stone-500 select-none">
                           {group.label}
                         </div>
                         <div className="flex flex-col gap-px">

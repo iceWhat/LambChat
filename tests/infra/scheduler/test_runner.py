@@ -218,6 +218,7 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "src.infra.task.manager.get_task_manager",
         lambda: _FakeTaskManager(),
     )
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "local")
     monkeypatch.setattr(
         "src.infra.task.concurrency.get_registered_executor",
         lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
@@ -251,3 +252,64 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "scheduled_task_run_id": "run_1",
         "hidden_from_conversation_list": True,
     }
+
+
+@pytest.mark.asyncio
+async def test_execute_agent_uses_arq_backend_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _make_task(input_payload={"message": "Run distributed report"})
+    submitted: dict[str, Any] = {}
+
+    class _FakeTaskManager:
+        async def submit(self, **kwargs: Any) -> tuple[str, str]:
+            raise AssertionError("scheduled task should not use local submit with arq")
+
+        async def submit_arq(self, **kwargs: Any) -> tuple[str, str]:
+            submitted.update(kwargs)
+            return "run_1", "trace_1"
+
+        async def get_run_status(self, session_id: str, run_id: str) -> TaskStatus:
+            assert session_id == "session_1"
+            assert run_id == "run_1"
+            return TaskStatus.COMPLETED
+
+    class _FakeSessionManager:
+        async def update_session_metadata(
+            self,
+            session_id: str,
+            metadata: dict[str, Any],
+        ) -> None:
+            assert session_id == "session_1"
+            assert metadata["source"] == "scheduled_task"
+
+    monkeypatch.setattr("src.kernel.config.settings.TASK_BACKEND", "arq")
+    monkeypatch.setattr(
+        "src.infra.task.manager.get_task_manager",
+        lambda: _FakeTaskManager(),
+    )
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_registered_executor",
+        lambda key: (lambda *args, **kwargs: None) if key == "agent_stream" else None,
+    )
+    monkeypatch.setattr(
+        "src.infra.session.manager.SessionManager",
+        lambda: _FakeSessionManager(),
+    )
+
+    result = await ScheduledTaskRunner()._execute_agent(
+        task,
+        run_id="run_1",
+        session_id="session_1",
+    )
+
+    assert result == {
+        "session_status": "completed",
+        "session_id": "session_1",
+        "trace_id": "trace_1",
+    }
+    assert submitted["executor_key"] == "agent_stream"
+    assert submitted["run_id"] == "run_1"
+    assert submitted["session_id"] == "session_1"
+    assert submitted["display_message"] == "Run distributed report"
+    assert submitted["write_user_message_immediately"] is True

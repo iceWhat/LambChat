@@ -100,19 +100,15 @@ def _allow_scheduled_task_permissions(monkeypatch: pytest.MonkeyPatch) -> None:
 # ── Tool metadata tests ────────────────────────────────────────
 
 
-def test_get_scheduled_task_tools_returns_8_tools() -> None:
+def test_get_scheduled_task_tools_returns_compact_crud_tools() -> None:
     tools = scheduled_task_tool.get_scheduled_task_tools()
-    assert len(tools) == 8
+    assert len(tools) == 4
     names = {t.name for t in tools}
     assert names == {
         "scheduled_task_create",
         "scheduled_task_list",
-        "scheduled_task_get",
         "scheduled_task_update",
-        "scheduled_task_pause",
-        "scheduled_task_resume",
         "scheduled_task_delete",
-        "scheduled_task_run",
     }
 
 
@@ -128,6 +124,16 @@ def test_create_tool_has_trigger_params() -> None:
     assert "cron_day_of_week" in fields
     assert "cron_day" in fields
     assert "cron_month" in fields
+
+
+def test_list_tool_can_fetch_single_task_details() -> None:
+    fields = scheduled_task_tool.scheduled_task_list.args_schema.model_fields
+    assert "task_id" in fields
+
+
+def test_update_tool_can_run_task_actions() -> None:
+    fields = scheduled_task_tool.scheduled_task_update.args_schema.model_fields
+    assert "action" in fields
 
 
 # ── scheduled_task_create ──────────────────────────────────────

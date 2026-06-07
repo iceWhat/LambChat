@@ -15,7 +15,7 @@ from src.infra.monitoring.event_loop import (
     start_event_loop_lag_monitor,
     stop_event_loop_lag_monitor,
 )
-from src.infra.scheduler import get_runtime_scheduler
+from src.infra.scheduler import ScheduledJob, get_runtime_scheduler
 from src.infra.scheduler.service import ScheduledTaskService
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.settings.pubsub import get_settings_pubsub
@@ -80,6 +80,22 @@ def start_memory_compaction_agent() -> None:
     start_memory_compaction_agent()
 
 
+def register_scheduled_task_reconcile_job(
+    scheduled_task_service: ScheduledTaskService,
+) -> None:
+    """Keep process-local scheduled jobs in sync with MongoDB in multi-instance runs."""
+    get_runtime_scheduler().register_job(
+        ScheduledJob.from_interval(
+            id="scheduled_tasks.reconcile",
+            interval_seconds=30,
+            handler=scheduled_task_service.load_persisted_tasks,
+            name="Scheduled task reconcile",
+            max_instances=1,
+            coalesce=True,
+        )
+    )
+
+
 async def start_runtime_services() -> None:
     """Start distributed runtime listeners needed by the current process."""
     import asyncio
@@ -120,6 +136,7 @@ async def start_runtime_services() -> None:
     await get_scheduled_task_storage().ensure_indexes()
     scheduled_task_service = ScheduledTaskService()
     await scheduled_task_service.load_persisted_tasks()
+    register_scheduled_task_reconcile_job(scheduled_task_service)
 
     get_runtime_scheduler().start()
 

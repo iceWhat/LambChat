@@ -55,6 +55,7 @@ export interface ScheduledTask {
   last_run_status: RunStatus | null;
   last_run_id: string | null;
   total_runs: number;
+  unread_count: number;
   created_at: string | null;
   updated_at: string | null;
 }
