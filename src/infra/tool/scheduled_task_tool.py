@@ -74,9 +74,7 @@ async def _resolve_user(user_id: str) -> TokenPayload | None:
     permissions: set[str] = set()
     for role in roles:
         for permission in role.permissions:
-            permissions.add(
-                permission if isinstance(permission, str) else permission.value
-            )
+            permissions.add(permission if isinstance(permission, str) else permission.value)
 
     return TokenPayload(
         sub=user.id,
@@ -108,9 +106,7 @@ async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any], s
     agent_id = metadata.get("agent_id")
     raw_options = metadata.get("agent_options")
     agent_options = (
-        _strip_resolved_agent_options(dict(raw_options))
-        if isinstance(raw_options, dict)
-        else {}
+        _strip_resolved_agent_options(dict(raw_options)) if isinstance(raw_options, dict) else {}
     )
     user_timezone = metadata.get("user_timezone")
     return (
@@ -390,7 +386,9 @@ async def scheduled_task_create(
     try:
         trigger_enum = TriggerType(trigger_type)
     except ValueError:
-        return _json({"error": f"Invalid trigger_type '{trigger_type}'. Use 'date', 'interval', or 'cron'."})
+        return _json(
+            {"error": f"Invalid trigger_type '{trigger_type}'. Use 'date', 'interval', or 'cron'."}
+        )
 
     trigger_config: dict[str, Any]
     if trigger_enum == TriggerType.DATE:
@@ -495,11 +493,7 @@ async def scheduled_task_create(
                         if effective_agent_options
                         else {}
                     ),
-                    **(
-                        {"user_timezone": session_user_timezone}
-                        if session_user_timezone
-                        else {}
-                    ),
+                    **({"user_timezone": session_user_timezone} if session_user_timezone else {}),
                 },
                 description=description,
                 enabled=True,
@@ -524,8 +518,7 @@ async def scheduled_task_create(
             "preview": preview,
             "approval_id": confirmation["approval_id"],
             "message": (
-                f"Scheduled task '{task.name}' created "
-                f"(trigger: {trigger_type}, id: {task.id})."
+                f"Scheduled task '{task.name}' created (trigger: {trigger_type}, id: {task.id})."
             ),
         }
     )
@@ -576,7 +569,9 @@ async def scheduled_task_list(
         try:
             status_enum = ScheduledTaskStatus(status)
         except ValueError:
-            return _json({"error": f"Invalid status '{status}'. Use 'active', 'paused', or 'deleted'."})
+            return _json(
+                {"error": f"Invalid status '{status}'. Use 'active', 'paused', or 'deleted'."}
+            )
 
     try:
         tasks = await service.list_tasks(owner_id=user_id, status=status_enum)
@@ -644,8 +639,8 @@ async def scheduled_task_update(
     trigger_config: Annotated[
         dict | None,
         "Full replacement trigger config. "
-        "For interval: {\"seconds\": 300}. "
-        "For cron: {\"hour\": \"9\", \"minute\": \"0\", \"day_of_week\": \"mon-fri\"}. "
+        'For interval: {"seconds": 300}. '
+        'For cron: {"hour": "9", "minute": "0", "day_of_week": "mon-fri"}. '
         "WARNING: This replaces the entire trigger config. "
         "Use scheduled_task_create to change trigger_type.",
     ] = None,

@@ -134,9 +134,7 @@ class ScheduledTaskService:
         task = await storage.get_task(task_id)
         if task is None:
             return None
-        await storage.update_task(
-            task_id, {"status": ScheduledTaskStatus.PAUSED, "enabled": False}
-        )
+        await storage.update_task(task_id, {"status": ScheduledTaskStatus.PAUSED, "enabled": False})
         self._unregister_managed_task(task_id)
         logger.info("[Service] paused task %s", task_id)
         return await storage.get_task(task_id)
@@ -147,9 +145,7 @@ class ScheduledTaskService:
         task = await storage.get_task(task_id)
         if task is None:
             return None
-        await storage.update_task(
-            task_id, {"status": ScheduledTaskStatus.ACTIVE, "enabled": True}
-        )
+        await storage.update_task(task_id, {"status": ScheduledTaskStatus.ACTIVE, "enabled": True})
         updated = await storage.get_task(task_id)
         if updated is not None:
             self._register_to_scheduler(updated)
@@ -173,9 +169,7 @@ class ScheduledTaskService:
         owner_id: Optional[str] = None,
         status: Optional[ScheduledTaskStatus] = None,
     ) -> list[ScheduledTask]:
-        return await get_scheduled_task_storage().list_tasks(
-            owner_id=owner_id, status=status
-        )
+        return await get_scheduled_task_storage().list_tasks(owner_id=owner_id, status=status)
 
     async def list_tasks_paginated(
         self,
@@ -200,10 +194,7 @@ class ScheduledTaskService:
             user_id=owner_id,
             scheduled_task_ids=[task.id for task in tasks],
         )
-        responses = [
-            self.to_response(t, unread_count=unread_counts.get(t.id, 0))
-            for t in tasks
-        ]
+        responses = [self.to_response(t, unread_count=unread_counts.get(t.id, 0)) for t in tasks]
         return responses, total
 
     async def get_task_response(self, task: ScheduledTask) -> ScheduledTaskResponse:
@@ -316,10 +307,7 @@ class ScheduledTaskService:
         """Register a persisted task with the in-process APScheduler."""
         signature = self._scheduler_signature(task)
         scheduler = get_runtime_scheduler()
-        if (
-            _managed_task_signatures.get(task.id) == signature
-            and scheduler.has_job(task.id)
-        ):
+        if _managed_task_signatures.get(task.id) == signature and scheduler.has_job(task.id):
             return
 
         trigger = self._build_trigger(task.trigger_type, task.trigger_config)
@@ -332,9 +320,7 @@ class ScheduledTaskService:
             id=task_id,
             name=task.name,
             trigger=trigger,
-            handler=lambda: runner.run(
-                task_id, trigger_type=trigger_type_value
-            ),
+            handler=lambda: runner.run(task_id, trigger_type=trigger_type_value),
             enabled=task.enabled,
             run_on_start=task.run_on_start,
             max_instances=1,
@@ -364,9 +350,7 @@ class ScheduledTaskService:
         )
 
     @staticmethod
-    def _build_trigger(
-        trigger_type: TriggerType, config: dict
-    ) -> BaseTrigger:
+    def _build_trigger(trigger_type: TriggerType, config: dict) -> BaseTrigger:
         """Build an APScheduler trigger from the stored config dict."""
         if trigger_type == TriggerType.INTERVAL:
             interval_cfg = IntervalTriggerConfig(**config)

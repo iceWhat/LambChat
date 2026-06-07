@@ -450,12 +450,7 @@ class SessionStorage:
             "metadata.scheduled_task_id": scheduled_task_id,
         }
         total = await self.collection.count_documents(query)
-        cursor = (
-            self.collection.find(query)
-            .skip(skip)
-            .limit(limit)
-            .sort("updated_at", -1)
-        )
+        cursor = self.collection.find(query).skip(skip).limit(limit).sort("updated_at", -1)
         sessions = []
         for session_dict in await cursor.to_list(length=limit):
             session = self._build_session(session_dict)

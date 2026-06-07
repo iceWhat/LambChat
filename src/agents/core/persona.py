@@ -34,6 +34,7 @@ DEFAULT_ROLE = "You are an intelligent assistant with tools and skills."
 
 _PERSONA_HEADING = "## Persona"
 
+
 # ---------------------------------------------------------------------------
 # Strip the identity line from BASE_AGENT_PROMPT so persona has full control.
 #

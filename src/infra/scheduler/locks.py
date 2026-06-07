@@ -51,9 +51,7 @@ async def acquire_task_lock(
     token = f"{run_id}:{uuid.uuid4().hex[:8]}"
     acquired = await redis.set(lock_key, token, nx=True, ex=ttl)
     if acquired:
-        logger.debug(
-            "[SchedulerLock] acquired lock for task=%s run=%s", task_id, run_id
-        )
+        logger.debug("[SchedulerLock] acquired lock for task=%s run=%s", task_id, run_id)
         return token
     logger.debug("[SchedulerLock] lock contested for task=%s, skipping", task_id)
     return None
@@ -67,9 +65,7 @@ async def release_task_lock(task_id: str, token: str) -> None:
     logger.debug("[SchedulerLock] released lock for task=%s", task_id)
 
 
-async def extend_task_lock(
-    task_id: str, token: str, extra_seconds: int = 300
-) -> bool:
+async def extend_task_lock(task_id: str, token: str, extra_seconds: int = 300) -> bool:
     """Extend the lock TTL for a long-running task.
 
     Returns ``True`` if the lock was still owned and extended.

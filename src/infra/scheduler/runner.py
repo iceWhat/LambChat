@@ -52,9 +52,7 @@ async def _resolve_task_owner(user_id: str) -> TokenPayload | None:
     permissions: set[str] = set()
     for role in roles:
         for permission in role.permissions:
-            permissions.add(
-                permission if isinstance(permission, str) else permission.value
-            )
+            permissions.add(permission if isinstance(permission, str) else permission.value)
 
     return TokenPayload(
         sub=user.id,
@@ -118,9 +116,7 @@ class ScheduledTaskRunner:
             final_attempt: _AttemptResult | None = None
             for attempt in range(max_attempts):
                 session_id = (
-                    base_session_id
-                    if attempt == 0
-                    else f"{base_session_id}_retry{attempt}"
+                    base_session_id if attempt == 0 else f"{base_session_id}_retry{attempt}"
                 )
                 await storage.update_run(
                     run_id,
@@ -188,11 +184,7 @@ class ScheduledTaskRunner:
                 "run_id": run_id,
                 "status": final_attempt.status.value,
                 "result": final_attempt.result,
-                **(
-                    {"error": final_attempt.error_message}
-                    if final_attempt.error_message
-                    else {}
-                ),
+                **({"error": final_attempt.error_message} if final_attempt.error_message else {}),
             }
 
         except Exception as exc:
@@ -208,17 +200,12 @@ class ScheduledTaskRunner:
                 },
             )
             await storage.update_task_run_stats(task_id, run_id, RunStatus.FAILED)
-            logger.exception(
-                "[Runner] task=%s run=%s failed after %dms", task_id, run_id, duration
-            )
+            logger.exception("[Runner] task=%s run=%s failed after %dms", task_id, run_id, duration)
             raise
 
         finally:
             await release_task_lock(task_id, lock_token)
-            if (
-                task.trigger_type == TriggerType.DATE
-                and trigger_type == TriggerType.DATE.value
-            ):
+            if task.trigger_type == TriggerType.DATE and trigger_type == TriggerType.DATE.value:
                 await storage.update_task(
                     task_id,
                     {"status": ScheduledTaskStatus.PAUSED, "enabled": False},
@@ -231,9 +218,7 @@ class ScheduledTaskRunner:
     def _build_session_id(task_id: str, run_id: str) -> str:
         return f"sch_{task_id}_{run_id[:8]}"
 
-    async def _execute_agent(
-        self, task: ScheduledTask, run_id: str, session_id: str
-    ) -> dict:
+    async def _execute_agent(self, task: ScheduledTask, run_id: str, session_id: str) -> dict:
         """Execute the agent via BackgroundTaskManager in a dedicated session."""
         from src.infra.session.manager import SessionManager
         from src.infra.task.concurrency import get_registered_executor
@@ -338,9 +323,7 @@ class ScheduledTaskRunner:
                 TaskStatus.EXPIRED,
             ):
                 return {
-                    "session_status": (
-                        status.value if hasattr(status, "value") else str(status)
-                    )
+                    "session_status": (status.value if hasattr(status, "value") else str(status))
                 }
             await asyncio.sleep(_POLL_INTERVAL)
 

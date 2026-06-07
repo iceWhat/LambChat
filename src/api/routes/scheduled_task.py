@@ -45,9 +45,7 @@ async def _require_owned_task(
 @router.post("/", response_model=ScheduledTaskResponse, status_code=201)
 async def create_scheduled_task(
     body: ScheduledTaskCreate,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_WRITE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Create a new scheduled task."""
@@ -65,9 +63,7 @@ async def list_scheduled_tasks(
     created_by: str | None = Query(None, pattern="^(user|agent|api)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_READ.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_READ.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """List scheduled tasks owned by the current user, with pagination."""
@@ -85,9 +81,7 @@ async def list_scheduled_tasks(
 @router.get("/{task_id}", response_model=ScheduledTaskResponse)
 async def get_scheduled_task(
     task_id: str,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_READ.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_READ.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Get details of a single scheduled task."""
@@ -99,9 +93,7 @@ async def get_scheduled_task(
 async def update_scheduled_task(
     task_id: str,
     body: ScheduledTaskUpdate,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_WRITE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Update a scheduled task's configuration."""
@@ -121,9 +113,7 @@ async def update_scheduled_task(
 @router.post("/{task_id}/pause", response_model=ScheduledTaskResponse)
 async def pause_scheduled_task(
     task_id: str,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_WRITE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Pause a scheduled task (removes from scheduler, keeps config)."""
@@ -137,9 +127,7 @@ async def pause_scheduled_task(
 @router.post("/{task_id}/resume", response_model=ScheduledTaskResponse)
 async def resume_scheduled_task(
     task_id: str,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_WRITE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Resume a paused scheduled task."""
@@ -153,9 +141,7 @@ async def resume_scheduled_task(
 @router.delete("/{task_id}", status_code=204)
 async def delete_scheduled_task(
     task_id: str,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_DELETE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_DELETE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Soft-delete a scheduled task."""
@@ -169,9 +155,7 @@ async def delete_scheduled_task(
 @router.post("/{task_id}/run", response_model=dict)
 async def run_scheduled_task_now(
     task_id: str,
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_WRITE.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_WRITE.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """Manually trigger a scheduled task execution."""
@@ -187,9 +171,7 @@ async def list_task_runs(
     task_id: str,
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_READ.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_READ.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """View execution history for a scheduled task."""
@@ -206,9 +188,7 @@ async def list_task_sessions(
     task_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-    user: TokenPayload = Depends(
-        require_permissions(Permission.SCHEDULED_TASK_READ.value)
-    ),
+    user: TokenPayload = Depends(require_permissions(Permission.SCHEDULED_TASK_READ.value)),
     service: ScheduledTaskService = Depends(_get_service),
 ):
     """List sessions (conversations) created by a scheduled task's executions."""

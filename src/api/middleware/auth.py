@@ -73,9 +73,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         return "text/html" in accept.lower()
 
     @staticmethod
-    def _cors_response(
-        request: Request, status_code: int, content: dict
-    ) -> JSONResponse:
+    def _cors_response(request: Request, status_code: int, content: dict) -> JSONResponse:
         """Build a JSONResponse with CORS headers so browsers don't block it."""
         origin = request.headers.get("origin", "")
         response = JSONResponse(status_code=status_code, content=content)

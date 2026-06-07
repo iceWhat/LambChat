@@ -69,7 +69,10 @@ class ScheduledTaskCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     agent_id: str = Field(..., min_length=1)
     trigger_type: TriggerType
-    trigger_config: dict = Field(..., description="Trigger config (IntervalTriggerConfig | CronTriggerConfig | DateTriggerConfig)")
+    trigger_config: dict = Field(
+        ...,
+        description="Trigger config (IntervalTriggerConfig | CronTriggerConfig | DateTriggerConfig)",
+    )
     input_payload: dict = Field(default_factory=dict, description="Agent input parameters")
     description: Optional[str] = Field(None, max_length=2000)
     enabled: bool = Field(True)
@@ -79,12 +82,8 @@ class ScheduledTaskCreate(BaseModel):
     source_session_id: Optional[str] = Field(
         None, description="Conversation session where the task was created"
     )
-    source_run_id: Optional[str] = Field(
-        None, description="Agent run where the task was created"
-    )
-    created_by: str = Field(
-        "user", description="Creator source: user / agent / api"
-    )
+    source_run_id: Optional[str] = Field(None, description="Agent run where the task was created")
+    created_by: str = Field("user", description="Creator source: user / agent / api")
 
 
 class ScheduledTaskUpdate(BaseModel):

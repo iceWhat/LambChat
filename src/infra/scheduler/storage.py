@@ -141,9 +141,7 @@ class ScheduledTaskStorage:
         )
         return result.modified_count > 0
 
-    async def update_task_run_stats(
-        self, task_id: str, run_id: str, run_status: RunStatus
-    ) -> None:
+    async def update_task_run_stats(self, task_id: str, run_id: str, run_status: RunStatus) -> None:
         """Update task-level run statistics after execution completes."""
         now = utc_now()
         await self._get_collection(_COLL_TASKS).update_one(

@@ -58,7 +58,9 @@ def build_internal_tools() -> list[BaseTool]:
                 [t.name for t in scheduled_tools],
             )
         except Exception as e:
-            logger.error("[InternalRegistry] Failed to load scheduled task tools: %s", e, exc_info=True)
+            logger.error(
+                "[InternalRegistry] Failed to load scheduled task tools: %s", e, exc_info=True
+            )
     else:
         logger.info("[InternalRegistry] ENABLE_SCHEDULED_TASK=False, skipping scheduled task tools")
 
