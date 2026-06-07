@@ -86,24 +86,24 @@ async def _resolve_user(user_id: str) -> TokenPayload | None:
     )
 
 
-async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any]]:
+async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any], str | None]:
     """Return agent/model defaults from the conversation that invoked the tool."""
     from src.infra.logging.context import TraceContext
     from src.infra.session.manager import SessionManager
 
     ctx = TraceContext.get_request_context()
     if not ctx.session_id:
-        return None, {}
+        return None, {}, None
 
     try:
         session = await SessionManager().get_session(ctx.session_id)
     except Exception as e:
         logger.warning("[ScheduledTask] Failed to load source session defaults: %s", e)
-        return None, {}
+        return None, {}, None
 
     metadata = session.metadata if session else {}
     if not isinstance(metadata, dict):
-        return None, {}
+        return None, {}, None
 
     agent_id = metadata.get("agent_id")
     raw_options = metadata.get("agent_options")
@@ -112,7 +112,12 @@ async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any]]:
         if isinstance(raw_options, dict)
         else {}
     )
-    return agent_id if isinstance(agent_id, str) and agent_id else None, agent_options
+    user_timezone = metadata.get("user_timezone")
+    return (
+        agent_id if isinstance(agent_id, str) and agent_id else None,
+        agent_options,
+        user_timezone if isinstance(user_timezone, str) and user_timezone else None,
+    )
 
 
 async def _permission_error(
@@ -436,7 +441,11 @@ async def scheduled_task_create(
         if "minute" not in trigger_config:
             trigger_config["minute"] = "0"
 
-    session_agent_id, session_agent_options = await _get_current_session_defaults()
+    (
+        session_agent_id,
+        session_agent_options,
+        session_user_timezone,
+    ) = await _get_current_session_defaults()
     effective_agent_id = agent_id or session_agent_id or "fast"
     effective_agent_options = dict(session_agent_options)
     if model_id:
@@ -484,6 +493,11 @@ async def scheduled_task_create(
                     **(
                         {"agent_options": effective_agent_options}
                         if effective_agent_options
+                        else {}
+                    ),
+                    **(
+                        {"user_timezone": session_user_timezone}
+                        if session_user_timezone
                         else {}
                     ),
                 },

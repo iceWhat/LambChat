@@ -157,7 +157,12 @@ async def test_wait_for_completion_times_out_and_cancels_run() -> None:
 async def test_execute_agent_hides_injected_timestamp_from_display(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    task = _make_task(input_payload={"message": "Summarize the latest AI news"})
+    task = _make_task(
+        input_payload={
+            "message": "Summarize the latest AI news",
+            "user_timezone": "Asia/Shanghai",
+        }
+    )
     submitted: dict[str, Any] = {}
 
     class _FakeTaskManager:
@@ -208,10 +213,12 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
         "session_id": "session_1",
         "trace_id": "trace_1",
     }
-    assert submitted["message"].startswith("[Current time: ")
-    assert submitted["message"].endswith("\n\nSummarize the latest AI news")
+    assert submitted["message"].startswith("[User message sent at: ")
+    assert " +08:00 Asia/Shanghai] Summarize the latest AI news" in submitted["message"]
     assert submitted["display_message"] == "Summarize the latest AI news"
-    assert "[Current time:" not in submitted["display_message"]
+    assert submitted["recommendation_input"] == "Summarize the latest AI news"
+    assert "[User message sent at:" not in submitted["display_message"]
+    assert "[User message sent at:" not in submitted["recommendation_input"]
     assert submitted["write_user_message_immediately"] is True
     assert session_manager.metadata == {
         "source": "scheduled_task",

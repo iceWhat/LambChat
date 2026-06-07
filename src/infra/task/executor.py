@@ -76,6 +76,7 @@ class TaskExecutor:
         persona_system_prompt: Optional[str] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
         display_message: Optional[str] = None,
+        recommendation_input: Optional[str] = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -170,6 +171,7 @@ class TaskExecutor:
                 enabled_skills=enabled_skills,
                 persona_system_prompt=persona_system_prompt,
                 disabled_mcp_tools=disabled_mcp_tools,
+                recommendation_input=recommendation_input,
                 team_id=team_id,
                 active_goal=active_goal,
             ):

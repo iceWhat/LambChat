@@ -272,6 +272,44 @@ async def test_create_cron_task_with_defaults(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
+async def test_create_task_inherits_source_session_timezone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _task()
+    create_mock = AsyncMock(return_value=task)
+    _auto_approve(monkeypatch)
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "_get_current_session_defaults",
+        AsyncMock(return_value=("search", {}, "Asia/Shanghai")),
+    )
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+
+    result = json.loads(
+        await scheduled_task_tool.scheduled_task_create.coroutine(
+            name="Morning Brief",
+            message="Send a morning brief",
+            trigger_type="cron",
+            cron_hour="8",
+            cron_minute="0",
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.input_payload == {
+        "message": "Send a morning brief",
+        "user_timezone": "Asia/Shanghai",
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_task_rejected_does_not_create(monkeypatch: pytest.MonkeyPatch) -> None:
     create_mock = AsyncMock()
     approval_mock = AsyncMock(

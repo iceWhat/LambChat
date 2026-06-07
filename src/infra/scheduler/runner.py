@@ -12,13 +12,14 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from src.infra.chat.user_message_timestamp import format_user_message_with_timestamp
 from src.infra.logging import get_logger
 from src.infra.role.storage import RoleStorage
 from src.infra.scheduler.locks import acquire_task_lock, release_task_lock
 from src.infra.scheduler.runtime import get_runtime_scheduler
 from src.infra.scheduler.storage import get_scheduled_task_storage
 from src.infra.user.storage import UserStorage
-from src.infra.utils.datetime import utc_now, utc_now_iso
+from src.infra.utils.datetime import utc_now
 from src.kernel.schemas.scheduled_task import (
     RunStatus,
     ScheduledTask,
@@ -249,13 +250,11 @@ class ScheduledTaskRunner:
         if not display_message and task.input_payload.get("prompt"):
             display_message = task.input_payload["prompt"]
         display_message = str(display_message or "")
-        message = display_message
-
-        # Inject current timestamp so the LLM knows the actual execution time.
-        # The system prompt tells the LLM that user messages include a timestamp,
-        # but scheduled tasks have no user interaction to provide one — we must
-        # supply it explicitly.
-        message = f"[Current time: {utc_now_iso()}]\n\n{message}"
+        user_timezone = task.input_payload.get("user_timezone")
+        message = format_user_message_with_timestamp(
+            display_message,
+            user_timezone if isinstance(user_timezone, str) else None,
+        )
         agent_options = task.input_payload.get("agent_options")
         if isinstance(agent_options, dict):
             from src.api.routes.chat import validate_agent_model_access
@@ -279,6 +278,7 @@ class ScheduledTaskRunner:
             project_id=None,
             session_name=f"[Scheduled] {task.name}",
             display_message=display_message,
+            recommendation_input=display_message,
             write_user_message_immediately=True,
         )
         await SessionManager().update_session_metadata(
