@@ -293,6 +293,20 @@ export function buildSubagentPanelState(data: SubagentPanelData) {
   };
 }
 
+function createSubagentPanelFooter(subtitle: string | undefined) {
+  if (!subtitle) return undefined;
+  return (
+    <div className="flex justify-end border-t border-theme-border bg-theme-bg-card px-3 py-2 sm:px-4">
+      <span
+        className="shrink-0 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-theme-bg-subtle px-1.5 text-[10px] font-semibold leading-none text-theme-text-secondary"
+        title={subtitle}
+      >
+        {subtitle}
+      </span>
+    </div>
+  );
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function openSubagentPanelByAgentId(agentId: string): boolean {
   const data = subagentPanelStore.get(agentId);
@@ -312,9 +326,9 @@ export function openSubagentPanelByAgentId(agentId: string): boolean {
     title: formattedAgentName,
     icon: <Bot size={16} />,
     status: panelStatus,
-    subtitle,
     panelKey,
     children: <SubagentPanelContent agentId={agentId} />,
+    footer: createSubagentPanelFooter(subtitle),
     onUserClose: dismissSubagentPanelAutoOpen,
   });
 
@@ -702,7 +716,7 @@ export function SubagentBlock({
         (prev) => ({
           ...prev,
           status: panelStatus,
-          subtitle,
+          footer: createSubagentPanelFooter(subtitle),
         }),
         panelKey,
       );
@@ -717,9 +731,9 @@ export function SubagentBlock({
         title: formattedAgentName,
         icon: <RoleIcon size={16} />,
         status: panelStatus,
-        subtitle,
         panelKey,
         children: <SubagentPanelContent agentId={agent_id} />,
+        footer: createSubagentPanelFooter(subtitle),
         auto: true,
         onUserClose: dismissSubagentPanelAutoOpen,
       });
@@ -755,9 +769,9 @@ export function SubagentBlock({
       title: formattedAgentName,
       icon: <RoleIcon size={16} />,
       status: panelStatus,
-      subtitle,
       panelKey,
       children: <SubagentPanelContent agentId={agent_id} />,
+      footer: createSubagentPanelFooter(subtitle),
       onUserClose: dismissSubagentPanelAutoOpen,
     });
   }, [formattedAgentName, RoleIcon, panelStatus, subtitle, panelKey, agent_id]);

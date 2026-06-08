@@ -22,3 +22,12 @@ test("subagent status badge does not use theme-blue border chrome", () => {
   assert.doesNotMatch(source, /ring-theme-border\/70/);
   assert.doesNotMatch(source, /subagent-border-pulse/);
 });
+
+test("subagent sidebar timestamp is rendered in the panel footer", () => {
+  assert.match(source, /function createSubagentPanelFooter/);
+  assert.match(source, /footer: createSubagentPanelFooter\(subtitle\)/);
+  assert.doesNotMatch(
+    source,
+    /subtitle,\s*\n\s*panelKey,\s*\n\s*children: <SubagentPanelContent/,
+  );
+});
