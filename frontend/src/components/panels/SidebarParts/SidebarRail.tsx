@@ -5,8 +5,6 @@ import {
   History,
   MoreHorizontal,
   FolderOpen,
-  UserRound,
-  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../../hooks/useAuth";
@@ -27,9 +25,6 @@ interface SidebarRailProps {
   onOpenRecentChats: () => void;
   onOpenFileLibrary: () => void;
   onOpenScheduledTasks: () => void;
-  onOpenPersonaPlaza: () => void;
-  onOpenTeamBuilder: () => void;
-  onOpenSkills: () => void;
   hasMoreMenuItems: boolean;
   onToggleMoreMenu: () => void;
   moreMenuBtnRef: React.RefObject<HTMLButtonElement | null>;
@@ -48,8 +43,6 @@ export function SidebarRail({
   onOpenRecentChats,
   onOpenFileLibrary,
   onOpenScheduledTasks,
-  onOpenPersonaPlaza,
-  onOpenTeamBuilder,
   hasMoreMenuItems,
   onToggleMoreMenu,
   moreMenuBtnRef,
@@ -59,7 +52,6 @@ export function SidebarRail({
 }: SidebarRailProps) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
-  const canReadTeam = hasPermission(Permission.TEAM_READ);
   const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
 
   return (
@@ -122,26 +114,6 @@ export function SidebarRail({
         >
           <Search size={20} />
         </button>
-        <button
-          type="button"
-          onClick={onOpenPersonaPlaza}
-          className={railBtn}
-          title={t("personaPresets.title", "角色广场")}
-          aria-label={t("personaPresets.title", "角色广场")}
-        >
-          <UserRound size={20} />
-        </button>
-        {canReadTeam && (
-          <button
-            type="button"
-            onClick={onOpenTeamBuilder}
-            className={railBtn}
-            title={t("nav.team", "团队构建")}
-            aria-label={t("nav.team", "团队构建")}
-          >
-            <Users size={20} />
-          </button>
-        )}
         {canReadScheduledTasks && (
           <button
             type="button"
@@ -172,7 +144,11 @@ export function SidebarRail({
         >
           <History size={20} />
           {unreadCount > 0 && (
-            <span className="absolute -top-0 right-0 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-rose-500 px-0.5 text-[9px] font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20">
+            <span
+              className={`absolute -top-0 right-0 flex items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-rose-500 text-[9px] font-bold leading-none text-white shadow-[0_1px_3px_rgba(239,68,68,0.4)] ring-1 ring-white/20 ${
+                unreadCount <= 9 ? "w-3.5 h-3.5" : "h-3.5 min-w-[18px] px-1"
+              }`}
+            >
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}

@@ -2,6 +2,8 @@ import { useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { X, Download } from "lucide-react";
+import { ViewerTopBarButton } from "./ViewerTopBarButton";
+import { downloadUrl } from "./viewerDownload";
 
 interface VideoViewerProps {
   src: string;
@@ -59,33 +61,24 @@ export function VideoViewer({ src, isOpen, onClose, title }: VideoViewerProps) {
       onClick={handleBackgroundClick}
     >
       <div className="safe-area-top flex items-center justify-between px-3 sm:px-6 py-3 bg-black/80 shrink-0">
-        <button
-          type="button"
+        <ViewerTopBarButton
           onClick={onClose}
-          className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           aria-label={t("common.close")}
-        >
-          <X size={20} className="text-white/70" />
-        </button>
+          icon={<X size={20} className="text-white/70" />}
+          iconOnly
+        />
         {title && (
           <span className="text-sm text-white/70 truncate max-w-[60vw] hidden sm:block">
             {title}
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = src;
-            a.download = "";
-            a.click();
-          }}
-          className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
+        <ViewerTopBarButton
+          onClick={() => downloadUrl(src)}
           aria-label={t("imageViewer.download")}
+          icon={<Download size={18} className="text-white/70" />}
         >
-          <Download size={18} className="text-white/70" />
           <span className="hidden sm:inline">{t("imageViewer.download")}</span>
-        </button>
+        </ViewerTopBarButton>
       </div>
 
       <div className="safe-area-bottom flex-1 overflow-hidden flex items-center justify-center">

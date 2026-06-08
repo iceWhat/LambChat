@@ -226,8 +226,6 @@ class FeishuStorage:
         )
 
     async def close(self):
-        """Close MongoDB connection"""
-        if self._client:
-            self._client.close()
-            self._client = None
-            self._collection = None
+        """Clear local MongoDB references without closing the global client."""
+        self._client = None
+        self._collection = None

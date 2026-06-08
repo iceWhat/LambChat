@@ -7,6 +7,7 @@ Background Task Manager - 后台任务管理器
 """
 
 import asyncio
+import inspect
 from collections.abc import Awaitable
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -105,12 +106,12 @@ class BackgroundTaskManager:
         close = getattr(arq_pool, "close", None)
         if close is not None:
             result = close()
-            if asyncio.iscoroutine(result):
+            if inspect.isawaitable(result):
                 await result
         wait_closed = getattr(arq_pool, "wait_closed", None)
         if wait_closed is not None:
             result = wait_closed()
-            if asyncio.iscoroutine(result):
+            if inspect.isawaitable(result):
                 await result
 
     async def _persist_initial_user_message(
@@ -249,6 +250,7 @@ class BackgroundTaskManager:
         team_id: Optional[str] = None,
         trace_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        session_metadata: Optional[Dict[str, Any]] = None,
         user_message_written: bool = False,
         write_user_message_immediately: bool = False,
     ) -> Tuple[str, str]:
@@ -284,6 +286,7 @@ class BackgroundTaskManager:
                 user_id,
                 project_id=project_id,
                 session_name=session_name,
+                session_metadata=session_metadata,
             )
 
             # 更新 MongoDB session 状态（包含 current_run_id）
@@ -369,6 +372,7 @@ class BackgroundTaskManager:
         arq_pool: Any | None = None,
         team_id: Optional[str] = None,
         active_goal: Optional[Dict[str, Any]] = None,
+        session_metadata: Optional[Dict[str, Any]] = None,
         write_user_message_immediately: bool = False,
     ) -> Tuple[str, str]:
         """Submit a task to arq after persisting serializable task context."""
@@ -384,6 +388,7 @@ class BackgroundTaskManager:
                 user_id,
                 project_id=project_id,
                 session_name=session_name,
+                session_metadata=session_metadata,
             )
             await task_executor._update_session_status(
                 session_id,
@@ -747,6 +752,9 @@ class BackgroundTaskManager:
 
         await self._drain_release_tasks()
         await self._close_arq_pool()
+        global _task_manager
+        if _task_manager is self:
+            _task_manager = None
         logger.info("Task manager shutdown complete")
 
 

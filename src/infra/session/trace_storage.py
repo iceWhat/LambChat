@@ -104,6 +104,7 @@ class TraceStorage:
     def __init__(self):
         self._collection = None
         self._merger = None  # 事件合并器
+        self._indexes_task: asyncio.Task[None] | None = None
 
     @property
     def collection(self):
@@ -121,49 +122,49 @@ class TraceStorage:
             self._indexes_ensured = True
             task = asyncio.create_task(self._ensure_indexes())
             task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+            self._indexes_task = task
             # 启动事件合并器
             self._start_merger()
 
     async def _ensure_indexes(self):
         """确保必要的索引存在"""
-        if self._collection is None:
-            return
+        collection = self.collection
         try:
             # 复合索引：用于 get_session_events 查询
             # 查询模式: session_id + status (可选) + sort by started_at
             # 把 status 放在 session_id 后面、started_at 前面，使排序能利用索引
-            await self._collection.create_index(
+            await collection.create_index(
                 [("session_id", 1), ("status", 1), ("started_at", 1)],
                 name="session_status_started_at_idx",
                 background=True,
             )
             # 复合索引：用于按 run_id 查询
-            await self._collection.create_index(
+            await collection.create_index(
                 [("session_id", 1), ("run_id", 1), ("status", 1)],
                 name="session_run_status_idx",
                 background=True,
             )
             # 唯一索引：trace_id
-            await self._collection.create_index(
+            await collection.create_index(
                 [("trace_id", 1)],
                 unique=True,
                 name="trace_id_unique_idx",
                 background=True,
             )
             # 索引：用于按时间排序列出 traces
-            await self._collection.create_index(
+            await collection.create_index(
                 [("started_at", -1)],
                 name="started_at_idx",
                 background=True,
             )
             # 复合索引：用于列表页 run 摘要查询
-            await self._collection.create_index(
+            await collection.create_index(
                 [("session_id", 1), ("started_at", -1)],
                 name="session_started_at_desc_idx",
                 background=True,
             )
             # 索引：用于 EventMerger 查询未合并的已完成 traces
-            await self._collection.create_index(
+            await collection.create_index(
                 [("status", 1), ("metadata.merged", 1)],
                 name="status_merged_idx",
                 background=True,
@@ -717,15 +718,13 @@ class TraceStorage:
             if completed_only:
                 match_query["status"] = {"$ne": "running"}
 
-            if max_events is None:
-                max_events = _get_session_event_read_default_limit()
-            else:
+            if max_events is not None:
                 max_events = _clamp_event_read_limit(
                     max_events,
                     default=_get_session_event_read_default_limit(),
                 )
 
-            if max_events <= 0:
+            if max_events is not None and max_events <= 0:
                 return []
 
             pipeline: List[Dict[str, Any]] = [
@@ -744,9 +743,10 @@ class TraceStorage:
             ]
             if event_types:
                 pipeline.append({"$match": {"events.event_type": {"$in": event_types}}})
+            if max_events is not None:
+                pipeline.append({"$limit": max_events})
             pipeline.extend(
                 [
-                    {"$limit": max_events},
                     {
                         "$project": {
                             "_id": 0,
@@ -808,6 +808,17 @@ class TraceStorage:
             logger.error(f"Failed to delete session traces: {e}")
             return 0
 
+    async def close(self) -> None:
+        task = self._indexes_task
+        self._indexes_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if hasattr(self, "_indexes_ensured"):
+            delattr(self, "_indexes_ensured")
+        self._collection = None
+        self._merger = None
+
 
 # Singleton
 _trace_storage: Optional[TraceStorage] = None
@@ -819,3 +830,12 @@ def get_trace_storage() -> TraceStorage:
     if _trace_storage is None:
         _trace_storage = TraceStorage()
     return _trace_storage
+
+
+async def close_trace_storage() -> None:
+    """Release the singleton TraceStorage without creating it during shutdown."""
+    global _trace_storage
+    storage = _trace_storage
+    _trace_storage = None
+    if storage is not None:
+        await storage.close()

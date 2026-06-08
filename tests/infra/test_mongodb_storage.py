@@ -120,6 +120,24 @@ async def test_approval_storage_list_pending_applies_default_limit() -> None:
     assert collection.cursor.limit_value == 100
 
 
+def test_close_approval_storage_releases_cached_singleton() -> None:
+    storage = mongodb.get_approval_storage()
+
+    mongodb.close_approval_storage()
+
+    assert mongodb.get_approval_storage.cache_info().currsize == 0
+    assert mongodb.get_approval_storage() is not storage
+    mongodb.close_approval_storage()
+
+
+def test_close_approval_storage_does_not_create_singleton_when_unused() -> None:
+    mongodb.get_approval_storage.cache_clear()
+
+    mongodb.close_approval_storage()
+
+    assert mongodb.get_approval_storage.cache_info().currsize == 0
+
+
 @pytest.mark.asyncio
 async def test_wait_for_response_distributed_returns_on_pubsub_notification(
     monkeypatch: pytest.MonkeyPatch,

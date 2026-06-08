@@ -60,6 +60,17 @@ class WebSocketRateLimiter:
         """认证成功时重置失败计数"""
         await self._get_redis().delete(f"ws:auth:fail:{client_ip}")
 
+    async def close(self) -> None:
+        """Close the dedicated Redis client used by this limiter."""
+        redis = self._redis
+        self._redis = None
+        if redis is None:
+            return
+        try:
+            await redis.aclose()
+        except Exception as e:
+            logger.warning("[WS] Failed to close rate limiter Redis client: %s", e)
+
 
 _limiter: WebSocketRateLimiter | None = None
 
@@ -69,3 +80,11 @@ def get_ws_rate_limiter() -> WebSocketRateLimiter:
     if _limiter is None:
         _limiter = WebSocketRateLimiter()
     return _limiter
+
+
+async def close_ws_rate_limiter() -> None:
+    global _limiter
+    limiter = _limiter
+    _limiter = None
+    if limiter is not None:
+        await limiter.close()

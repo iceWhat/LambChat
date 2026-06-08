@@ -45,6 +45,20 @@ class _FakeCollection:
         return self.cursor
 
 
+class _ConcurrentListCollection(_FakeCollection):
+    def __init__(self, docs: list[dict[str, Any]]) -> None:
+        super().__init__(docs)
+        self.find_called_before_count_await = False
+
+    async def count_documents(self, _query: dict[str, Any]) -> int:
+        assert self.find_called_before_count_await is True
+        return 1_000
+
+    def find(self, *_args):
+        self.find_called_before_count_await = True
+        return super().find(*_args)
+
+
 def _share_doc(index: int) -> dict[str, Any]:
     return {
         "_id": f"id-{index}",
@@ -68,6 +82,17 @@ async def test_list_by_owner_clamps_storage_limit() -> None:
     assert len(shares) == SHARE_LIST_LIMIT_MAX
     assert storage.collection.cursor.limit_value == SHARE_LIST_LIMIT_MAX
     assert storage.collection.cursor.to_list_length == SHARE_LIST_LIMIT_MAX
+
+
+@pytest.mark.asyncio
+async def test_list_by_owner_fetches_count_and_page_concurrently() -> None:
+    storage = ShareStorage()
+    storage._collection = _ConcurrentListCollection([_share_doc(0)])
+
+    shares, total = await storage.list_by_owner("owner-1")
+
+    assert total == 1_000
+    assert len(shares) == 1
 
 
 @pytest.mark.asyncio

@@ -79,4 +79,8 @@ async def start_event_loop_lag_monitor() -> None:
 
 
 async def stop_event_loop_lag_monitor() -> None:
-    await get_event_loop_lag_monitor().stop()
+    global _monitor
+    monitor = _monitor
+    _monitor = None
+    if monitor is not None:
+        await monitor.stop()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -30,7 +31,7 @@ class _FakeCursor:
         self._limit: int | None = None
 
     def sort(self, field: str, direction: int):
-        self._docs.sort(key=lambda doc: doc.get(field), reverse=direction < 0)
+        self._docs.sort(key=lambda doc: doc.get(field, ""), reverse=direction < 0)
         return self
 
     def skip(self, value: int):
@@ -149,6 +150,12 @@ def _matches_query(doc: dict[str, Any], query: dict[str, Any]) -> bool:
             elif "$in" in value:
                 if actual not in value["$in"]:
                     return False
+            elif "$not" in value:
+                nested = value["$not"]
+                if "$regex" not in nested:
+                    raise AssertionError(f"Unsupported $not query in test fake: {value}")
+                if isinstance(actual, str) and re.search(nested["$regex"], actual):
+                    return False
             else:
                 raise AssertionError(f"Unsupported query operator in test fake: {value}")
             continue
@@ -221,9 +228,9 @@ async def test_append_user_message_search_updates_session_document() -> None:
 
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -257,7 +264,7 @@ async def test_append_user_message_search_updates_session_document() -> None:
     }
     assert storage.collection.last_update is not None
 
-    payload = storage.collection.last_update["$set"]
+    payload: dict = storage.collection.last_update["$set"]  # type: ignore[assignment]
     assert payload["search_index_version"] == SESSION_SEARCH_INDEX_VERSION
     assert payload["search_index_updated_at"] != now
     assert payload["latest_user_message"] == "Need to fix 编译错误 in parser module"
@@ -275,9 +282,9 @@ async def test_list_sessions_can_match_user_message_terms_and_attach_preview() -
 
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -340,9 +347,9 @@ async def test_list_sessions_supports_english_substring_search_terms() -> None:
 
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-compiler",
@@ -403,9 +410,9 @@ async def test_append_user_message_retries_after_concurrent_update() -> None:
             return _FakeUpdateResult(modified_count=0)
 
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _ConcurrentAppendCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _ConcurrentAppendCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -440,9 +447,9 @@ async def test_append_user_message_retries_after_concurrent_update() -> None:
 async def test_rebuild_search_index_preserves_new_live_message() -> None:
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -493,9 +500,9 @@ async def test_rebuild_search_index_preserves_new_live_message() -> None:
 async def test_rebuild_search_index_uses_bounded_event_read() -> None:
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -554,9 +561,9 @@ async def test_rebuild_search_index_offloads_backfilled_index_build(
 ) -> None:
     now = _utc_now()
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _FakeCollection(
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _FakeCollection(  # type: ignore[assignment]
         docs=[
             {
                 "_id": "session-1",
@@ -636,9 +643,9 @@ async def test_backfill_search_indexes_clamps_batch_size() -> None:
             return self.cursor
 
     storage = SessionStorage()
-    storage.ensure_indexes_if_needed = _noop_async
-    storage._indexes_ensured = True
-    storage._collection = _BackfillCollection()
+    storage.ensure_indexes_if_needed = _noop_async  # type: ignore[method-assign]
+    storage._indexes_done = True
+    storage._collection = _BackfillCollection()  # type: ignore[assignment]
 
     calls: list[str] = []
 

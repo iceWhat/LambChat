@@ -87,7 +87,12 @@ class ChannelCoordinator:
         return await manager.reload_user(user_id)
 
     async def send_message(
-        self, user_id: str, channel_type: ChannelType, chat_id: str, content: str
+        self,
+        user_id: str,
+        channel_type: ChannelType,
+        chat_id: str,
+        content: str,
+        instance_id: str | None = None,
     ) -> bool:
         """
         Send a message through a user's channel.
@@ -97,6 +102,7 @@ class ChannelCoordinator:
             channel_type: The channel type.
             chat_id: The target chat ID.
             content: The message content.
+            instance_id: Optional channel instance ID.
 
         Returns:
             True if sent successfully, False otherwise.
@@ -106,9 +112,9 @@ class ChannelCoordinator:
             logger.warning(f"No manager for channel type: {channel_type}")
             return False
 
-        channel = manager.get_channel(user_id)
+        channel = manager.get_channel(user_id, instance_id)
         if not channel:
-            logger.warning(f"No {channel_type} channel for user {user_id}")
+            logger.warning(f"No {channel_type} channel for user {user_id}, instance {instance_id}")
             return False
 
         return await channel.send_message(chat_id, content)

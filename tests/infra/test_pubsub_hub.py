@@ -3,6 +3,7 @@ import asyncio
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from src.infra import pubsub_hub as pubsub_hub_module
 from src.infra.pubsub_hub import RedisPubSubHub
 
 
@@ -326,6 +327,24 @@ def test_hub_reports_subscription_snapshot() -> None:
             "task:cancel": 2,
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_close_pubsub_hub_stops_and_releases_global_hub() -> None:
+    class _FakeHub:
+        def __init__(self) -> None:
+            self.stop_calls = 0
+
+        async def stop(self) -> None:
+            self.stop_calls += 1
+
+    hub = _FakeHub()
+    pubsub_hub_module._pubsub_hub = hub
+
+    await pubsub_hub_module.close_pubsub_hub()
+
+    assert hub.stop_calls == 1
+    assert pubsub_hub_module._pubsub_hub is None
 
 
 async def _wait_until(predicate, *, interval: float = 0.01) -> None:

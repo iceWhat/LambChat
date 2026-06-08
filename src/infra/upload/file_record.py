@@ -1,5 +1,6 @@
 """File record storage for content-hash based deduplication."""
 
+import asyncio
 from typing import Optional
 
 from src.infra.logging import get_logger
@@ -30,6 +31,7 @@ class FileRecordStorage:
 
     def __init__(self):
         self._collection = None
+        self._indexes_task: asyncio.Task[None] | None = None
 
     @property
     def collection(self):
@@ -46,10 +48,9 @@ class FileRecordStorage:
         """Ensure indexes exist (called lazily on first use)."""
         if not hasattr(self, "_indexes_ensured"):
             self._indexes_ensured = True
-            import asyncio
-
             task = asyncio.create_task(self._ensure_indexes())
             task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+            self._indexes_task = task
 
     async def _ensure_indexes(self):
         """Create required indexes on the file_records collection."""
@@ -187,3 +188,13 @@ class FileRecordStorage:
         await self.ensure_indexes_if_needed()
         result = await self.collection.delete_one({"hash": file_hash})
         return result.deleted_count > 0
+
+    async def close(self) -> None:
+        task = self._indexes_task
+        self._indexes_task = None
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        if hasattr(self, "_indexes_ensured"):
+            delattr(self, "_indexes_ensured")
+        self._collection = None

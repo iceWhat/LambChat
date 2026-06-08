@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react";
-import { Clock, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, CopyButton } from "../../../common";
+import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import {
   stripLineNumbers,
@@ -11,6 +11,10 @@ import {
 } from "./toolUtils";
 import { McpBlockPreview } from "./McpBlockPreview";
 import { openPersistentToolPanel } from "./persistentToolPanelState";
+import { ToolArgsBlock } from "./ToolArgsBlock";
+import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { ToolInlineDetails } from "./ToolInlineDetails";
+import { ToolDurationFooter } from "./ToolDurationFooter";
 
 const ReadFileItem = memo(function ReadFileItem({
   args,
@@ -30,22 +34,9 @@ const ReadFileItem = memo(function ReadFileItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const durationFooter = useMemo(() => {
-    if (!startedAt || !completedAt) return undefined;
-    const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-    if (ms < 0) return undefined;
-    const seconds = Math.round(ms / 1000);
-    const text =
-      seconds < 60
-        ? `${seconds}s`
-        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-    return (
-      <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-stone-400 dark:text-stone-500 border-t border-stone-100 dark:border-stone-800">
-        <Clock size={11} className="shrink-0" />
-        <span className="tabular-nums">{text}</span>
-      </div>
-    );
-  }, [startedAt, completedAt]);
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
   const filePath = (args.file_path as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
   const offset = args.offset as number | undefined;
@@ -92,18 +83,16 @@ const ReadFileItem = memo(function ReadFileItem({
 
   const detailContent = hasContent && (
     <div className="p-4 sm:p-5 space-y-3">
-      <div className="group/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-500 dark:text-stone-400 font-mono">
+      <ToolArgsBlock size="detail">
         <span className="truncate">{filePath}</span>
         {(offset !== undefined || limit !== undefined) && (
-          <span className="shrink-0 text-stone-400 dark:text-stone-500">
+          <span className="shrink-0 text-theme-text-tertiary">
             :L{offset ?? 1}
             {limit ? `-${(offset ?? 1) + limit}` : ""}
           </span>
         )}
-        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-          <CopyButton text={filePath} size={12} />
-        </div>
-      </div>
+        <ToolHoverCopyButton text={filePath} position="args" />
+      </ToolArgsBlock>
       {imageBlocks.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {imageBlocks.map((block, i) => (
@@ -112,7 +101,7 @@ const ReadFileItem = memo(function ReadFileItem({
         </div>
       )}
       {displayContent && (
-        <div className="relative group rounded-lg border border-stone-200/60 dark:border-stone-700/50 overflow-hidden">
+        <div className="relative group rounded-lg border border-theme-border overflow-hidden">
           <DeferredCodeMirrorViewer
             value={displayContent}
             filePath={filePath}
@@ -128,13 +117,12 @@ const ReadFileItem = memo(function ReadFileItem({
                 : undefined
             }
           />
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <CopyButton
-              text={displayContent}
-              size={14}
-              className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-            />
-          </div>
+          <ToolHoverCopyButton
+            text={displayContent}
+            size={14}
+            position="panel"
+            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+          />
         </div>
       )}
     </div>
@@ -162,20 +150,18 @@ const ReadFileItem = memo(function ReadFileItem({
         }}
       >
         {hasContent && (
-          <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 max-h-80 overflow-y-auto min-w-0">
+          <ToolInlineDetails>
             {filePath && (
-              <div className="group/args relative flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono">
+              <ToolArgsBlock size="compact">
                 <span className="truncate">{filePath}</span>
                 {(offset !== undefined || limit !== undefined) && (
-                  <span className="shrink-0 text-stone-400 dark:text-stone-500">
+                  <span className="shrink-0 text-theme-text-tertiary">
                     :L{offset ?? 1}
                     {limit ? `-${(offset ?? 1) + limit}` : ""}
                   </span>
                 )}
-                <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-                  <CopyButton text={filePath} size={12} />
-                </div>
-              </div>
+                <ToolHoverCopyButton text={filePath} position="argsCompact" />
+              </ToolArgsBlock>
             )}
             {imageBlocks.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-2">
@@ -185,7 +171,7 @@ const ReadFileItem = memo(function ReadFileItem({
               </div>
             )}
             {displayContent && (
-              <div className="relative group rounded-md border border-stone-200/60 dark:border-stone-700/50">
+              <div className="relative group rounded-md border border-theme-border">
                 <DeferredCodeMirrorViewer
                   value={displayContent}
                   filePath={filePath}
@@ -198,16 +184,14 @@ const ReadFileItem = memo(function ReadFileItem({
                       : undefined
                   }
                 />
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <CopyButton
-                    text={displayContent}
-                    size={12}
-                    className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-                  />
-                </div>
+                <ToolHoverCopyButton
+                  text={displayContent}
+                  position="panelCompact"
+                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+                />
               </div>
             )}
-          </div>
+          </ToolInlineDetails>
         )}
       </CollapsiblePill>
     </>

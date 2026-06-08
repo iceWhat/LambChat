@@ -40,6 +40,7 @@ async def _json_dumps_result(data: dict[str, Any]) -> str:
 _backend: Optional[MemoryBackend] = None
 _backend_lock: Optional[asyncio.Lock] = None
 _backend_lock_loop: Optional[asyncio.AbstractEventLoop] = None
+_backend_reset_task: Optional[asyncio.Task] = None
 _background_tasks: set[asyncio.Task] = set()
 _auto_capture_tasks_by_user: dict[str, asyncio.Task] = {}
 _auto_capture_user_locks: dict[str, asyncio.Lock] = {}
@@ -445,25 +446,41 @@ async def _close_and_reset_backend() -> None:
     logger.info("[Memory] Backend reset (will be recreated on next use)")
 
 
+def _backend_reset_done(task: asyncio.Task) -> None:
+    global _backend_reset_task
+    if _backend_reset_task is task:
+        _backend_reset_task = None
+    _background_tasks.discard(task)
+    _background_task_error(task)
+
+
 def schedule_backend_reset() -> None:
     """Schedule a non-blocking backend reset (fire-and-forget).
 
     Call this when memory-related settings change so the next request
     picks up the new configuration without a server restart.
     """
+    global _backend_reset_task
+
+    existing = _backend_reset_task
+    if existing is not None and not existing.done():
+        logger.debug("[Memory] Backend reset already scheduled")
+        return
+
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         # No event loop — reset synchronously (close may be incomplete but safe)
         global _backend
         _backend = None
+        _backend_reset_task = None
         logger.info("[Memory] Backend reset (no event loop)")
         return
 
     task = loop.create_task(_close_and_reset_backend())
+    _backend_reset_task = task
     _background_tasks.add(task)
-    task.add_done_callback(_background_task_error)
-    task.add_done_callback(_background_tasks.discard)
+    task.add_done_callback(_backend_reset_done)
 
 
 async def shutdown() -> None:
@@ -471,7 +488,7 @@ async def shutdown() -> None:
 
     Call during application shutdown to prevent orphaned tasks.
     """
-    global _backend, _backend_lock, _backend_lock_loop
+    global _backend, _backend_lock, _backend_lock_loop, _backend_reset_task
 
     # Cancel all background tasks
     for task in list(_background_tasks):
@@ -486,6 +503,7 @@ async def shutdown() -> None:
     _backend = None
     _backend_lock = None
     _backend_lock_loop = None
+    _backend_reset_task = None
     _auto_capture_tasks_by_user.clear()
     _auto_capture_user_locks.clear()
     if backend is not None:

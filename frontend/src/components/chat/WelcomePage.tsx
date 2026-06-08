@@ -12,6 +12,7 @@ import { ChatInput } from "./ChatInput";
 import type { ChatInputProps } from "./ChatInput";
 import type { ActiveGoalSpec } from "../../hooks/useAgent/types";
 import { ContactAdminDialog } from "../common/ContactAdminDialog";
+import { NotificationBanner } from "../notification/NotificationBanner";
 import {
   getSelectedPersonaStarterPrompts,
   getSelectedTeamStarterPrompts,
@@ -359,7 +360,7 @@ export const WelcomePage = memo(function WelcomePage({
       className="welcome-root relative flex h-full flex-col items-center justify-center px-4"
     >
       {/* Greeting section */}
-      <div className="welcome-hero relative flex flex-col items-center mb-2 sm:mb-3 md:mb-4 xl:mb-4 2xl:mb-5 w-full max-w-[90vw]">
+      <div className="welcome-hero relative flex flex-col items-center mb-1 sm:mb-2 md:mb-2.5 xl:mb-3 2xl:mb-3 w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         {/* App icon (mobile only) */}
         <div className="sm:hidden relative mb-2">
           <WelcomeIcon
@@ -370,7 +371,7 @@ export const WelcomePage = memo(function WelcomePage({
 
         {/* Greeting */}
         <h1
-          className="welcome-greeting max-w-[90vw] text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.35rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
+          className="welcome-greeting max-w-full text-[1.5rem] sm:text-[1.875rem] md:text-[2rem] lg:text-[2.25rem] xl:text-[2.35rem] 2xl:text-[2.5rem] font-semibold tracking-[-0.02em] leading-[1.2] text-center font-serif"
           style={{ color: "var(--theme-text)" }}
         >
           <WelcomeIcon className="welcome-icon hidden sm:inline-block size-12 xl:size-14 2xl:size-16 mr-4 align-text-bottom object-contain" />
@@ -386,7 +387,7 @@ export const WelcomePage = memo(function WelcomePage({
       </div>
 
       {/* ChatInput centered — the focal point */}
-      <div className="welcome-input flex w-full flex-col sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
+      <div className="welcome-input flex w-full flex-col mx-auto sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]">
         <ChatInput
           {...chatInputProps}
           onMentionQueryChange={
@@ -415,9 +416,9 @@ export const WelcomePage = memo(function WelcomePage({
             showChoiceCards ? "personas" : "prompts",
           )}
         >
-          <div className="welcome-suggestions-header flex items-center justify-between mb-2 sm:mb-3 md:mb-3 xl:mb-4 2xl:mb-4 px-2 sm:px-0">
+          <div className="welcome-suggestions-header flex items-center justify-between mb-2 sm:mb-2.5 md:mb-2.5 xl:mb-3 2xl:mb-3">
             <div
-              className="flex items-center gap-1 text-xs sm:text-sm md:text-sm font-medium font-serif"
+              className="flex items-center gap-1.5 text-xs sm:text-[13px] md:text-[13px] font-medium font-serif"
               style={{ color: "var(--theme-text-secondary)" }}
             >
               <Sparkles
@@ -526,7 +527,7 @@ export const WelcomePage = memo(function WelcomePage({
             onScroll={showPersonaCards ? handleGalleryScroll : undefined}
             className={
               showGallerySection
-                ? "welcome-persona-gallery relative px-2 pb-1 sm:px-0 sm:pb-0"
+                ? "welcome-persona-gallery relative pb-1 sm:pb-0"
                 : "welcome-suggestions-grid-wrapper"
             }
           >
@@ -715,7 +716,7 @@ export const WelcomePage = memo(function WelcomePage({
             <div
               className={
                 showStarterPrompts || showTeamStarterPrompts
-                  ? "welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3 px-2 sm:px-0"
+                  ? "welcome-suggestions-grid grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 md:gap-2.5 xl:gap-3 2xl:gap-3"
                   : undefined
               }
             >
@@ -754,6 +755,8 @@ export const WelcomePage = memo(function WelcomePage({
           </div>
         </div>
       )}
+
+      <NotificationBanner />
 
       <ContactAdminDialog
         isOpen={contactAdminOpen}

@@ -220,11 +220,31 @@ async def test_close_redis_client_closes_shared_connection_pool(monkeypatch) -> 
     monkeypatch.setattr(redis_storage, "Redis", _FakeRedisWithClosablePool)
     monkeypatch.setattr(redis_storage, "logger", fake_logger)
     redis_storage.get_redis_connection_pool.cache_clear()
+    redis_storage.get_redis_connection_pool()
 
     await redis_storage.close_redis_client()
 
     assert pool.closed is True
     assert redis_storage.get_redis_connection_pool.cache_info().currsize == 0
+
+
+@pytest.mark.asyncio
+async def test_close_redis_client_does_not_create_pool_when_unused(monkeypatch) -> None:
+    created = 0
+    fake_module = _FakeAsyncRedisModule()
+
+    def _from_url(*args, **kwargs):
+        nonlocal created
+        created += 1
+        return _FakePool()
+
+    fake_module.ConnectionPool.from_url = _from_url
+    monkeypatch.setattr(redis_storage, "redis", fake_module)
+    redis_storage.get_redis_connection_pool.cache_clear()
+
+    await redis_storage.close_redis_client()
+
+    assert created == 0
 
 
 @pytest.mark.asyncio

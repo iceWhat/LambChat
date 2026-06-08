@@ -122,10 +122,35 @@ class _SharedRegistrationStore:
         )
         return True
 
+    def close(self) -> None:
+        self._client.close()
+
 
 @lru_cache
 def _get_shared_store() -> _SharedRegistrationStore:
     return _SharedRegistrationStore()
+
+
+def close_registration_sessions() -> None:
+    """Cancel local registration sessions and release the cached Redis store."""
+    with _sessions_lock:
+        sessions = list(_sessions.values())
+        _sessions.clear()
+    for session in sessions:
+        session.cancel_event.set()
+        if session.status not in {"success", "error", "expired", "cancelled"}:
+            session.status = "cancelled"
+            session.touch()
+
+    if _get_shared_store.cache_info().currsize == 0:
+        return
+
+    try:
+        _get_shared_store().close()
+    except Exception as e:
+        logger.debug("[Feishu] failed to close registration shared store: %s", e)
+    finally:
+        _get_shared_store.cache_clear()
 
 
 def _save_shared_session(session: FeishuRegistrationSession) -> None:

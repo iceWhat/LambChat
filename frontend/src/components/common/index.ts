@@ -18,6 +18,10 @@ export { AboutDialog } from "./AboutDialog";
 
 export { ImageViewer } from "./ImageViewer";
 export { VideoViewer } from "./VideoViewer";
+export { ViewerTopBarButton } from "./ViewerTopBarButton";
+export type { ViewerTopBarButtonProps } from "./ViewerTopBarButton";
+export { ViewerDropdownMenuItem } from "./ViewerDropdownMenuItem";
+export { downloadBlob, downloadUrl } from "./viewerDownload";
 
 export {
   AttachmentCard,
@@ -49,6 +53,9 @@ export { Checkbox } from "./Checkbox";
 export {
   Button,
   IconButton,
+  ToolbarIconButton,
+  FloatingIconButton,
+  OverlayRoundIconButton,
   Input,
   Textarea,
   Select,
@@ -60,6 +67,9 @@ export type {
   ButtonSize,
   ButtonVariant,
   IconButtonProps,
+  ToolbarIconButtonProps,
+  FloatingIconButtonProps,
+  OverlayRoundIconButtonProps,
   InputProps,
   TextareaProps,
   SelectOption,

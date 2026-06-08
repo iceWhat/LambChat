@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from src.kernel.schemas.channel import ChannelType
+
 # ── Enums ──────────────────────────────────────────
 
 
@@ -60,6 +62,25 @@ class DateTriggerConfig(BaseModel):
     run_date: datetime = Field(..., description="One-time execution datetime")
 
 
+class ChannelDeliveryConfig(BaseModel):
+    """Optional channel delivery target for scheduled-task results."""
+
+    channel_type: ChannelType = Field(..., description="Channel type to deliver task results to")
+    chat_id: str = Field(..., min_length=1, description="Target channel chat/conversation ID")
+    channel_instance_id: Optional[str] = Field(
+        None,
+        description="Channel instance ID that originated this delivery target",
+    )
+    enabled: bool = Field(True, description="Whether channel result delivery is enabled")
+    send_on_success: bool = Field(True, description="Send successful agent results to channel")
+    max_content_chars: int = Field(
+        4000,
+        ge=1,
+        le=20000,
+        description="Maximum text characters sent to the channel",
+    )
+
+
 # ── Task models ────────────────────────────────────
 
 
@@ -84,6 +105,10 @@ class ScheduledTaskCreate(BaseModel):
     )
     source_run_id: Optional[str] = Field(None, description="Agent run where the task was created")
     created_by: str = Field("user", description="Creator source: user / agent / api")
+    delivery: Optional[ChannelDeliveryConfig] = Field(
+        None,
+        description="Optional channel target for delivering successful task results",
+    )
 
 
 class ScheduledTaskUpdate(BaseModel):
@@ -99,6 +124,7 @@ class ScheduledTaskUpdate(BaseModel):
     run_on_start: Optional[bool] = None
     max_retries: Optional[int] = Field(None, ge=0, le=10)
     timeout_seconds: Optional[int] = Field(None, ge=10, le=3600)
+    delivery: Optional[ChannelDeliveryConfig] = None
 
 
 class ScheduledTask(BaseModel):
@@ -122,6 +148,7 @@ class ScheduledTask(BaseModel):
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
     created_by: str = "user"
+    delivery: Optional[ChannelDeliveryConfig] = None
     last_run_at: Optional[datetime] = None
     last_run_status: Optional[RunStatus] = None
     last_run_id: Optional[str] = None
@@ -177,6 +204,7 @@ class ScheduledTaskResponse(BaseModel):
     source_session_id: Optional[str] = None
     source_run_id: Optional[str] = None
     created_by: str = "user"
+    delivery: Optional[ChannelDeliveryConfig] = None
     last_run_at: Optional[datetime] = None
     last_run_status: Optional[RunStatus] = None
     last_run_id: Optional[str] = None

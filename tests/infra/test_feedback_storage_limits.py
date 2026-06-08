@@ -70,3 +70,13 @@ async def test_list_feedback_clamps_storage_limit() -> None:
 
     assert len(feedbacks) == FEEDBACK_LIST_LIMIT_MAX
     assert storage.collection.cursor.limit_value == FEEDBACK_LIST_LIMIT_MAX
+
+
+@pytest.mark.asyncio
+async def test_feedback_storage_close_clears_collection_ref() -> None:
+    storage = FeedbackStorage()
+    storage._collection = object()
+
+    await storage.close()
+
+    assert storage._collection is None

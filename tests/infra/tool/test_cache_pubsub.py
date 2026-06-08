@@ -4,9 +4,12 @@ import json
 
 import pytest
 
+from src.infra.tool import cache_pubsub as cache_pubsub_module
 from src.infra.tool.cache_pubsub import (
     TOOL_CACHE_INVALIDATION_CHANNEL,
     ToolCachePubSub,
+    close_tool_cache_pubsub,
+    get_tool_cache_pubsub,
     publish_tool_cache_invalidation,
 )
 from src.infra.tool.env_var_prompt import _env_var_prompt_cache
@@ -128,3 +131,27 @@ async def test_publish_tool_cache_invalidation_broadcasts_cache_key_and_user(
             ),
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_close_tool_cache_pubsub_stops_and_releases_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_hub = _FakeHub()
+    monkeypatch.setattr("src.infra.tool.cache_pubsub.get_pubsub_hub", lambda: fake_hub)
+    pubsub = get_tool_cache_pubsub()
+    await pubsub.start_listener()
+
+    await close_tool_cache_pubsub()
+
+    assert cache_pubsub_module._tool_cache_pubsub is None
+    assert fake_hub.unsubscribed == ["token-1"]
+
+
+@pytest.mark.asyncio
+async def test_close_tool_cache_pubsub_does_not_create_singleton_when_unused() -> None:
+    cache_pubsub_module._tool_cache_pubsub = None
+
+    await close_tool_cache_pubsub()
+
+    assert cache_pubsub_module._tool_cache_pubsub is None

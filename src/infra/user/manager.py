@@ -4,6 +4,7 @@
 提供用户管理的业务逻辑。
 """
 
+import asyncio
 from typing import Optional
 
 from src.infra.async_utils.background_tasks import BestEffortTaskLimiter
@@ -89,21 +90,6 @@ class UserManager:
             from src.kernel.exceptions import AccountNotActiveError
 
             raise AccountNotActiveError("账户未激活，请验证邮箱后登录", user.email)
-
-        # 获取用户的角色和权限
-        roles = []
-        permissions = set()
-
-        for role_name in user.roles:
-            role = await self.role_storage.get_by_name(role_name)
-            if role:
-                roles.append(role.name)
-                for perm in role.permissions:
-                    # Handle both Permission enum and string
-                    if isinstance(perm, str):
-                        permissions.add(perm)
-                    else:
-                        permissions.add(perm.value)
 
         # 创建 token（用户信息从 API 动态获取）
         access_token = create_access_token(user_id=user.id)
@@ -194,8 +180,10 @@ class UserManager:
         Returns:
             分页用户列表响应
         """
-        users = await self.storage.list_users(skip, limit, is_active, search)
-        total = await self.storage.count_users(search, is_active)
+        users, total = await asyncio.gather(
+            self.storage.list_users(skip, limit, is_active, search),
+            self.storage.count_users(search, is_active),
+        )
         return UserListResponse(
             users=users,
             total=total,

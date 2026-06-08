@@ -33,6 +33,7 @@ GITHUB_RAW = "https://raw.githubusercontent.com"
 GITHUB_SCAN_CONCURRENCY = 8
 GITHUB_IMPORT_MAX_FILES = 500
 GITHUB_IMPORT_MAX_TOTAL_BYTES = 10 * 1024 * 1024
+GITHUB_SKILL_MD_MAX_BYTES = 256 * 1024
 GITHUB_INSTALL_MAX_SKILLS = 100
 
 T = TypeVar("T")
@@ -377,7 +378,13 @@ async def scan_for_skills(
         if item["type"] == "dir":
             # 检查是否是技能目录（包含 SKILL.md）
             skill_md_url = f"{item['path']}/SKILL.md"
-            skill_md = await fetch_github_file(owner, repo, branch, skill_md_url)
+            skill_md = await fetch_github_file(
+                owner,
+                repo,
+                branch,
+                skill_md_url,
+                max_bytes=GITHUB_SKILL_MD_MAX_BYTES,
+            )
             if skill_md:
                 parsed = _parse_skill_md(skill_md, item["name"], item["name"])
                 parsed["path"] = item["path"]
@@ -387,7 +394,13 @@ async def scan_for_skills(
                 sub_dirs.append(item)
         elif item["type"] == "file" and item["name"] == "SKILL.md":
             # 根目录的 SKILL.md
-            skill_md = await fetch_github_file(owner, repo, branch, item["path"])
+            skill_md = await fetch_github_file(
+                owner,
+                repo,
+                branch,
+                item["path"],
+                max_bytes=GITHUB_SKILL_MD_MAX_BYTES,
+            )
             if skill_md:
                 parsed = _parse_skill_md(skill_md, repo, repo)
                 parsed["path"] = ""

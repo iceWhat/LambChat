@@ -113,8 +113,16 @@ function SessionScheduledTaskPanelBody({
       ) : (
         <div className="scheduled-task-panel flex-1 space-y-2 overflow-y-auto p-3">
           {tasks.map((task) => (
-            <div key={task.id} className="scheduled-task-mini-card">
-              <div className="flex items-start justify-between gap-2">
+            <div
+              key={task.id}
+              className={`scheduled-task-mini-card${
+                task.status === "active"
+                  ? " scheduled-task-mini-card--active"
+                  : " scheduled-task-mini-card--paused"
+              }`}
+            >
+              {/* Header: title + status badge */}
+              <div className="scheduled-task-mini-card__header">
                 <div className="min-w-0 flex-1">
                   <div className="scheduled-task-card__title-row">
                     <p className="scheduled-task-card__title truncate text-sm">
@@ -130,29 +138,35 @@ function SessionScheduledTaskPanelBody({
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-1.5 text-xs text-theme-text-secondary">
-                <div className="flex min-w-0 items-center gap-1.5">
+              {/* Meta info pills */}
+              <div className="scheduled-task-mini-card__meta">
+                <span className="scheduled-task-mini-card__pill">
                   <Timer size={12} />
                   <span className="truncate">{formatTaskTrigger(task, t)}</span>
-                </div>
-                <div className="flex min-w-0 items-center gap-1.5">
+                </span>
+                <span className="scheduled-task-mini-card__pill">
                   <Bot size={12} />
                   <span className="truncate">{task.agent_id}</span>
-                </div>
+                </span>
                 {task.last_run_at ? (
-                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                    <Clock size={12} />
-                    <span>{formatDateTimeShort(task.last_run_at)}</span>
+                  <>
+                    <span className="scheduled-task-mini-card__pill">
+                      <Clock size={12} />
+                      <span>{formatDateTimeShort(task.last_run_at)}</span>
+                    </span>
                     {task.last_run_status && (
                       <RunStatusBadge status={task.last_run_status} />
                     )}
-                  </div>
+                  </>
                 ) : (
-                  <div>{t("scheduledTask.neverRun")}</div>
+                  <span className="scheduled-task-mini-card__pill scheduled-task-mini-card__pill--muted">
+                    {t("scheduledTask.neverRun")}
+                  </span>
                 )}
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-2">
+              {/* Action buttons */}
+              <div className="scheduled-task-mini-card__actions">
                 <button
                   onClick={() => {
                     closePersistentToolPanel();
@@ -162,38 +176,50 @@ function SessionScheduledTaskPanelBody({
                     });
                     navigate(`/scheduled-tasks?${params.toString()}`);
                   }}
-                  className="scheduled-task-button scheduled-task-button--secondary min-h-8 px-2 text-xs"
+                  className="scheduled-task-button scheduled-task-button--secondary"
+                  title={t("scheduledTask.details", "详情")}
                 >
                   <History size={14} />
-                  {t("scheduledTask.details", "详情")}
+                  <span className="hidden sm:inline">
+                    {t("scheduledTask.details", "详情")}
+                  </span>
                 </button>
 
                 <div className="scheduled-task-actions">
                   {canWrite && task.status === "active" && (
                     <button
                       onClick={() => void runTaskAction(task, "pause")}
-                      className="scheduled-task-icon-button h-8 w-8"
+                      className="scheduled-task-button"
                       title={t("scheduledTask.pause")}
                     >
-                      <Pause size={15} />
+                      <Pause size={14} />
+                      <span className="hidden sm:inline">
+                        {t("scheduledTask.pause")}
+                      </span>
                     </button>
                   )}
                   {canWrite && task.status === "paused" && (
                     <button
                       onClick={() => void runTaskAction(task, "resume")}
-                      className="scheduled-task-icon-button scheduled-task-icon-button--success h-8 w-8"
+                      className="scheduled-task-button scheduled-task-button--success"
                       title={t("scheduledTask.resume")}
                     >
-                      <Play size={15} />
+                      <Play size={14} />
+                      <span className="hidden sm:inline">
+                        {t("scheduledTask.resume")}
+                      </span>
                     </button>
                   )}
                   {canWrite && (
                     <button
                       onClick={() => void runTaskAction(task, "runNow")}
-                      className="scheduled-task-icon-button scheduled-task-icon-button--info h-8 w-8"
+                      className="scheduled-task-button scheduled-task-button--info"
                       title={t("scheduledTask.runNow")}
                     >
-                      <RotateCcw size={15} />
+                      <RotateCcw size={14} />
+                      <span className="hidden sm:inline">
+                        {t("scheduledTask.runNow")}
+                      </span>
                     </button>
                   )}
                 </div>
@@ -209,9 +235,11 @@ function SessionScheduledTaskPanelBody({
 export function SessionScheduledTasksButton({
   sessionId,
   refreshKey,
+  className,
 }: {
   sessionId: string | null;
   refreshKey?: string | number;
+  className?: string;
 }) {
   const { t } = useTranslation();
   const { hasPermission } = useAuth();
@@ -280,7 +308,10 @@ export function SessionScheduledTasksButton({
   return (
     <button
       onClick={togglePanel}
-      className="absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm backdrop-blur transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
+      className={
+        className ??
+        "absolute right-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-sm backdrop-blur transition-colors hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text"
+      }
       title={t("scheduledTask.conversationTasks", "会话定时任务")}
     >
       <CalendarClock size={17} />

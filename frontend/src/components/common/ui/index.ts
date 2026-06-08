@@ -5,6 +5,15 @@ export type { ButtonVariant, ButtonSize } from "./Button";
 export { IconButton } from "./IconButton";
 export type { IconButtonProps } from "./IconButton";
 
+export { ToolbarIconButton } from "./ToolbarIconButton";
+export type { ToolbarIconButtonProps } from "./ToolbarIconButton";
+
+export { FloatingIconButton } from "./FloatingIconButton";
+export type { FloatingIconButtonProps } from "./FloatingIconButton";
+
+export { OverlayRoundIconButton } from "./OverlayRoundIconButton";
+export type { OverlayRoundIconButtonProps } from "./OverlayRoundIconButton";
+
 export { Input } from "./Input";
 export type { InputProps } from "./Input";
 

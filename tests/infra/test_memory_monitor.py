@@ -921,6 +921,30 @@ async def test_start_does_not_enable_tracemalloc_when_heavy_diagnostics_disabled
 
 
 @pytest.mark.asyncio
+async def test_close_memory_monitor_stops_and_releases_singleton() -> None:
+    from src.infra.monitoring import memory as memory_module
+    from src.infra.monitoring.memory import MemoryMonitor
+
+    monitor = MemoryMonitor(interval_seconds=60.0, history_limit=10)
+    memory_module._memory_monitor = monitor
+
+    await memory_module.close_memory_monitor()
+
+    assert memory_module._memory_monitor is None
+
+
+@pytest.mark.asyncio
+async def test_close_memory_monitor_does_not_create_monitor_when_unused() -> None:
+    from src.infra.monitoring import memory as memory_module
+
+    memory_module._memory_monitor = None
+
+    await memory_module.close_memory_monitor()
+
+    assert memory_module._memory_monitor is None
+
+
+@pytest.mark.asyncio
 async def test_start_returns_without_waiting_for_initial_baseline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

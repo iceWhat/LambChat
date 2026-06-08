@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { ViewerToolbar } from "./ViewerToolbar";
+import { ViewerTopBarButton } from "./ViewerTopBarButton";
+import { downloadUrl } from "./viewerDownload";
 
 interface ImageViewerProps {
   src: string;
@@ -230,14 +232,12 @@ export function ImageViewer({
     >
       {/* Top bar */}
       <div className="safe-area-top flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
-        <button
-          type="button"
+        <ViewerTopBarButton
           onClick={onClose}
-          className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
           aria-label={t("common.close")}
-        >
-          <X size={20} className="text-white/70" />
-        </button>
+          icon={<X size={20} className="text-white/70" />}
+          iconOnly
+        />
 
         {positionLabel && (
           <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium tabular-nums text-white/70">
@@ -245,20 +245,13 @@ export function ImageViewer({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = src;
-            a.download = "";
-            a.click();
-          }}
-          className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
+        <ViewerTopBarButton
+          onClick={() => downloadUrl(src)}
           aria-label={t("imageViewer.download")}
+          icon={<Download size={18} className="text-white/70" />}
         >
-          <Download size={18} className="text-white/70" />
           <span className="hidden sm:inline">{t("imageViewer.download")}</span>
-        </button>
+        </ViewerTopBarButton>
       </div>
 
       {/* Main area */}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
@@ -235,100 +236,92 @@ export function Header({
                 >
                   <div className="py-1">
                     {showOutlineButton && onToggleOutline && (
-                      <button
+                      <HeaderMenuItem
                         onClick={() => {
                           onToggleOutline();
                           setMobileMenuOpen(false);
                         }}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <span className="flex items-center justify-center w-5 shrink-0">
+                        <HeaderMenuIcon>
                           <ListTree size={16} />
-                        </span>
+                        </HeaderMenuIcon>
                         <span className="truncate">{t("chat.outline")}</span>
-                      </button>
+                      </HeaderMenuItem>
                     )}
                     {activeTab === "chat" && (
-                      <button
+                      <HeaderMenuItem
                         onClick={() => {
                           onNewSession();
                           setMobileMenuOpen(false);
                         }}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <span className="flex items-center justify-center w-5 shrink-0">
+                        <HeaderMenuIcon>
                           <MessageSquarePlus size={16} />
-                        </span>
+                        </HeaderMenuIcon>
                         <span className="truncate">{t("sidebar.newChat")}</span>
-                      </button>
+                      </HeaderMenuItem>
                     )}
                     {showShareButton && (
-                      <button
+                      <HeaderMenuItem
                         onClick={() => {
                           setShareDialogOpen(true);
                           setMobileMenuOpen(false);
                         }}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                       >
-                        <span className="flex items-center justify-center w-5 shrink-0">
+                        <HeaderMenuIcon>
                           <Share2 size={16} strokeWidth={1.8} />
-                        </span>
+                        </HeaderMenuIcon>
                         <span className="truncate">{t("share.title")}</span>
-                      </button>
+                      </HeaderMenuItem>
                     )}
-                    <button
+                    <HeaderMenuItem
                       onClick={() => {
                         setNotifDialogOpen(true);
                         setMobileMenuOpen(false);
                       }}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                     >
-                      <span className="flex items-center justify-center w-5 shrink-0">
+                      <HeaderMenuIcon>
                         <Bell size={16} />
-                      </span>
+                      </HeaderMenuIcon>
                       <span className="truncate">{t("nav.notifications")}</span>
                       {activeNotifCount > 0 && (
                         <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white leading-none">
                           {activeNotifCount > 99 ? "99+" : activeNotifCount}
                         </span>
                       )}
-                    </button>
-                    <button
+                    </HeaderMenuItem>
+                    <HeaderMenuItem
                       onClick={() => {
                         toggleTheme();
                         setMobileMenuOpen(false);
                       }}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
                     >
                       {theme === "light" ? (
                         <>
-                          <span className="flex items-center justify-center w-5 shrink-0">
+                          <HeaderMenuIcon>
                             <Moon size={16} />
-                          </span>
+                          </HeaderMenuIcon>
                           <span className="truncate">
                             {t("theme.switchToDark")}
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="flex items-center justify-center w-5 shrink-0">
+                          <HeaderMenuIcon>
                             <Sun size={16} />
-                          </span>
+                          </HeaderMenuIcon>
                           <span className="truncate">
                             {t("theme.switchToLight")}
                           </span>
                         </>
                       )}
-                    </button>
-                    <button
-                      onClick={() => setLangMenuOpen(true)}
-                      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
-                    >
-                      <span className="flex items-center justify-center w-5 shrink-0">
+                    </HeaderMenuItem>
+                    <HeaderMenuItem onClick={() => setLangMenuOpen(true)}>
+                      <HeaderMenuIcon>
                         <Languages size={16} />
-                      </span>
+                      </HeaderMenuIcon>
                       <span className="truncate">{t("common.language")}</span>
-                    </button>
+                    </HeaderMenuItem>
                   </div>
                 </div>,
                 document.body,
@@ -416,5 +409,30 @@ export function Header({
         onDismissed={refreshNotifCount}
       />
     </>
+  );
+}
+
+function HeaderMenuItem({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors text-[var(--theme-text-secondary)] hover:text-[var(--theme-text)] hover:bg-[var(--theme-primary-light)]"
+    >
+      {children}
+    </button>
+  );
+}
+
+function HeaderMenuIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex items-center justify-center w-5 shrink-0">
+      {children}
+    </span>
   );
 }

@@ -11,6 +11,7 @@ import {
   getNextRecentChatsState,
   type RecentChatsPaginationState,
 } from "./recentChatsPagination";
+import { MarkAllReadBadge } from "./MarkAllReadBadge";
 
 interface RecentChatsDialogProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ interface RecentChatsDialogProps {
     projectId?: string;
     scheduledTaskId?: string;
   }) => void;
+  markingReadId?: string | null;
 }
 
 const PAGE_SIZE = 20;
@@ -41,6 +43,7 @@ export function RecentChatsDialog({
   anchorEl,
   unreadCount = 0,
   onMarkAllRead,
+  markingReadId,
 }: RecentChatsDialogProps) {
   const { t } = useTranslation();
   const [sessions, setSessions] = useState<BackendSession[]>([]);
@@ -227,21 +230,13 @@ export function RecentChatsDialog({
           </span>
         </div>
         {unreadCount > 0 && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={() => onMarkAllRead?.()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onMarkAllRead?.();
-              }
-            }}
+          <MarkAllReadBadge
+            count={unreadCount}
+            badgeId="all"
+            markingReadId={markingReadId ?? null}
+            onMarkAllRead={() => onMarkAllRead?.()}
             title={t("sidebar.markAllRead")}
-            className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white cursor-pointer hover:opacity-70 transition-opacity"
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+          />
         )}
       </div>
 

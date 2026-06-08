@@ -1,4 +1,4 @@
-"""Simple LangGraph node for emitting recommended follow-up questions."""
+"""Simple LangGraph node for emitting recommended next-step suggestions."""
 
 from __future__ import annotations
 
@@ -28,8 +28,11 @@ _CURRENT_OUTPUT_MAX_CHARS = 4000
 _HISTORY_MAX_CHARS = 32000
 _DEFAULT_RECOMMEND_BACKGROUND_TASKS = 8
 _RECOMMEND_SYSTEM_PROMPT = (
-    "You generate follow-up questions only.\n"
-    "Generate exactly 3 concise follow-up questions for a chat UI.\n"
+    "You generate next-step suggestions only, not questions.\n"
+    "Generate exactly 3 concise next-step suggestions for a chat UI.\n"
+    "Each suggestion must be an actionable imperative or task phrase the user can run next.\n"
+    "Do not ask for confirmation, clarification, preferences, or missing details.\n"
+    "Do not end suggestions with question marks.\n"
     "Use the same language as the current user message.\n"
     "Prioritize the current user message and current assistant answer. Use recent "
     "conversation history only as background when it helps.\n"
@@ -111,7 +114,7 @@ async def drain_recommend_background_tasks() -> None:
 
 
 def _compact_topic(user_input: str, max_len: int = 24) -> str:
-    topic = " ".join(user_input.strip().split())
+    topic = " ".join(user_input.strip().split()).rstrip("，,。.!！？? ")
     if not topic:
         return ""
     if len(topic) <= max_len:
@@ -120,27 +123,27 @@ def _compact_topic(user_input: str, max_len: int = 24) -> str:
 
 
 def build_recommend_questions(user_input: str) -> list[str]:
-    """Build lightweight fallback follow-up questions."""
+    """Build lightweight fallback next-step suggestions."""
     topic = _compact_topic(user_input)
     if _CJK_RE.search(user_input):
         if topic:
             return [
-                f"{topic}还有哪些关键步骤？",
-                f"{topic}有哪些常见误区？",
-                "下一步我应该怎么做？",
+                f"梳理{topic}的关键步骤",
+                f"列出{topic}的常见误区",
+                "生成下一步执行方案",
             ]
-        return ["还有哪些关键步骤？", "有哪些常见误区？", "下一步我应该怎么做？"]
+        return ["梳理关键步骤", "列出常见误区", "生成下一步执行方案"]
 
     if topic:
         return [
-            f"What are the key next steps for {topic}?",
-            f"What are common mistakes with {topic}?",
-            "What should I do next?",
+            f"Outline the key next steps for {topic}",
+            f"List common mistakes with {topic}",
+            "Generate the next execution plan",
         ]
     return [
-        "What are the key next steps?",
-        "What are common mistakes?",
-        "What should I do next?",
+        "Outline the key next steps",
+        "List common mistakes",
+        "Generate the next execution plan",
     ]
 
 
@@ -337,7 +340,7 @@ def build_recommend_prompt(
     output_text: str = "",
     history_context: str = "",
 ) -> str:
-    """Build a bounded prompt for follow-up question generation."""
+    """Build a bounded prompt for next-step suggestion generation."""
     current_user = _clip_text(_normalize_text(user_input), _CURRENT_USER_MAX_CHARS)
     current_output = _clip_text(_normalize_text(output_text), _CURRENT_OUTPUT_MAX_CHARS)
 
@@ -430,7 +433,12 @@ async def _parse_questions(raw_text: str) -> list[str]:
     else:
         questions = [line.strip(" -0123456789.、") for line in text.splitlines() if line.strip()]
 
-    return questions[:3]
+    suggestions = [
+        question
+        for question in questions
+        if not question.endswith(("?", "？")) and "?" not in question and "？" not in question
+    ]
+    return suggestions[:3]
 
 
 async def _ainvoke_with_retry(model: Any, prompt: Any, max_retries: int | None = None) -> Any:
@@ -460,7 +468,7 @@ async def generate_recommend_questions(
     output_text: str = "",
     history_context: str = "",
 ) -> list[str]:
-    """Generate follow-up questions using the same model config as session titles."""
+    """Generate next-step suggestions using the same model config as session titles."""
     from src.infra.llm.client import LLMClient
 
     prompt = await run_blocking_io(
@@ -498,7 +506,7 @@ async def recommendation_node(
     state: dict[str, Any],
     config: RunnableConfig,
 ) -> dict[str, Any]:
-    """Emit recommended questions as the final graph node."""
+    """Emit recommended next-step suggestions as the final graph node."""
     presenter = get_presenter(config)
     if getattr(presenter, "recommend_questions_recorded", False):
         return {}

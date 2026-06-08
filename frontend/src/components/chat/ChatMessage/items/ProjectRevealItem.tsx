@@ -22,6 +22,7 @@ import {
 } from "./projectRevealState";
 import type { RevealPreviewOpenSource } from "./revealPreviewState";
 import { openRevealPreview } from "./revealPreviewActions";
+import { RevealStatusLabel, RevealStatusText } from "./RevealStatusText";
 
 export function ProjectRevealItem({
   args,
@@ -243,17 +244,11 @@ export function ProjectRevealItem({
             className="text-stone-600 dark:text-stone-400"
           />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
-            {projectName || t("project.loading")}
-          </div>
-          <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-            {(args.project_path as string) || ""}
-          </div>
-        </div>
-        <div className="text-xs text-amber-600 dark:text-amber-400">
-          {t("chat.message.running")}
-        </div>
+        <RevealStatusText
+          title={projectName || t("project.loading")}
+          subtitle={(args.project_path as string) || ""}
+        />
+        <RevealStatusLabel>{t("chat.message.running")}</RevealStatusLabel>
       </div>
     );
   }
@@ -264,17 +259,11 @@ export function ProjectRevealItem({
         <div className="p-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/30">
           <Code2 size={20} className="text-amber-500" />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
-            {projectName || t("project.loading")}
-          </div>
-          <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-            {(args.project_path as string) || ""}
-          </div>
-        </div>
-        <div className="text-xs text-amber-600 dark:text-amber-400">
-          {t("chat.message.cancelled")}
-        </div>
+        <RevealStatusText
+          title={projectName || t("project.loading")}
+          subtitle={(args.project_path as string) || ""}
+        />
+        <RevealStatusLabel>{t("chat.message.cancelled")}</RevealStatusLabel>
       </div>
     );
   }

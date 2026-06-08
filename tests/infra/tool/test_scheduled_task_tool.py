@@ -3,13 +3,16 @@
 import json
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from src.infra.scheduler.service import ScheduledTaskService as _RealService
 from src.infra.tool import scheduled_task_tool
 from src.kernel.schemas.scheduled_task import (
+    ChannelDeliveryConfig,
     ScheduledTask,
     ScheduledTaskStatus,
     TriggerType,
@@ -26,6 +29,20 @@ class _Runtime:
         self.config = {"configurable": {"context": context}}
 
 
+async def _call_tool(tool: Any, *args: Any, **kwargs: Any) -> Any:
+    """Call a LangChain tool coroutine without depending on BaseTool's static type."""
+    coroutine = getattr(tool, "coroutine")
+    return await coroutine(*args, **kwargs)
+
+
+def _tool_fields(tool: Any) -> dict[str, Any]:
+    """Return pydantic arg-schema fields for a LangChain tool."""
+    schema = getattr(tool, "args_schema")
+    assert isinstance(schema, type)
+    assert issubclass(schema, BaseModel)
+    return dict(schema.model_fields)
+
+
 def _task(
     task_id: str = "task-1",
     *,
@@ -35,20 +52,24 @@ def _task(
     trigger_type: TriggerType = TriggerType.CRON,
     status: ScheduledTaskStatus = ScheduledTaskStatus.ACTIVE,
     enabled: bool = True,
+    delivery: ChannelDeliveryConfig | None = None,
 ) -> ScheduledTask:
-    return ScheduledTask(
-        _id=task_id,
-        name=name,
-        description="Test task",
-        agent_id=agent_id,
-        trigger_type=trigger_type,
-        trigger_config={"hour": "9", "minute": "0"},
-        input_payload={"message": "Generate daily report"},
-        status=status,
-        enabled=enabled,
-        owner_id=owner_id,
-        created_at=datetime(2026, 1, 1),
-        updated_at=datetime(2026, 1, 1),
+    return ScheduledTask.model_validate(
+        {
+            "_id": task_id,
+            "name": name,
+            "description": "Test task",
+            "agent_id": agent_id,
+            "trigger_type": trigger_type,
+            "trigger_config": {"hour": "9", "minute": "0"},
+            "input_payload": {"message": "Generate daily report"},
+            "status": status,
+            "enabled": enabled,
+            "owner_id": owner_id,
+            "delivery": delivery,
+            "created_at": datetime(2026, 1, 1),
+            "updated_at": datetime(2026, 1, 1),
+        }
     )
 
 
@@ -113,7 +134,7 @@ def test_get_scheduled_task_tools_returns_compact_crud_tools() -> None:
 
 
 def test_create_tool_has_trigger_params() -> None:
-    fields = scheduled_task_tool.scheduled_task_create.args_schema.model_fields
+    fields = _tool_fields(scheduled_task_tool.scheduled_task_create)
     # Structured trigger params should be present
     assert "trigger_type" in fields
     assert "delay_seconds" in fields
@@ -127,12 +148,12 @@ def test_create_tool_has_trigger_params() -> None:
 
 
 def test_list_tool_can_fetch_single_task_details() -> None:
-    fields = scheduled_task_tool.scheduled_task_list.args_schema.model_fields
+    fields = _tool_fields(scheduled_task_tool.scheduled_task_list)
     assert "task_id" in fields
 
 
 def test_update_tool_can_run_task_actions() -> None:
-    fields = scheduled_task_tool.scheduled_task_update.args_schema.model_fields
+    fields = _tool_fields(scheduled_task_tool.scheduled_task_update)
     assert "action" in fields
 
 
@@ -152,7 +173,8 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Cache Cleanup",
             message="Clean up expired cache entries",
             trigger_type="interval",
@@ -178,6 +200,68 @@ async def test_create_interval_task(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_task_in_channel_session_attaches_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = _task(
+        delivery=ChannelDeliveryConfig(
+            channel_type="feishu",
+            chat_id="oc_target",
+            channel_instance_id="bot_a",
+        )
+    )
+    create_mock = AsyncMock(return_value=task)
+    _auto_approve(monkeypatch)
+
+    class _FakeTraceContext:
+        @staticmethod
+        def get_request_context():
+            return SimpleNamespace(session_id="feishu_oc_source", run_id="run-1")
+
+    class _FakeSessionManager:
+        async def get_session(self, session_id: str):
+            assert session_id == "feishu_oc_source"
+            return SimpleNamespace(
+                metadata={
+                    "agent_id": "fast",
+                    "channel_delivery": {
+                        "channel_type": "feishu",
+                        "chat_id": "oc_target",
+                        "channel_instance_id": "bot_a",
+                    },
+                }
+            )
+
+    monkeypatch.setattr(
+        scheduled_task_tool,
+        "ScheduledTaskService",
+        _fake_service_cls(create_task=create_mock),
+    )
+    monkeypatch.setattr("src.infra.logging.context.TraceContext", _FakeTraceContext)
+    monkeypatch.setattr("src.infra.session.manager.SessionManager", _FakeSessionManager)
+
+    result = json.loads(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
+            name="Channel Report",
+            message="Generate channel report",
+            trigger_type="interval",
+            interval_seconds=300,
+            runtime=_Runtime("user-1"),
+        )
+    )
+
+    assert result["success"] is True
+    request = create_mock.call_args.kwargs.get("request") or create_mock.call_args[0][0]
+    assert request.delivery == ChannelDeliveryConfig(
+        channel_type="feishu",
+        chat_id="oc_target",
+        channel_instance_id="bot_a",
+    )
+    assert result["task"]["delivery"]["chat_id"] == "oc_target"
+
+
+@pytest.mark.asyncio
 async def test_create_date_task_with_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     task = _task(trigger_type=TriggerType.DATE)
@@ -192,7 +276,8 @@ async def test_create_date_task_with_delay(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="One-time Reminder",
             message="Send the AI news once",
             trigger_type="date",
@@ -224,7 +309,8 @@ async def test_create_cron_task_with_structured_params(monkeypatch: pytest.Monke
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Weekly Digest",
             message="Send weekly summary",
             trigger_type="cron",
@@ -261,7 +347,8 @@ async def test_create_cron_task_with_defaults(monkeypatch: pytest.MonkeyPatch) -
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Midnight Task",
             message="Run at midnight",
             trigger_type="cron",
@@ -288,7 +375,7 @@ async def test_create_task_inherits_source_session_timezone(
     monkeypatch.setattr(
         scheduled_task_tool,
         "_get_current_session_defaults",
-        AsyncMock(return_value=("search", {}, "Asia/Shanghai")),
+        AsyncMock(return_value=("search", {}, "Asia/Shanghai", None)),
     )
     monkeypatch.setattr(
         scheduled_task_tool,
@@ -297,7 +384,8 @@ async def test_create_task_inherits_source_session_timezone(
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Morning Brief",
             message="Send a morning brief",
             trigger_type="cron",
@@ -339,7 +427,8 @@ async def test_create_task_rejected_does_not_create(monkeypatch: pytest.MonkeyPa
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Daily Report",
             message="Generate daily report",
             trigger_type="cron",
@@ -409,7 +498,7 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
     assert approval_kwargs["fields"] == []
     assert approval_kwargs["session_id"] == "session-1"
     assert approval_kwargs["user_id"] == "user-1"
-    assert "No scheduled task has been created yet" in approval_kwargs["message"]
+    assert "No task has been created yet" in approval_kwargs["message"]
     assert "Generate daily report" in approval_kwargs["message"]
     assert "The task will also run immediately after creation" in approval_kwargs["message"]
 
@@ -426,7 +515,8 @@ async def test_create_confirmation_shows_preview_and_waits(monkeypatch: pytest.M
 @pytest.mark.asyncio
 async def test_create_task_no_user() -> None:
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Test",
             message="test",
             trigger_type="interval",
@@ -440,7 +530,8 @@ async def test_create_task_no_user() -> None:
 @pytest.mark.asyncio
 async def test_create_interval_task_missing_seconds() -> None:
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Test",
             message="test",
             trigger_type="interval",
@@ -454,7 +545,8 @@ async def test_create_interval_task_missing_seconds() -> None:
 @pytest.mark.asyncio
 async def test_create_interval_task_too_frequent() -> None:
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Test",
             message="test",
             trigger_type="interval",
@@ -469,7 +561,8 @@ async def test_create_interval_task_too_frequent() -> None:
 @pytest.mark.asyncio
 async def test_create_task_invalid_trigger_type() -> None:
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_create.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_create,
             name="Test",
             message="test",
             trigger_type="invalid",
@@ -495,7 +588,8 @@ async def test_list_tasks(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_list.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_list,
             runtime=_Runtime("user-1"),
         )
     )
@@ -527,7 +621,8 @@ async def test_list_tasks_requires_permission(monkeypatch: pytest.MonkeyPatch) -
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_list.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_list,
             runtime=_Runtime("user-1"),
         )
     )
@@ -550,7 +645,8 @@ async def test_list_tasks_with_status_filter(monkeypatch: pytest.MonkeyPatch) ->
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_list.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_list,
             status="active",
             runtime=_Runtime("user-1"),
         )
@@ -575,7 +671,8 @@ async def test_get_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_get.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_get,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -597,7 +694,8 @@ async def test_get_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_get.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_get,
             task_id="nonexistent",
             runtime=_Runtime("user-1"),
         )
@@ -619,7 +717,8 @@ async def test_get_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_get.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_get,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -646,7 +745,8 @@ async def test_update_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_update.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
             name="Updated Name",
             runtime=_Runtime("user-1"),
@@ -677,7 +777,8 @@ async def test_update_task_with_message(monkeypatch: pytest.MonkeyPatch) -> None
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_update.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
             message="New message content",
             runtime=_Runtime("user-1"),
@@ -687,6 +788,7 @@ async def test_update_task_with_message(monkeypatch: pytest.MonkeyPatch) -> None
     assert result["success"] is True
     call_kwargs = update_mock.call_args
     update_obj = call_kwargs[0][1] if len(call_kwargs[0]) > 1 else call_kwargs.kwargs.get("request")
+    assert update_obj is not None
     assert update_obj.input_payload == {
         "message": "New message content",
         "agent_options": {"model_id": "model-1", "model": "gpt-4.1"},
@@ -706,7 +808,8 @@ async def test_update_task_no_fields(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_update.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -728,7 +831,8 @@ async def test_update_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_update.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_update,
             task_id="task-1",
             name="Hack",
             runtime=_Runtime("user-1"),
@@ -756,7 +860,8 @@ async def test_pause_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_pause.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_pause,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -784,7 +889,8 @@ async def test_resume_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_resume.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_resume,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -811,7 +917,8 @@ async def test_delete_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_delete.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_delete,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -833,7 +940,8 @@ async def test_delete_task_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_delete.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_delete,
             task_id="nonexistent",
             runtime=_Runtime("user-1"),
         )
@@ -858,7 +966,8 @@ async def test_run_task(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_run.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_run,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -885,7 +994,8 @@ async def test_pause_task_wrong_owner(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_pause.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_pause,
             task_id="task-1",
             runtime=_Runtime("user-1"),
         )
@@ -905,7 +1015,8 @@ async def test_service_error_handled_gracefully(monkeypatch: pytest.MonkeyPatch)
     )
 
     result = json.loads(
-        await scheduled_task_tool.scheduled_task_list.coroutine(
+        await _call_tool(
+            scheduled_task_tool.scheduled_task_list,
             runtime=_Runtime("user-1"),
         )
     )

@@ -198,6 +198,60 @@ async def test_fetch_github_file_releases_download_chunks_between_reads(
 
 
 @pytest.mark.asyncio
+async def test_scan_for_skills_limits_skill_md_preview_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_dir(owner: str, repo: str, branch: str, path: str = "") -> list[dict]:
+        assert path == ""
+        return [{"name": "skill-a", "type": "dir", "path": "skill-a"}]
+
+    async def _fake_file(
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        max_bytes: int | None = None,
+    ) -> str:
+        assert path == "skill-a/SKILL.md"
+        assert max_bytes == github.GITHUB_SKILL_MD_MAX_BYTES
+        return "---\nname: skill-a\n---\nSmall enough"
+
+    monkeypatch.setattr(github, "fetch_github_dir", _fake_dir)
+    monkeypatch.setattr(github, "fetch_github_file", _fake_file)
+
+    skills = await github.scan_for_skills("owner", "repo", "main")
+
+    assert skills[0]["name"] == "skill-a"
+
+
+@pytest.mark.asyncio
+async def test_scan_for_skills_limits_root_skill_md_preview_download(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_dir(owner: str, repo: str, branch: str, path: str = "") -> list[dict]:
+        assert path == ""
+        return [{"name": "SKILL.md", "type": "file", "path": "SKILL.md"}]
+
+    async def _fake_file(
+        owner: str,
+        repo: str,
+        branch: str,
+        path: str,
+        max_bytes: int | None = None,
+    ) -> str:
+        assert path == "SKILL.md"
+        assert max_bytes == github.GITHUB_SKILL_MD_MAX_BYTES
+        return "---\nname: root-skill\n---\nSmall enough"
+
+    monkeypatch.setattr(github, "fetch_github_dir", _fake_dir)
+    monkeypatch.setattr(github, "fetch_github_file", _fake_file)
+
+    skills = await github.scan_for_skills("owner", "repo", "main")
+
+    assert skills[0]["name"] == "root-skill"
+
+
+@pytest.mark.asyncio
 async def test_install_github_skills_rejects_too_many_requested_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

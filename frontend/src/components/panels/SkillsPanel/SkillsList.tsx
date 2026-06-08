@@ -201,7 +201,7 @@ export function SkillsList({
       </Button>
       <Button variant="secondary" onClick={onZipClick} className="h-10">
         <Archive size={16} />
-        <span className="hidden sm:inline">ZIP</span>
+        <span className="hidden sm:inline">{t("skills.uploadZip")}</span>
       </Button>
       <Button variant="primary" onClick={onCreate} className="h-10">
         <Plus size={16} />
@@ -211,7 +211,7 @@ export function SkillsList({
   );
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       {embedded && (
         <PanelHeader
           className="skill-panel-header"
@@ -317,6 +317,6 @@ export function SkillsList({
           />
         </div>
       )}
-    </>
+    </div>
   );
 }

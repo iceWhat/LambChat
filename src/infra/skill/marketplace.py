@@ -531,6 +531,7 @@ class MarketplaceStorage:
 
     async def close(self):
         """关闭连接（仅清理本地引用，不关闭全局 MongoDB 客户端）"""
+        self._client = None
         self._meta_collection = None
         self._files_collection = None
         self._users_collection = None

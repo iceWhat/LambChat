@@ -32,7 +32,7 @@ _global_entries: dict[str, "GlobalMCPEntry"] = {}
 _local_locks: dict[str, asyncio.Lock] = {}
 
 # 后台任务追踪集合
-_background_tasks: Set[asyncio.Task] = set()
+_background_tasks: Set[asyncio.Future] = set()
 
 # 清理计数器（用于定期清理检查）
 _cleanup_counter = 0
@@ -142,6 +142,15 @@ def get_mcp_cache_pubsub() -> MCPGlobalCachePubSub:
     if _mcp_cache_pubsub is None:
         _mcp_cache_pubsub = MCPGlobalCachePubSub()
     return _mcp_cache_pubsub
+
+
+async def close_mcp_cache_pubsub() -> None:
+    """Stop and release the MCP cache pub/sub singleton without creating it."""
+    global _mcp_cache_pubsub
+    pubsub = _mcp_cache_pubsub
+    _mcp_cache_pubsub = None
+    if pubsub is not None:
+        await pubsub.stop_listener()
 
 
 @dataclass
@@ -342,7 +351,7 @@ async def mark_init_done(user_id: str) -> None:
         logger.warning(f"[Global MCP] Failed to mark init done for {user_id}: {e}")
 
 
-def _track_background_task(task: asyncio.Task) -> None:
+def _track_background_task(task: asyncio.Future) -> None:
     """追踪后台任务，完成后自动从集合中移除"""
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
@@ -351,11 +360,11 @@ def _track_background_task(task: asyncio.Task) -> None:
 def _schedule_manager_close(manager: "MCPClientManager") -> None:
     """Schedule manager cleanup only when an event loop is available."""
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         return
     try:
-        task = loop.create_task(manager.close())
+        task = asyncio.ensure_future(manager.close())
         _track_background_task(task)
     except Exception:
         pass
@@ -633,6 +642,11 @@ async def invalidate_all_global_cache(*, publish: bool = True) -> int:
     if publish:
         await _publish_mcp_cache_invalidation("all")
     return count
+
+
+async def close_global_mcp_cache() -> int:
+    """Close and clear every cached global MCP manager for process shutdown."""
+    return await invalidate_all_global_cache(publish=False)
 
 
 async def warmup_global_cache(user_ids: list[str]) -> None:

@@ -261,3 +261,12 @@ def get_memory_pubsub() -> MemoryPubSub:
     if _memory_pubsub is None:
         _memory_pubsub = MemoryPubSub()
     return _memory_pubsub
+
+
+async def close_memory_pubsub() -> None:
+    """Stop and release the global MemoryPubSub instance if it exists."""
+    global _memory_pubsub
+    pubsub = _memory_pubsub
+    _memory_pubsub = None
+    if pubsub is not None:
+        await pubsub.stop_listener()

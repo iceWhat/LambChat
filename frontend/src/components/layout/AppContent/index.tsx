@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useVersion } from "../../../hooks/useVersion";
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../../hooks/useAuth";
 import { authApi } from "../../../services/api";
@@ -9,6 +9,7 @@ import {
   getAppToastSidebarOffset,
 } from "./appToastLayout";
 import type { TabType } from "./types";
+import { useRightPanelAutoCollapse } from "./useRightPanelAutoCollapse";
 
 interface AppContentProps {
   activeTab: TabType;
@@ -22,12 +23,43 @@ export function AppContent({ activeTab }: AppContentProps) {
     return saved !== null ? saved === "true" : true;
   });
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const autoCollapsePendingRef = useRef(false);
 
   const handleSetSidebarCollapsed = useCallback(
     (collapsed: boolean | ((prev: boolean) => boolean)) => {
       setSidebarCollapsed((prev) => {
         const next =
           typeof collapsed === "function" ? collapsed(prev) : collapsed;
+
+        // Detect user override: user expanded left sidebar while right panel
+        // is wide and this wasn't triggered by our auto-collapse logic.
+        if (
+          !autoCollapsePendingRef.current &&
+          typeof collapsed !== "function" &&
+          next === false &&
+          prev === true
+        ) {
+          const html = document.documentElement;
+          let rightWidth = 0;
+          if (html.getAttribute("data-sidebar-preview") === "open") {
+            rightWidth += parseInt(
+              localStorage.getItem("sidebar-preview-width") || "60",
+              10,
+            );
+          }
+          if (html.getAttribute("data-editor-sidebar") === "open") {
+            rightWidth += parseInt(
+              localStorage.getItem("editor-sidebar-width") || "30",
+              10,
+            );
+          }
+          if (rightWidth >= 50) {
+            window.dispatchEvent(
+              new CustomEvent("right-panel-auto-collapse:override"),
+            );
+          }
+        }
+
         localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
         authApi
           .updateMetadata({ sidebarCollapsed: String(next) })
@@ -37,6 +69,19 @@ export function AppContent({ activeTab }: AppContentProps) {
     },
     [],
   );
+
+  useRightPanelAutoCollapse((collapsed) => {
+    autoCollapsePendingRef.current = true;
+    handleSetSidebarCollapsed(collapsed);
+  });
+
+  useEffect(() => {
+    if (autoCollapsePendingRef.current) {
+      queueMicrotask(() => {
+        autoCollapsePendingRef.current = false;
+      });
+    }
+  });
 
   useEffect(() => {
     const handler = (e: Event) => {

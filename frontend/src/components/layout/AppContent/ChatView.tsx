@@ -438,10 +438,6 @@ export function ChatView({
         ref={messagesContainerRef}
         className="relative flex-1 min-h-0 overflow-hidden"
       >
-        <SessionScheduledTasksButton
-          sessionId={sessionId}
-          refreshKey={scheduledTasksRefreshKey}
-        />
         {messages.length === 0 ? (
           isLoading ? (
             <ChatSkeleton count={5} />
@@ -511,57 +507,64 @@ export function ChatView({
       <AttachmentPreviewHost />
       <PersistentToolPanelHost />
 
-      {/* Floating scroll buttons - fixed bottom-right */}
-      {messages.length > 0 && (
-        <div className="bottom-40 sm:bottom-44 z-50 fixed right-3 sm:right-5 flex flex-col gap-2">
-          <button
-            onClick={scrollToTop}
-            className="group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
-            style={{
-              opacity: isNearTop ? 0 : 1,
-              transform: isNearTop ? "translateY(6px)" : "translateY(0)",
-              pointerEvents: isNearTop ? "none" : "auto",
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+      {/* Floating chat buttons - fixed bottom-right */}
+      <div className="bottom-40 sm:bottom-44 z-50 fixed right-3 sm:right-5 flex flex-col gap-2">
+        <SessionScheduledTasksButton
+          sessionId={sessionId}
+          refreshKey={scheduledTasksRefreshKey}
+          className="group/btn relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg-card)]/90 text-theme-text-secondary shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-[var(--glass-bg-subtle)] hover:text-theme-text hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] active:scale-95 dark:bg-[var(--theme-bg-card)]/80 dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] sm:h-10 sm:w-10"
+        />
+        {messages.length > 0 && (
+          <>
+            <button
+              onClick={scrollToTop}
+              className="group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95"
+              style={{
+                opacity: isNearTop ? 0 : 1,
+                transform: isNearTop ? "translateY(6px)" : "translateY(0)",
+                pointerEvents: isNearTop ? "none" : "auto",
+              }}
             >
-              <path
-                fillRule="evenodd"
-                d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-          <button
-            onClick={scrollToBottom}
-            className={`group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95 ${
-              hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
-            }`}
-            style={{
-              opacity: isNearBottom ? 0 : 1,
-              transform: isNearBottom ? "translateY(6px)" : "translateY(0)",
-              pointerEvents: isNearBottom ? "none" : "auto",
-            }}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 17a.75.75 0 01-.75-.75V5.612l-3.96 4.158a.75.75 0 11-1.08-1.04l5.25-5.5a.75.75 0 011.08 0l5.25 5.5a.75.75 0 11-1.08 1.04l-3.96-4.158V16.25A.75.75 0 0110 17z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={scrollToBottom}
+              className={`group/btn relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--theme-bg-card)]/90 dark:bg-[var(--theme-bg-card)]/80 border border-[var(--theme-border)] shadow-[0_2px_8px_-2px_rgb(0_0_0/0.08),0_4px_16px_-4px_rgb(0_0_0/0.04)] dark:shadow-[0_2px_8px_-2px_rgb(0_0_0/0.3),0_4px_16px_-4px_rgb(0_0_0/0.2)] hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.12),0_8px_24px_-4px_rgb(0_0_0/0.08)] dark:hover:shadow-[0_4px_12px_-2px_rgb(0_0_0/0.4),0_8px_24px_-4px_rgb(0_0_0/0.3)] hover:-translate-y-0.5 transition-all duration-300 active:scale-95 ${
+                hasVisibleStreamingMessage ? "scroll-btn-glow" : ""
+              }`}
+              style={{
+                opacity: isNearBottom ? 0 : 1,
+                transform: isNearBottom ? "translateY(6px)" : "translateY(0)",
+                pointerEvents: isNearBottom ? "none" : "auto",
+              }}
             >
-              <path
-                fillRule="evenodd"
-                d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-        </div>
-      )}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[var(--theme-text-tertiary)] group-hover/btn:text-[var(--theme-text-secondary)] transition-colors duration-200"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 3a.75.75 0 01.75.75v10.638l3.96-4.158a.75.75 0 111.08 1.04l-5.25 5.5a.75.75 0 01-1.08 0l-5.25-5.5a.75.75 0 111.08-1.04l3.96 4.158V3.75A.75.75 0 0110 3z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
 
       {/* ChatInput at bottom (when messages exist, WelcomePage renders its own) */}
       {messages.length > 0 && (

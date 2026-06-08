@@ -476,6 +476,8 @@ async def close_storage() -> None:
     global _storage_service
     if _storage_service:
         await _storage_service.close()
+    _storage_service = None
+    S3StorageService._instance = None
 
 
 def _parse_bool(value: object) -> bool:

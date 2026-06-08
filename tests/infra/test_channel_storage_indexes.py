@@ -86,9 +86,13 @@ class _FakeDb:
 class _FakeClient:
     def __init__(self, collection: _FakeCollection) -> None:
         self._db = _FakeDb(collection)
+        self.close_calls = 0
 
     def __getitem__(self, name: str):
         return self._db
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 def _channel_doc() -> dict[str, Any]:
@@ -254,3 +258,18 @@ async def test_feishu_list_enabled_configs_applies_storage_limit() -> None:
     assert configs == []
     assert collection.find_queries == [{"enabled": True}]
     assert collection.cursor.limit_calls == [FEISHU_CONFIG_LIST_LIMIT]
+
+
+@pytest.mark.asyncio
+async def test_feishu_storage_close_only_clears_local_refs() -> None:
+    collection = _ListCollection()
+    client = _FakeClient(collection)
+    storage = FeishuStorage()
+    storage._client = client
+    storage._collection = collection
+
+    await storage.close()
+
+    assert client.close_calls == 0
+    assert storage._client is None
+    assert storage._collection is None

@@ -540,6 +540,7 @@ class TaskExecutor:
         user_id: str,
         project_id: str | None = None,
         session_name: str | None = None,
+        session_metadata: dict[str, Any] | None = None,
     ) -> None:
         """确保 session 记录存在，不存在则创建
 
@@ -563,7 +564,7 @@ class TaskExecutor:
                 return
 
             # 创建新的 session
-            metadata = {"agent_id": agent_id}
+            metadata = {"agent_id": agent_id, **(session_metadata or {})}
             if project_id:
                 metadata["project_id"] = project_id
             await self._storage.create(

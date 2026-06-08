@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import builtins
 import importlib
@@ -83,6 +84,56 @@ async def test_oauth_service_closes_cached_clients() -> None:
     assert google_client.close_calls == 1
     assert apple_client.close_calls == 1
     assert service._oauth_clients == {}
+
+
+async def test_oauth_service_awaits_future_returned_by_client_close() -> None:
+    from src.infra.auth.oauth import OAuthService
+
+    class _FutureCloseClient:
+        def __init__(self) -> None:
+            self.close_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+        def aclose(self) -> asyncio.Future[None]:
+            asyncio.get_running_loop().call_later(0.01, self.close_future.set_result, None)
+            return self.close_future
+
+    service = OAuthService()
+    client = _FutureCloseClient()
+    service._oauth_clients = {"google": client}
+
+    await service.close()
+
+    assert client.close_future.done() is True
+    assert service._oauth_clients == {}
+
+
+async def test_close_oauth_service_closes_existing_singleton_without_creating_one() -> None:
+    from src.infra.auth import oauth as oauth_module
+    from src.infra.auth.oauth import OAuthService
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        async def aclose(self) -> None:
+            self.close_calls += 1
+
+    oauth_module._oauth_service = None
+
+    await oauth_module.close_oauth_service()
+
+    assert oauth_module._oauth_service is None
+
+    service = OAuthService()
+    client = _FakeClient()
+    service._oauth_clients = {"google": client}
+    oauth_module._oauth_service = service
+
+    await oauth_module.close_oauth_service()
+
+    assert client.close_calls == 1
+    assert service._oauth_clients == {}
+    assert oauth_module._oauth_service is None
 
 
 async def test_apple_user_info_offloads_token_header_decode(monkeypatch) -> None:

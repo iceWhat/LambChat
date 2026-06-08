@@ -391,7 +391,7 @@ async def test_get_session_events_clamps_requested_max_events() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_session_events_uses_default_server_side_limit_when_unset() -> None:
+async def test_get_session_events_does_not_limit_when_max_events_is_unset() -> None:
     storage = TraceStorage()
     collection = _FakeSessionEventsAggregationCollection()
     storage._collection = collection
@@ -401,7 +401,7 @@ async def test_get_session_events_uses_default_server_side_limit_when_unset() ->
     assert len(events) == 2
     assert collection.find_calls == []
     pipeline = collection.aggregate_calls[0]
-    assert {"$limit": 1000} in pipeline
+    assert not any("$limit" in stage for stage in pipeline)
 
 
 @pytest.mark.asyncio

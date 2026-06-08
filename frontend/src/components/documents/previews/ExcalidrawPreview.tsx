@@ -2,7 +2,10 @@ import { memo, useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "../../common/LoadingSpinner";
+import { ViewerDropdownMenuItem } from "../../common";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
+import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
+import { downloadBlob } from "../../common/viewerDownload";
 import { AlertCircle, X, Download } from "lucide-react";
 
 // Types for Excalidraw
@@ -345,14 +348,7 @@ export function ExcalidrawFullscreenViewer({
   // Download handlers for fullscreen top bar
   const handleDownloadSVG = () => {
     const blob = new Blob([svgContent], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "excalidraw-diagram.svg";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, "excalidraw-diagram.svg");
   };
 
   const handleDownloadPNG = async () => {
@@ -381,14 +377,7 @@ export function ExcalidrawFullscreenViewer({
 
       canvas.toBlob((blob) => {
         if (blob) {
-          const pngUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = pngUrl;
-          a.download = "excalidraw-diagram.png";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(pngUrl);
+          downloadBlob(blob, "excalidraw-diagram.png");
         }
       }, "image/png");
 
@@ -416,9 +405,6 @@ export function ExcalidrawFullscreenViewer({
     [onClose],
   );
 
-  const btnCls =
-    "flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
-
   return createPortal(
     <div
       data-yields-sidebar
@@ -427,51 +413,47 @@ export function ExcalidrawFullscreenViewer({
     >
       {/* Top bar — matches ImageViewer pattern */}
       <div className="safe-area-top flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
-        <button
-          type="button"
+        <ViewerTopBarButton
           onClick={onClose}
-          className={btnCls}
           aria-label={t("common.close")}
-        >
-          <X size={20} className="text-white/70" />
-        </button>
+          icon={<X size={20} className="text-white/70" />}
+          iconOnly
+        />
 
         <div className="flex items-center gap-1 relative">
           {/* Download dropdown — matches ImageViewer download button style */}
-          <button
-            type="button"
+          <ViewerTopBarButton
             onClick={(e) => {
               e.stopPropagation();
               setShowDownloadMenu(!showDownloadMenu);
             }}
-            className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
             aria-label={t("documents.download")}
+            icon={<Download size={18} className="text-white/70" />}
           >
-            <Download size={18} className="text-white/70" />
             <span className="hidden sm:inline">{t("documents.download")}</span>
-          </button>
+          </ViewerTopBarButton>
           {showDownloadMenu && (
             <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-white/10 bg-black/80 backdrop-blur-sm shadow-lg overflow-hidden">
-              <button
+              <ViewerDropdownMenuItem
+                variant="dark"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDownloadSVG();
                   setShowDownloadMenu(false);
                 }}
-                className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/10 flex items-center gap-2"
               >
                 SVG
-              </button>
-              <button
+              </ViewerDropdownMenuItem>
+              <ViewerDropdownMenuItem
+                variant="dark"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDownloadPNG();
                   setShowDownloadMenu(false);
                 }}
-                className="w-full px-4 py-2.5 text-left text-sm text-white/80 hover:bg-white/10 flex items-center gap-2"
               >
                 PNG
-              </button>
+              </ViewerDropdownMenuItem>
             </div>
           )}
         </div>

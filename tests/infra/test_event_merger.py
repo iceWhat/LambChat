@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from src.infra.session import event_merger as event_merger_module
 from src.infra.session.event_merger import EventMerger
 
 
@@ -46,6 +47,33 @@ async def test_event_merger_uses_dedicated_redis_for_locking(
 
     await merger.stop()
     assert dedicated.closed is True
+
+
+@pytest.mark.asyncio
+async def test_close_event_merger_stops_and_releases_singleton() -> None:
+    class _FakeMerger:
+        def __init__(self) -> None:
+            self.stop_calls = 0
+
+        async def stop(self) -> None:
+            self.stop_calls += 1
+
+    merger = _FakeMerger()
+    event_merger_module._event_merger = merger
+
+    await event_merger_module.close_event_merger()
+
+    assert merger.stop_calls == 1
+    assert event_merger_module._event_merger is None
+
+
+@pytest.mark.asyncio
+async def test_close_event_merger_does_not_create_singleton_when_unused() -> None:
+    event_merger_module._event_merger = None
+
+    await event_merger_module.close_event_merger()
+
+    assert event_merger_module._event_merger is None
 
 
 def test_event_merger_limits_follow_runtime_settings(monkeypatch: pytest.MonkeyPatch) -> None:

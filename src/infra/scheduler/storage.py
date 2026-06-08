@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Optional
 
 from src.infra.logging import get_logger
@@ -107,15 +108,16 @@ class ScheduledTaskStorage:
             query["source_session_id"] = source_session_id
         if created_by:
             query["created_by"] = created_by
-        total = await self._get_collection(_COLL_TASKS).count_documents(query)
-        cursor = (
-            self._get_collection(_COLL_TASKS)
-            .find(query)
-            .sort("created_at", -1)
-            .skip(skip)
-            .limit(limit)
+        collection = self._get_collection(_COLL_TASKS)
+
+        async def _fetch_tasks() -> list[ScheduledTask]:
+            cursor = collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+            return [ScheduledTask(**doc) async for doc in cursor]
+
+        tasks, total = await asyncio.gather(
+            _fetch_tasks(),
+            collection.count_documents(query),
         )
-        tasks = [ScheduledTask(**doc) async for doc in cursor]
         return tasks, total
 
     async def list_active_tasks(self) -> list[ScheduledTask]:
@@ -184,15 +186,16 @@ class ScheduledTaskStorage:
         offset: int = 0,
     ) -> tuple[list[TaskRunRecord], int]:
         query: dict[str, Any] = {"task_id": task_id}
-        total = await self._get_collection(_COLL_RUNS).count_documents(query)
-        cursor = (
-            self._get_collection(_COLL_RUNS)
-            .find(query)
-            .sort("created_at", -1)
-            .skip(offset)
-            .limit(limit)
+        collection = self._get_collection(_COLL_RUNS)
+
+        async def _fetch_records() -> list[TaskRunRecord]:
+            cursor = collection.find(query).sort("created_at", -1).skip(offset).limit(limit)
+            return [TaskRunRecord(**doc) async for doc in cursor]
+
+        records, total = await asyncio.gather(
+            _fetch_records(),
+            collection.count_documents(query),
         )
-        records = [TaskRunRecord(**doc) async for doc in cursor]
         return records, total
 
 
@@ -207,3 +210,9 @@ def get_scheduled_task_storage() -> ScheduledTaskStorage:
     if _storage is None:
         _storage = ScheduledTaskStorage()
     return _storage
+
+
+def close_scheduled_task_storage() -> None:
+    """Release the module-level ScheduledTaskStorage without creating it."""
+    global _storage
+    _storage = None

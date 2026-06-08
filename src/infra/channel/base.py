@@ -209,6 +209,17 @@ class UserChannelManager(ABC):
             cls._instances[cls] = cls()
         return cls._instances[cls]
 
+    @classmethod
+    async def close_all_instances(cls) -> None:
+        """Stop and release manager singletons created through get_instance()."""
+        instances = list(cls._instances.items())
+        cls._instances.clear()
+        for manager_cls, manager in instances:
+            try:
+                await manager.stop()
+            except Exception as e:
+                logger.warning("Error stopping %s singleton: %s", manager_cls.__name__, e)
+
     @abstractmethod
     async def start(self) -> None:
         """Start all enabled channels for all users."""
@@ -224,8 +235,22 @@ class UserChannelManager(ABC):
         """Reload a user's channel configuration."""
         pass
 
-    def get_channel(self, user_id: str) -> Optional[BaseChannel]:
+    def get_channel(self, user_id: str, instance_id: Optional[str] = None) -> Optional[BaseChannel]:
         """Get a user's channel instance."""
+        if instance_id:
+            channel = self._channels.get(f"{user_id}:{instance_id}")
+            if channel:
+                return channel
+
+        channel = self._channels.get(user_id)
+        if channel:
+            return channel
+
+        prefix = f"{user_id}:"
+        for key, channel in self._channels.items():
+            if key.startswith(prefix):
+                return channel
+
         return self._channels.get(user_id)
 
     def is_connected(self, user_id: str, instance_id: Optional[str] = None) -> bool:

@@ -16,10 +16,10 @@ import { LoadingSpinner } from "../common/LoadingSpinner";
 import { SessionItem } from "./SessionItem";
 import { isSessionFavorite } from "./sessionFavorites";
 import {
-  formatUnreadCount,
   getUnreadCountForScheduledTask,
   type UnreadBySession,
 } from "./unreadCounts";
+import { MarkAllReadBadge } from "./MarkAllReadBadge";
 
 const PAGE_SIZE = 20;
 
@@ -46,6 +46,7 @@ interface ScheduledTaskSidebarItemProps {
   draggingSessionId?: string | null;
   unreadBySession?: UnreadBySession;
   onMarkAllRead?: (opts?: { scheduledTaskId?: string }) => void;
+  markingReadId?: string | null;
 }
 
 function dedupSessions(sessions: BackendSession[]): BackendSession[] {
@@ -90,6 +91,7 @@ export const ScheduledTaskSidebarItem = forwardRef<
     draggingSessionId,
     unreadBySession = new Map(),
     onMarkAllRead,
+    markingReadId,
   },
   ref,
 ) {
@@ -259,25 +261,13 @@ export const ScheduledTaskSidebarItem = forwardRef<
           </div>
         </div>
         {displayedUnreadCount > 0 && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              onMarkAllRead?.({ scheduledTaskId: task.id });
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                e.preventDefault();
-                onMarkAllRead?.({ scheduledTaskId: task.id });
-              }
-            }}
+          <MarkAllReadBadge
+            count={displayedUnreadCount}
+            badgeId={`task-${task.id}`}
+            markingReadId={markingReadId ?? null}
+            onMarkAllRead={() => onMarkAllRead?.({ scheduledTaskId: task.id })}
             title={t("sidebar.markAllRead")}
-            className="inline-flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white cursor-pointer hover:opacity-70 transition-opacity"
-          >
-            {formatUnreadCount(displayedUnreadCount)}
-          </span>
+          />
         )}
       </div>
 

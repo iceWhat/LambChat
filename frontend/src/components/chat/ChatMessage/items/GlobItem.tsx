@@ -1,10 +1,14 @@
 import { memo, useMemo } from "react";
 import { clsx } from "clsx";
-import { Clock, FolderSearch, FileText } from "lucide-react";
+import { FolderSearch, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, CopyButton } from "../../../common";
+import { CollapsiblePill } from "../../../common";
 import { extractPaths } from "./toolUtils";
 import { openPersistentToolPanel } from "./persistentToolPanelState";
+import { ToolArgsBlock } from "./ToolArgsBlock";
+import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { ToolInlineDetails } from "./ToolInlineDetails";
+import { ToolDurationFooter } from "./ToolDurationFooter";
 
 const GlobItem = memo(function GlobItem({
   args,
@@ -24,22 +28,9 @@ const GlobItem = memo(function GlobItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const durationFooter = useMemo(() => {
-    if (!startedAt || !completedAt) return undefined;
-    const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-    if (ms < 0) return undefined;
-    const seconds = Math.round(ms / 1000);
-    const text =
-      seconds < 60
-        ? `${seconds}s`
-        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-    return (
-      <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-stone-400 dark:text-stone-500 border-t border-stone-100 dark:border-stone-800">
-        <Clock size={11} className="shrink-0" />
-        <span className="tabular-nums">{text}</span>
-      </div>
-    );
-  }, [startedAt, completedAt]);
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
   const pattern = (args.pattern as string) || "";
   const searchPath = (args.path as string) || "";
 
@@ -57,29 +48,24 @@ const GlobItem = memo(function GlobItem({
         : "error";
 
   const detailContent = canExpand && (
-    <div className="p-4 sm:p-5 space-y-3">
-      <div className="group/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-500 dark:text-stone-400 font-mono flex-wrap">
+    <div className="p-4 sm:p-5 space-y-4">
+      <ToolArgsBlock size="detail" wrap>
         <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
           {pattern}
         </span>
         {searchPath && (
-          <span className="text-stone-400 dark:text-stone-500">
-            in {searchPath}
-          </span>
+          <span className="text-theme-text-tertiary">in {searchPath}</span>
         )}
-        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-          <CopyButton text={pattern} size={12} />
-        </div>
-      </div>
+        <ToolHoverCopyButton text={pattern} position="args" />
+      </ToolArgsBlock>
       {paths.length > 0 && (
-        <div className="relative group rounded-lg border border-stone-200/60 dark:border-stone-700/50 bg-stone-50 dark:bg-stone-900 overflow-auto max-h-[60dvh]">
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <CopyButton
-              text={paths.join("\n")}
-              size={14}
-              className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-            />
-          </div>
+        <div className="relative group rounded-lg border border-theme-border bg-theme-bg overflow-auto max-h-[60dvh]">
+          <ToolHoverCopyButton
+            text={paths.join("\n")}
+            size={14}
+            position="panelRaised"
+            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+          />
           {paths.map((p, i) => {
             const isDir = p.endsWith("/") || p.endsWith("\\");
             const name = isDir
@@ -91,8 +77,8 @@ const GlobItem = memo(function GlobItem({
                 key={i}
                 className={clsx(
                   "flex items-center gap-2.5 px-4 py-2 text-sm font-mono",
-                  "border-b border-stone-100 dark:border-stone-800 last:border-b-0",
-                  "hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors",
+                  "border-b border-theme-border-faint last:border-b-0",
+                  "hover:bg-theme-bg-subtle transition-colors",
                 )}
               >
                 {isDir ? (
@@ -103,15 +89,15 @@ const GlobItem = memo(function GlobItem({
                 ) : (
                   <FileText
                     size={14}
-                    className="shrink-0 text-stone-400 dark:text-stone-500"
+                    className="shrink-0 text-theme-text-tertiary"
                   />
                 )}
                 <span
                   className={clsx(
                     "truncate",
                     isDir
-                      ? "text-stone-700 dark:text-stone-200 font-medium"
-                      : "text-stone-600 dark:text-stone-300",
+                      ? "text-theme-text font-medium"
+                      : "text-theme-text-secondary",
                   )}
                 >
                   {name}
@@ -145,29 +131,25 @@ const GlobItem = memo(function GlobItem({
         }}
       >
         {canExpand && (
-          <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 max-h-80 overflow-y-auto min-w-0">
-            <div className="group/args relative flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex-wrap">
+          <ToolInlineDetails>
+            <ToolArgsBlock size="compact" wrap>
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
                 {pattern}
               </span>
               {searchPath && (
-                <span className="text-stone-400 dark:text-stone-500">
+                <span className="text-theme-text-tertiary">
                   {t("chat.message.toolInPath", { path: searchPath })}
                 </span>
               )}
-              <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-                <CopyButton text={pattern} size={12} />
-              </div>
-            </div>
+              <ToolHoverCopyButton text={pattern} position="argsCompact" />
+            </ToolArgsBlock>
             {paths.length > 0 && (
-              <div className="relative group max-h-48 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50 bg-stone-50 dark:bg-stone-900">
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  <CopyButton
-                    text={paths.join("\n")}
-                    size={12}
-                    className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-                  />
-                </div>
+              <div className="relative group max-h-48 overflow-y-auto rounded-md border border-theme-border bg-theme-bg">
+                <ToolHoverCopyButton
+                  text={paths.join("\n")}
+                  position="panelCompactRaised"
+                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+                />
                 {paths.map((p, i) => {
                   const isDir = p.endsWith("/") || p.endsWith("\\");
                   const name = isDir
@@ -179,8 +161,8 @@ const GlobItem = memo(function GlobItem({
                       key={i}
                       className={clsx(
                         "flex items-center gap-2 px-3 py-1 text-xs font-mono",
-                        "border-b border-stone-100 dark:border-stone-800 last:border-b-0",
-                        "hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors",
+                        "border-b border-theme-border-faint last:border-b-0",
+                        "hover:bg-theme-bg-subtle transition-colors",
                       )}
                     >
                       {isDir ? (
@@ -191,15 +173,15 @@ const GlobItem = memo(function GlobItem({
                       ) : (
                         <FileText
                           size={12}
-                          className="shrink-0 text-stone-400 dark:text-stone-500"
+                          className="shrink-0 text-theme-text-tertiary"
                         />
                       )}
                       <span
                         className={clsx(
                           "truncate",
                           isDir
-                            ? "text-stone-700 dark:text-stone-200 font-medium"
-                            : "text-stone-600 dark:text-stone-300",
+                            ? "text-theme-text font-medium"
+                            : "text-theme-text-secondary",
                         )}
                       >
                         {name}
@@ -209,7 +191,7 @@ const GlobItem = memo(function GlobItem({
                 })}
               </div>
             )}
-          </div>
+          </ToolInlineDetails>
         )}
       </CollapsiblePill>
     </>

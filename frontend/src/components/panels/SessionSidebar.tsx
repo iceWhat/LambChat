@@ -1,40 +1,37 @@
 /**
  * Session sidebar component for displaying and managing chat history.
  * Each project independently loads its sessions with per-project pagination.
+ *
+ * Business logic is split into:
+ *  - useSessionSidebarActions  — CRUD handlers (move, share, favorite, delete, mark-read)
+ *  - useMoreMenu              — "More" menu state, items, positioning, effects
+ *  - useSessionSidebarEffects  — auto-expand, refresh, keyboard shortcuts, mobile query
  */
 
 import {
   useState,
-  useEffect,
   useRef,
   useCallback,
   useMemo,
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Server, Brain, MessageCircle, Sparkles } from "lucide-react";
-import { sessionApi, type BackendSession } from "../../services/api";
+import type { BackendSession } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
-import { useSettingsContext } from "../../contexts/SettingsContext";
-import { Permission } from "../../types";
 import { useProjectSessionList } from "../../hooks/useSession";
 import { useProjectManager } from "../../hooks/useProjectManager";
 import { useTouchDrag } from "../../hooks/useTouchDrag";
-import { useSwipeToClose } from "../../hooks/useSwipeToClose";
+import { useSessionSidebarActions } from "../../hooks/useSessionSidebarActions";
+import { useMoreMenu } from "../../hooks/useMoreMenu";
+import { useSessionSidebarEffects } from "../../hooks/useSessionSidebarEffects";
 import { ConfirmDialog } from "../common/ConfirmDialog";
 import { DeleteProjectDialog } from "../common/DeleteProjectDialog";
+import { RecentChatsDialog } from "../sidebar/RecentChatsDialog";
 import type { ProjectItemHandle } from "../sidebar/ProjectItem";
 import type { ScheduledTaskItemHandle } from "../sidebar/ScheduledTaskSidebarItem";
-import { RecentChatsDialog } from "../sidebar/RecentChatsDialog";
-import {
-  mergeUnreadUpdate,
-  type UnreadBySession,
-} from "../sidebar/unreadCounts";
-import { isSessionFavorite } from "../sidebar/sessionFavorites";
-import { getSessionTitle } from "./sessionHelpers";
+import { type UnreadBySession } from "../sidebar/unreadCounts";
 import { SearchDialog } from "./SearchDialog";
 import { ShareDialog } from "../share/ShareDialog";
 import { NewProjectModal } from "./NewProjectModal";
@@ -49,6 +46,8 @@ import type {
   ProjectActions,
   ScheduledTaskActions,
 } from "./SidebarParts";
+
+// ─── Public interfaces ─────────────────────────────────────────────
 
 interface SessionSidebarProps {
   currentSessionId: string | null;
@@ -77,6 +76,8 @@ export interface SessionSidebarHandle {
   ) => void;
 }
 
+// ─── Component ─────────────────────────────────────────────────────
+
 export const SessionSidebar = forwardRef<
   SessionSidebarHandle,
   SessionSidebarProps
@@ -100,7 +101,12 @@ export const SessionSidebar = forwardRef<
 ) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // ─── Core state ──────────────────────────────────────────────────
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isRecentChatsOpen, setIsRecentChatsOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const [isProjectsCollapsed, setIsProjectsCollapsed] = useState(false);
@@ -112,211 +118,26 @@ export const SessionSidebar = forwardRef<
   const [unreadBySession, setUnreadBySession] = useState<UnreadBySession>(
     () => new Map(),
   );
-  const [shareDialogSessionId, setShareDialogSessionId] = useState<
-    string | null
-  >(null);
-  const [shareDialogSessionName, setShareDialogSessionName] = useState("");
-  const [isRecentChatsOpen, setIsRecentChatsOpen] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [moreMenuPosition, setMoreMenuPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
-  const { hasAnyPermission } = useAuth();
-  const { enableMemory } = useSettingsContext();
-
-  const canReadMCP = hasAnyPermission([Permission.MCP_READ]);
-  const canReadChannels = hasAnyPermission([Permission.CHANNEL_READ]);
-  const canReadMemory = enableMemory;
-  const canReadSkills = hasAnyPermission([Permission.SKILL_READ]);
-  const moreMenuFeatureItems = [
-    {
-      path: "/skills",
-      label: t("nav.skills"),
-      icon: Sparkles,
-      show: canReadSkills,
-    },
-    {
-      path: "/mcp",
-      label: t("nav.mcp"),
-      icon: Server,
-      show: canReadMCP,
-    },
-    {
-      path: "/channels",
-      label: t("nav.channels"),
-      icon: MessageCircle,
-      show: canReadChannels,
-    },
-    {
-      path: "/memory",
-      label: t("nav.memory"),
-      icon: Brain,
-      show: canReadMemory,
-    },
-  ];
-
-  const hasMoreMenuItems = moreMenuFeatureItems.some((i) => i.show);
-
   const [isMobile, setIsMobile] = useState(
     () => window.matchMedia("(max-width: 639px)").matches,
   );
 
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const moreMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const expandedMoreMenuBtnRef = useRef<HTMLButtonElement>(null);
-  const moreMenuDragHandleRef = useRef<HTMLDivElement>(null);
-  const moreMenuSwipeRef = useSwipeToClose({
-    onClose: () => setIsMoreMenuOpen(false),
-    enabled: isMoreMenuOpen && isMobile,
-    dragHandleRef: moreMenuDragHandleRef,
-  });
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
-  useEffect(() => {
-    if (!isMoreMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (activeMoreMenuBtnRef.current?.contains(e.target as Node)) return;
-      if (moreMenuRef.current?.contains(e.target as Node)) return;
-      setIsMoreMenuOpen(false);
-    };
-    // Defer by one frame so the opening click event has finished bubbling
-    // and the menu DOM is mounted (important on mobile where the same
-    // click can re-trigger the listener before the menu renders).
-    const id = requestAnimationFrame(() => {
-      document.addEventListener("click", handleClickOutside);
-    });
-    return () => {
-      cancelAnimationFrame(id);
-      document.removeEventListener("click", handleClickOutside);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMoreMenuOpen]);
-
-  useEffect(() => {
-    if (isMoreMenuOpen) setIsMoreMenuOpen(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  const handleNewSessionInProject = useCallback(
-    (projectId: string) => {
-      onSetPendingProjectId?.(projectId);
-      onNewSession();
-    },
-    [onNewSession, onSetPendingProjectId],
-  );
+  // Delete project confirmation (uses projectManager, stays here)
+  const [deleteProjectConfirm, setDeleteProjectConfirm] = useState<{
+    isOpen: boolean;
+    projectId: string | null;
+    projectName: string;
+  }>({ isOpen: false, projectId: null, projectName: "" });
 
   const isCollapsed = externalCollapsed ?? internalCollapsed;
   const setIsCollapsed = onToggleCollapsed ?? setInternalCollapsed;
-  const activeMoreMenuBtnRef = isCollapsed
-    ? moreMenuBtnRef
-    : expandedMoreMenuBtnRef;
 
-  useEffect(() => {
-    if (!isMoreMenuOpen) {
-      setMoreMenuPosition(null);
-      return;
-    }
-    if (!activeMoreMenuBtnRef.current) return;
-    const rect = activeMoreMenuBtnRef.current.getBoundingClientRect();
-    const panelWidth = 208;
-    const panelMaxHeight = 480;
-    let top = rect.top;
-    let left = rect.right + 2;
-    if (left + panelWidth > window.innerWidth)
-      left = window.innerWidth - panelWidth - 8;
-    if (left < 8) left = 8;
-    if (top + panelMaxHeight > window.innerHeight)
-      top = window.innerHeight - panelMaxHeight - 8;
-    if (top < 8) top = 8;
-    setMoreMenuPosition({ top, left });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMoreMenuOpen, isCollapsed]);
-
-  // ─── Hooks ──────────────────────────────────────────────────────
-
-  const uncategorizedList = useProjectSessionList("none", scrollEl);
-
-  const handleSessionUnread = useCallback(
-    (
-      sid: string,
-      count: number,
-      projectId?: string | null,
-      isFavorite?: boolean,
-      scheduledTaskId?: string | null,
-    ) => {
-      setUnreadBySession((prev) =>
-        mergeUnreadUpdate(prev, {
-          sessionId: sid,
-          unreadCount: count,
-          projectId,
-          scheduledTaskId,
-          isFavorite,
-        }),
-      );
-      const session = uncategorizedList.sessions.find((s) => s.id === sid);
-      if (session) {
-        uncategorizedList.updateSession({ ...session, unread_count: count });
-      }
-      for (const [, handle] of projectRefs.current) {
-        const s = handle.sessions.find((s) => s.id === sid);
-        if (s) {
-          handle.updateSession({ ...s, unread_count: count });
-        }
-      }
-      for (const [, handle] of scheduledTaskRefs.current) {
-        const s = handle.sessions.find((s) => s.id === sid);
-        if (s) {
-          handle.updateSession({ ...s, unread_count: count });
-        }
-      }
-    },
-    [uncategorizedList],
-  );
-
-  useImperativeHandle(
-    ref,
-    () => ({ updateSessionUnread: handleSessionUnread }),
-    [handleSessionUnread],
-  );
+  // ─── Refs ────────────────────────────────────────────────────────
 
   const projectRefs = useRef<Map<string, ProjectItemHandle>>(new Map());
   const scheduledTaskRefs = useRef<Map<string, ScheduledTaskItemHandle>>(
     new Map(),
   );
-
-  const totalUnreadCount = useMemo(() => {
-    const realtimeIds = new Set(unreadBySession.keys());
-    let total = 0;
-    for (const entry of unreadBySession.values()) {
-      total += entry.count;
-    }
-    const addSessions = (sessions: BackendSession[]) => {
-      for (const s of sessions) {
-        if (!realtimeIds.has(s.id) && (s.unread_count ?? 0) > 0) {
-          total += s.unread_count ?? 0;
-        }
-      }
-    };
-    addSessions(uncategorizedList.sessions);
-    for (const [, handle] of projectRefs.current) {
-      addSessions(handle.sessions);
-    }
-    for (const [, handle] of scheduledTaskRefs.current) {
-      addSessions(handle.sessions);
-    }
-    return total;
-  }, [unreadBySession, uncategorizedList.sessions]);
-
-  const lastAppliedNewSessionKeyRef = useRef<string | null>(null);
   const recentChatsBtnRef = useRef<HTMLButtonElement>(null);
 
   const getProjectRef = useCallback(
@@ -348,237 +169,80 @@ export const SessionSidebar = forwardRef<
     [],
   );
 
+  // ─── Data hooks ──────────────────────────────────────────────────
+
+  const uncategorizedList = useProjectSessionList("none", scrollEl);
   const projectManager = useProjectManager();
   const { projects } = projectManager;
-  const projectCount = projects.length;
 
-  const handleMoveSession = useCallback(
-    async (sessionId: string, projectId: string | null) => {
-      try {
-        const response = await sessionApi.moveToProject(sessionId, projectId);
-        if (response.session) {
-          const favorite = isSessionFavorite(response.session);
-          for (const [, handle] of projectRefs.current) {
-            handle.removeSession(sessionId);
-          }
-          for (const [, handle] of scheduledTaskRefs.current) {
-            handle.removeSession(sessionId);
-          }
-          uncategorizedList.removeSession(sessionId);
-          if (projectId) {
-            getProjectRef(projectId)?.prependSession(response.session);
-          } else {
-            uncategorizedList.prependSession(response.session);
-          }
-          if (favorite) {
-            const fp = projects.find((p) => p.type === "favorites");
-            if (fp) getProjectRef(fp.id)?.prependSession(response.session);
-          }
-          setUnreadBySession((prev) =>
-            mergeUnreadUpdate(prev, {
-              sessionId,
-              unreadCount: response.session.unread_count ?? 0,
-              projectId:
-                (response.session.metadata?.project_id as
-                  | string
-                  | null
-                  | undefined) ?? null,
-              scheduledTaskId:
-                (response.session.metadata?.scheduled_task_id as
-                  | string
-                  | null
-                  | undefined) ?? null,
-              isFavorite: favorite,
-            }),
-          );
-        }
-      } catch (err) {
-        console.error("Failed to move session:", err);
-        toast.error(t("sidebar.sessionMoveFailed"));
-      }
-    },
-    [getProjectRef, projects, uncategorizedList, t],
-  );
+  // ─── Extracted hooks ─────────────────────────────────────────────
 
-  const handleMoveSessionRef = useRef(handleMoveSession);
-  handleMoveSessionRef.current = handleMoveSession;
-
-  const handleShareSession = useCallback(
-    (sessionId: string) => {
-      let title = "";
-      for (const [, handle] of projectRefs.current) {
-        const s = handle.sessions.find((s) => s.id === sessionId);
-        if (s) {
-          title = getSessionTitle(s, t);
-          break;
-        }
-      }
-      if (!title) {
-        for (const [, handle] of scheduledTaskRefs.current) {
-          const s = handle.sessions.find((s) => s.id === sessionId);
-          if (s) {
-            title = getSessionTitle(s, t);
-            break;
-          }
-        }
-      }
-      if (!title) {
-        const s = uncategorizedList.sessions.find((s) => s.id === sessionId);
-        if (s) title = getSessionTitle(s, t);
-      }
-      setShareDialogSessionId(sessionId);
-      setShareDialogSessionName(title || t("sidebar.newChat"));
-    },
-    [uncategorizedList, t],
-  );
-
-  const touchDrag = useTouchDrag([], (sessionId, projectId) => {
-    handleMoveSessionRef.current(sessionId, projectId);
+  const actions = useSessionSidebarActions({
+    uncategorizedList,
+    projectRefs,
+    scheduledTaskRefs,
+    projects,
+    currentSessionId,
+    setUnreadBySession,
+    onNewSession,
+    onSelectSession,
+    onMobileClose,
+    getProjectRef,
   });
 
-  const handleToggleFavorite = useCallback(
-    async (sessionId: string) => {
-      try {
-        const response = await sessionApi.toggleFavorite(sessionId);
-        const updatedSession = response.session;
-        const favoritesProject = projects.find((p) => p.type === "favorites");
-        const favoritesRef = favoritesProject
-          ? getProjectRef(favoritesProject.id)
-          : null;
+  const moreMenu = useMoreMenu({ isCollapsed, isMobile });
 
-        if (uncategorizedList.sessions.some((s) => s.id === sessionId)) {
-          uncategorizedList.updateSession(updatedSession);
-        }
-        for (const [, handle] of projectRefs.current) {
-          const exists = handle.sessions.some((s) => s.id === sessionId);
-          if (!exists) continue;
-          if (
-            favoritesRef &&
-            handle === favoritesRef &&
-            !response.is_favorite
-          ) {
-            handle.removeSession(sessionId);
-            continue;
-          }
-          handle.updateSession(updatedSession);
-        }
-        if (response.is_favorite && favoritesRef) {
-          favoritesRef.prependSession(updatedSession);
-          favoritesRef.updateSession(updatedSession);
-        }
-        setUnreadBySession((prev) =>
-          mergeUnreadUpdate(prev, {
-            sessionId,
-            unreadCount: updatedSession.unread_count ?? 0,
-            projectId:
-              (updatedSession.metadata?.project_id as
-                | string
-                | null
-                | undefined) ?? null,
-            scheduledTaskId:
-              (updatedSession.metadata?.scheduled_task_id as
-                | string
-                | null
-                | undefined) ?? null,
-            isFavorite: response.is_favorite,
-          }),
-        );
-      } catch (err) {
-        console.error("Failed to toggle favorite:", err);
-        toast.error(t("sidebar.favoriteToggleFailed", "收藏状态更新失败"));
-      }
-    },
-    [getProjectRef, projects, t, uncategorizedList],
+  useSessionSidebarEffects({
+    currentSessionId,
+    refreshKey,
+    newSession,
+    autoExpandProjectId,
+    onNewSession,
+    setIsSearchOpen,
+    setIsProjectsCollapsed,
+    setIsMobile,
+    loadProjects: projectManager.loadProjects,
+    uncategorizedList,
+    projectRefs,
+    scheduledTaskRefs,
+    getProjectRef,
+    projects,
+  });
+
+  // ─── Imperative handle ────────────────────────────────────────────
+
+  useImperativeHandle(
+    ref,
+    () => ({ updateSessionUnread: actions.handleSessionUnread }),
+    [actions.handleSessionUnread],
   );
 
-  // ─── Mark all read ────────────────────────────────────────────────
+  // ─── Total unread count ────────────────────────────────────────────
 
-  const handleMarkAllRead = useCallback(
-    async (opts?: { projectId?: string; scheduledTaskId?: string }) => {
-      // Optimistic update: clear matching unread entries
-      const clearSessionList = (
-        sessionList: typeof uncategorizedList,
-        filterFn?: (s: BackendSession) => boolean,
-      ) => {
-        sessionList.sessions.forEach((s) => {
-          if (filterFn && !filterFn(s)) return;
-          if ((s.unread_count ?? 0) > 0) {
-            sessionList.updateSession({ ...s, unread_count: 0 });
-          }
-        });
-      };
-
-      const isUncategorized = !opts?.projectId && !opts?.scheduledTaskId;
-
-      if (isUncategorized) {
-        setUnreadBySession(() => new Map());
-        clearSessionList(uncategorizedList);
-      } else if (opts!.projectId) {
-        setUnreadBySession((prev) => {
-          const next = new Map(prev);
-          for (const [sid, entry] of next) {
-            if (entry.projectId === opts!.projectId) {
-              next.delete(sid);
-            }
-          }
-          return next;
-        });
-        clearSessionList(
-          uncategorizedList,
-          (s) => s.metadata?.project_id === opts!.projectId,
-        );
-        const handle = getProjectRef(opts!.projectId);
-        if (handle) {
-          handle.sessions.forEach((s) => {
-            if ((s.unread_count ?? 0) > 0) {
-              handle.updateSession({ ...s, unread_count: 0 });
-            }
-          });
-        }
-      } else if (opts!.scheduledTaskId) {
-        setUnreadBySession((prev) => {
-          const next = new Map(prev);
-          for (const [sid, entry] of next) {
-            if (entry.scheduledTaskId === opts!.scheduledTaskId) {
-              next.delete(sid);
-            }
-          }
-          return next;
-        });
-        for (const [, handle] of scheduledTaskRefs.current) {
-          handle.sessions.forEach((s) => {
-            if (
-              (s.unread_count ?? 0) > 0 &&
-              s.metadata?.scheduled_task_id === opts!.scheduledTaskId
-            ) {
-              handle.updateSession({ ...s, unread_count: 0 });
-            }
-          });
+  const totalUnreadCount = useMemo(() => {
+    const realtimeIds = new Set(unreadBySession.keys());
+    let total = 0;
+    for (const entry of unreadBySession.values()) {
+      total += entry.count;
+    }
+    const addSessions = (sessions: BackendSession[]) => {
+      for (const s of sessions) {
+        if (!realtimeIds.has(s.id) && (s.unread_count ?? 0) > 0) {
+          total += s.unread_count ?? 0;
         }
       }
+    };
+    addSessions(uncategorizedList.sessions);
+    for (const [, handle] of projectRefs.current) {
+      addSessions(handle.sessions);
+    }
+    for (const [, handle] of scheduledTaskRefs.current) {
+      addSessions(handle.sessions);
+    }
+    return total;
+  }, [unreadBySession, uncategorizedList.sessions]);
 
-      try {
-        await sessionApi.markAllRead(opts);
-      } catch (err) {
-        console.error("Failed to mark all as read:", err);
-        toast.error(t("sidebar.markAllReadFailed"));
-      }
-    },
-    [getProjectRef, t, uncategorizedList],
-  );
-
-  // ─── Delete confirmation ────────────────────────────────────────
-
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    isOpen: boolean;
-    sessionId: string | null;
-  }>({ isOpen: false, sessionId: null });
-
-  const [deleteProjectConfirm, setDeleteProjectConfirm] = useState<{
-    isOpen: boolean;
-    projectId: string | null;
-    projectName: string;
-  }>({ isOpen: false, projectId: null, projectName: "" });
+  // ─── Project delete handler ──────────────────────────────────────
 
   const confirmDeleteProject = async (deleteSessions: boolean) => {
     const { projectId } = deleteProjectConfirm;
@@ -590,156 +254,44 @@ export const SessionSidebar = forwardRef<
     });
   };
 
-  const confirmDeleteSession = async () => {
-    const sessionId = deleteConfirm.sessionId;
-    if (!sessionId) return;
-    try {
-      await sessionApi.delete(sessionId);
-      for (const [, handle] of projectRefs.current) {
-        handle.removeSession(sessionId);
-      }
-      for (const [, handle] of scheduledTaskRefs.current) {
-        handle.removeSession(sessionId);
-      }
-      uncategorizedList.removeSession(sessionId);
-      if (currentSessionId === sessionId) onNewSession();
-      toast.success(t("sidebar.sessionDeleted"));
-    } catch (err) {
-      console.error("Failed to delete session:", err);
-      toast.error(t("sidebar.deleteFailed"));
-    } finally {
-      setDeleteConfirm({ isOpen: false, sessionId: null });
-    }
-  };
+  // ─── New session in project ──────────────────────────────────────
 
-  // ─── Effects ────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (autoExpandProjectId) setIsProjectsCollapsed(false);
-  }, [autoExpandProjectId]);
-
-  useEffect(() => {
-    projectManager.loadProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey]);
-
-  useEffect(() => {
-    if (!currentSessionId) return;
-    uncategorizedList.softRefresh();
-    projectRefs.current.forEach((ref) => ref?.softRefresh());
-    scheduledTaskRefs.current.forEach((ref) => ref?.softRefresh());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSessionId]);
-
-  useEffect(() => {
-    if (newSession && newSession.id) {
-      const sessionKey = [
-        newSession.id,
-        newSession.updated_at,
-        newSession.name ?? "",
-      ].join(":");
-      if (lastAppliedNewSessionKeyRef.current === sessionKey) return;
-      const scheduledTaskId = newSession.metadata?.scheduled_task_id as
-        | string
-        | undefined;
-      const projectId = newSession.metadata?.project_id as string | undefined;
-      const list = scheduledTaskId
-        ? scheduledTaskRefs.current.get(scheduledTaskId)
-        : projectId
-          ? getProjectRef(projectId)
-          : uncategorizedList;
-      if (list) {
-        list.prependSession(newSession);
-        list.updateSession(newSession);
-      }
-      if (isSessionFavorite(newSession)) {
-        const fp = projects.find((p) => p.type === "favorites");
-        if (fp) {
-          const favRef = getProjectRef(fp.id);
-          favRef?.prependSession(newSession);
-          favRef?.updateSession(newSession);
-        }
-      }
-      lastAppliedNewSessionKeyRef.current = sessionKey;
-    }
-  }, [newSession, getProjectRef, projectCount, projects, uncategorizedList]);
-
-  // ─── Keyboard shortcuts ──────────────────────────────────────────
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
-      const modifier = isMac ? e.metaKey : e.ctrlKey;
-      if (modifier && e.key === "k") {
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
-      if (modifier && e.key === "n") {
-        e.preventDefault();
-        onNewSession();
-      }
-      if (modifier && e.shiftKey && (e.key === "O" || e.key === "o")) {
-        e.preventDefault();
-        onNewSession();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onNewSession]);
-
-  // ─── Select session helper (mobile close) ───────────────────────
-
-  const selectAndClose = useCallback(
-    (sessionId: string) => {
-      const uncategorizedSession = uncategorizedList.sessions.find(
-        (session) => session.id === sessionId,
-      );
-      const existingSession =
-        uncategorizedSession ??
-        Array.from(scheduledTaskRefs.current.values())
-          .flatMap((handle) => handle.sessions)
-          .find((session) => session.id === sessionId) ??
-        Array.from(projectRefs.current.values())
-          .flatMap((handle) => handle.sessions)
-          .find((session) => session.id === sessionId);
-      handleSessionUnread(
-        sessionId,
-        0,
-        (existingSession?.metadata?.project_id as string | null | undefined) ??
-          null,
-        existingSession ? isSessionFavorite(existingSession) : undefined,
-        (existingSession?.metadata?.scheduled_task_id as
-          | string
-          | null
-          | undefined) ?? null,
-      );
-      onSelectSession(sessionId);
-      onMobileClose?.();
+  const handleNewSessionInProject = useCallback(
+    (projectId: string) => {
+      onSetPendingProjectId?.(projectId);
+      onNewSession();
     },
-    [uncategorizedList, handleSessionUnread, onSelectSession, onMobileClose],
+    [onNewSession, onSetPendingProjectId],
   );
 
-  // ─── Aggregated action objects for SessionListContent ────────────
+  // ─── Touch drag ───────────────────────────────────────────────────
+
+  const touchDrag = useTouchDrag([], (sessionId, projectId) => {
+    actions.handleMoveSessionRef.current(sessionId, projectId);
+  });
+
+  // ─── Favorites project ───────────────────────────────────────────
+
+  const favoritesProject = useMemo(
+    () => projects.find((p) => p.type === "favorites"),
+    [projects],
+  );
+
+  // ─── Aggregated action objects ────────────────────────────────────
 
   const sessionActions: SessionActions = useMemo(
     () => ({
       onDeleteSession: (id) =>
-        setDeleteConfirm({ isOpen: true, sessionId: id }),
-      onMoveSession: handleMoveSession,
-      onToggleFavorite: handleToggleFavorite,
-      onShareSession: handleShareSession,
-      onSelectSession: selectAndClose,
+        actions.setDeleteConfirm({ isOpen: true, sessionId: id }),
+      onMoveSession: actions.handleMoveSession,
+      onToggleFavorite: actions.handleToggleFavorite,
+      onShareSession: actions.handleShareSession,
+      onSelectSession: actions.selectAndClose,
       onDragStartTouch: touchDrag.handleDragStartTouch,
       draggingSessionId: touchDrag.draggingSessionId,
       touchDropTarget: touchDrag.touchDropTarget,
     }),
-    [
-      handleMoveSession,
-      handleToggleFavorite,
-      handleShareSession,
-      selectAndClose,
-      touchDrag,
-    ],
+    [actions, touchDrag],
   );
 
   const projectActions: ProjectActions = useMemo(
@@ -768,15 +320,54 @@ export const SessionSidebar = forwardRef<
     [setScheduledTaskRef],
   );
 
-  const favoritesProject = useMemo(
-    () => projects.find((p) => p.type === "favorites"),
-    [projects],
-  );
+  // ─── Common SessionListContent props ──────────────────────────────
 
-  // ─── JSX ────────────────────────────────────────────────────────
+  const sessionListProps = {
+    user,
+    imgError,
+    onImgError: () => setImgError(true),
+    onNewSession,
+    onOpenSearch: () => setIsSearchOpen(true),
+    onShowProfile: onShowProfile!,
+    hasMoreMenuItems: moreMenu.hasMoreMenuItems,
+    onToggleMoreMenu: () => moreMenu.setIsMoreMenuOpen((prev) => !prev),
+    expandedMoreMenuBtnRef: moreMenu.expandedMoreMenuBtnRef,
+    scrollEl,
+    onSetScrollEl: setScrollEl,
+    uncategorizedSessions: uncategorizedList.sessions,
+    isUncategorizedLoading: uncategorizedList.isLoading,
+    hasMoreUncategorized: uncategorizedList.hasMore,
+    isLoadingMoreUncategorized: uncategorizedList.isLoadingMore,
+    loadMoreRef: uncategorizedList.loadMoreRef,
+    onSoftRefreshUncategorized: uncategorizedList.softRefresh,
+    onUpdateUncategorizedSession: uncategorizedList.updateSession,
+    projects,
+    favoritesProject,
+    currentSessionId,
+    unreadBySession,
+    sessionActions,
+    projectActions,
+    scheduledTaskActions,
+    isProjectsCollapsed,
+    onToggleProjectsCollapsed: () => setIsProjectsCollapsed((v) => !v),
+    isScheduledTasksCollapsed,
+    onToggleScheduledTasksCollapsed: () =>
+      setIsScheduledTasksCollapsed((v) => !v),
+    isChatsCollapsed,
+    onToggleChatsCollapsed: () => setIsChatsCollapsed((v) => !v),
+    isNavCollapsed,
+    onToggleNavCollapsed: () => setIsNavCollapsed((v) => !v),
+    autoExpandProjectId: autoExpandProjectId ?? null,
+    onConsumeAutoExpandProjectId: onConsumeAutoExpandProjectId!,
+    onMarkAllRead: actions.handleMarkAllRead,
+    markingReadId: actions.markingReadId,
+  };
+
+  // ─── JSX ──────────────────────────────────────────────────────────
 
   return (
     <>
+      {/* Mobile overlay */}
       <div
         className={`fixed left-0 right-0 z-[60] bg-black/40 sm:hidden transition-opacity duration-300 ease-in-out ${
           mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -789,6 +380,7 @@ export const SessionSidebar = forwardRef<
         onClick={onMobileClose}
       />
 
+      {/* Mobile drawer */}
       <div
         className={`rounded-r-lg fixed left-0 z-[70] w-64 flex flex-col sm:hidden bg-[var(--theme-bg-sidebar)] transition-transform duration-300 ease-in-out ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
@@ -803,64 +395,27 @@ export const SessionSidebar = forwardRef<
       >
         {isMobile ? (
           <SessionListContent
-            user={user}
-            imgError={imgError}
-            onImgError={() => setImgError(true)}
+            {...sessionListProps}
             onCollapse={() => {
               setIsCollapsed(true);
               onMobileClose?.();
             }}
-            onNewSession={onNewSession}
-            onOpenSearch={() => setIsSearchOpen(true)}
-            onShowProfile={onShowProfile!}
-            hasMoreMenuItems={hasMoreMenuItems}
-            onToggleMoreMenu={() => setIsMoreMenuOpen((prev) => !prev)}
-            expandedMoreMenuBtnRef={expandedMoreMenuBtnRef}
-            scrollEl={scrollEl}
-            onSetScrollEl={setScrollEl}
-            uncategorizedSessions={uncategorizedList.sessions}
-            isUncategorizedLoading={uncategorizedList.isLoading}
-            hasMoreUncategorized={uncategorizedList.hasMore}
-            isLoadingMoreUncategorized={uncategorizedList.isLoadingMore}
-            loadMoreRef={uncategorizedList.loadMoreRef}
-            onSoftRefreshUncategorized={uncategorizedList.softRefresh}
-            onUpdateUncategorizedSession={uncategorizedList.updateSession}
-            projects={projects}
-            favoritesProject={favoritesProject}
-            currentSessionId={currentSessionId}
-            unreadBySession={unreadBySession}
-            sessionActions={sessionActions}
-            projectActions={projectActions}
-            scheduledTaskActions={scheduledTaskActions}
-            isProjectsCollapsed={isProjectsCollapsed}
-            onToggleProjectsCollapsed={() => setIsProjectsCollapsed((v) => !v)}
-            isScheduledTasksCollapsed={isScheduledTasksCollapsed}
-            onToggleScheduledTasksCollapsed={() =>
-              setIsScheduledTasksCollapsed((v) => !v)
-            }
-            isChatsCollapsed={isChatsCollapsed}
-            onToggleChatsCollapsed={() => setIsChatsCollapsed((v) => !v)}
-            isNavCollapsed={isNavCollapsed}
-            onToggleNavCollapsed={() => setIsNavCollapsed((v) => !v)}
-            autoExpandProjectId={autoExpandProjectId ?? null}
-            onConsumeAutoExpandProjectId={onConsumeAutoExpandProjectId!}
-            onMarkAllRead={handleMarkAllRead}
           />
         ) : (
           <div className="flex-1" />
         )}
 
         <MobileMoreMenuSheet
-          featureItems={moreMenuFeatureItems}
-          isOpen={isMoreMenuOpen}
-          onClose={() => setIsMoreMenuOpen(false)}
-          menuRef={moreMenuRef}
-          swipeRef={moreMenuSwipeRef}
-          dragHandleRef={moreMenuDragHandleRef}
+          featureItems={moreMenu.moreMenuFeatureItems}
+          isOpen={moreMenu.isMoreMenuOpen}
+          onClose={() => moreMenu.setIsMoreMenuOpen(false)}
+          menuRef={moreMenu.moreMenuRef}
+          swipeRef={moreMenu.moreMenuSwipeRef}
+          dragHandleRef={moreMenu.moreMenuDragHandleRef}
         />
       </div>
 
-      {/* Desktop: always render sidebar container */}
+      {/* Desktop sidebar */}
       <div
         className="hidden sm:flex h-full relative shrink-0 overflow-hidden"
         style={{
@@ -876,53 +431,15 @@ export const SessionSidebar = forwardRef<
         >
           {!isMobile ? (
             <SessionListContent
-              user={user}
-              imgError={imgError}
-              onImgError={() => setImgError(true)}
+              {...sessionListProps}
               onCollapse={() => setIsCollapsed(true)}
-              onNewSession={onNewSession}
-              onOpenSearch={() => setIsSearchOpen(true)}
-              onShowProfile={onShowProfile!}
-              hasMoreMenuItems={hasMoreMenuItems}
-              onToggleMoreMenu={() => setIsMoreMenuOpen((prev) => !prev)}
-              expandedMoreMenuBtnRef={expandedMoreMenuBtnRef}
-              scrollEl={scrollEl}
-              onSetScrollEl={setScrollEl}
-              uncategorizedSessions={uncategorizedList.sessions}
-              isUncategorizedLoading={uncategorizedList.isLoading}
-              hasMoreUncategorized={uncategorizedList.hasMore}
-              isLoadingMoreUncategorized={uncategorizedList.isLoadingMore}
-              loadMoreRef={uncategorizedList.loadMoreRef}
-              onSoftRefreshUncategorized={uncategorizedList.softRefresh}
-              onUpdateUncategorizedSession={uncategorizedList.updateSession}
-              projects={projects}
-              favoritesProject={favoritesProject}
-              currentSessionId={currentSessionId}
-              unreadBySession={unreadBySession}
-              sessionActions={sessionActions}
-              projectActions={projectActions}
-              scheduledTaskActions={scheduledTaskActions}
-              isProjectsCollapsed={isProjectsCollapsed}
-              onToggleProjectsCollapsed={() =>
-                setIsProjectsCollapsed((v) => !v)
-              }
-              isScheduledTasksCollapsed={isScheduledTasksCollapsed}
-              onToggleScheduledTasksCollapsed={() =>
-                setIsScheduledTasksCollapsed((v) => !v)
-              }
-              isChatsCollapsed={isChatsCollapsed}
-              onToggleChatsCollapsed={() => setIsChatsCollapsed((v) => !v)}
-              isNavCollapsed={isNavCollapsed}
-              onToggleNavCollapsed={() => setIsNavCollapsed((v) => !v)}
-              autoExpandProjectId={autoExpandProjectId ?? null}
-              onConsumeAutoExpandProjectId={onConsumeAutoExpandProjectId!}
-              onMarkAllRead={handleMarkAllRead}
             />
           ) : (
             <div className="flex-1" />
           )}
         </div>
 
+        {/* Collapsed rail */}
         <div
           className={`absolute inset-0 ${
             isCollapsed
@@ -937,24 +454,15 @@ export const SessionSidebar = forwardRef<
             onExpand={() => setIsCollapsed(false)}
             onNewSession={() => {
               onNewSession();
-              setIsRecentChatsOpen(false);
+              // close recent chats if open (handled by state below)
             }}
-            onOpenSearch={() => {
-              setIsSearchOpen(true);
-              setIsRecentChatsOpen(false);
-            }}
+            onOpenSearch={() => setIsSearchOpen(true)}
             onOpenRecentChats={() => setIsRecentChatsOpen(true)}
             onOpenFileLibrary={() => navigate("/files")}
             onOpenScheduledTasks={() => navigate("/scheduled-tasks")}
-            onOpenPersonaPlaza={() => navigate("/persona")}
-            onOpenTeamBuilder={() => navigate("/team")}
-            onOpenSkills={() => navigate("/skills")}
-            hasMoreMenuItems={hasMoreMenuItems}
-            onToggleMoreMenu={() => {
-              setIsMoreMenuOpen((prev) => !prev);
-              setIsRecentChatsOpen(false);
-            }}
-            moreMenuBtnRef={moreMenuBtnRef}
+            hasMoreMenuItems={moreMenu.hasMoreMenuItems}
+            onToggleMoreMenu={() => moreMenu.setIsMoreMenuOpen((prev) => !prev)}
+            moreMenuBtnRef={moreMenu.moreMenuBtnRef}
             recentChatsBtnRef={recentChatsBtnRef}
             onShowProfile={onShowProfile!}
             unreadCount={totalUnreadCount}
@@ -962,6 +470,7 @@ export const SessionSidebar = forwardRef<
         </div>
       </div>
 
+      {/* Touch drag indicator */}
       {touchDrag.dragIndicatorPos && (
         <div
           className="fixed z-[100] pointer-events-none px-3 py-1.5 rounded-lg bg-stone-700 dark:bg-stone-200 text-white dark:text-stone-800 text-xs shadow-lg max-w-[200px] truncate"
@@ -974,28 +483,48 @@ export const SessionSidebar = forwardRef<
         </div>
       )}
 
+      {/* Search dialog */}
       {isSearchOpen && (
         <SearchDialog
           isOpen={isSearchOpen}
           onClose={() => setIsSearchOpen(false)}
           onSelectSession={(sessionId) => {
-            selectAndClose(sessionId);
+            actions.selectAndClose(sessionId);
             setIsSearchOpen(false);
           }}
         />
       )}
 
+      {/* Recent chats popover */}
+      <RecentChatsDialog
+        isOpen={isRecentChatsOpen}
+        onClose={() => setIsRecentChatsOpen(false)}
+        onSelectSession={(sessionId) => {
+          onSelectSession(sessionId);
+          setIsRecentChatsOpen(false);
+        }}
+        currentSessionId={currentSessionId}
+        anchorEl={recentChatsBtnRef.current}
+        unreadCount={totalUnreadCount}
+        onMarkAllRead={actions.handleMarkAllRead}
+        markingReadId={actions.markingReadId}
+      />
+
+      {/* Delete session confirmation */}
       <ConfirmDialog
-        isOpen={deleteConfirm.isOpen}
+        isOpen={actions.deleteConfirm.isOpen}
         title={t("sidebar.deleteSession")}
         message={t("sidebar.deleteConfirm")}
         confirmText={t("common.delete")}
         cancelText={t("common.cancel")}
-        onConfirm={confirmDeleteSession}
-        onCancel={() => setDeleteConfirm({ isOpen: false, sessionId: null })}
+        onConfirm={actions.confirmDeleteSession}
+        onCancel={() =>
+          actions.setDeleteConfirm({ isOpen: false, sessionId: null })
+        }
         variant="danger"
       />
 
+      {/* Delete project confirmation */}
       <DeleteProjectDialog
         isOpen={deleteProjectConfirm.isOpen}
         projectName={deleteProjectConfirm.projectName}
@@ -1009,6 +538,7 @@ export const SessionSidebar = forwardRef<
         }
       />
 
+      {/* New project modal */}
       {projectManager.showNewProjectModal && (
         <NewProjectModal
           icon={projectManager.newProjectIcon}
@@ -1024,30 +554,22 @@ export const SessionSidebar = forwardRef<
         />
       )}
 
+      {/* Share dialog */}
       <ShareDialog
-        isOpen={shareDialogSessionId !== null}
-        onClose={() => setShareDialogSessionId(null)}
-        sessionId={shareDialogSessionId ?? ""}
-        sessionName={shareDialogSessionName || t("sidebar.newChat")}
+        isOpen={actions.shareDialogSessionId !== null}
+        onClose={() => actions.setShareDialogSessionId(null)}
+        sessionId={actions.shareDialogSessionId ?? ""}
+        sessionName={actions.shareDialogSessionName || t("sidebar.newChat")}
       />
 
-      <RecentChatsDialog
-        isOpen={isRecentChatsOpen}
-        onClose={() => setIsRecentChatsOpen(false)}
-        onSelectSession={(id) => selectAndClose(id)}
-        currentSessionId={currentSessionId}
-        anchorEl={recentChatsBtnRef.current}
-        unreadCount={totalUnreadCount}
-        onMarkAllRead={handleMarkAllRead}
-      />
-
+      {/* Desktop more menu */}
       {!isMobile && (
         <DesktopMoreMenu
-          featureItems={moreMenuFeatureItems}
-          isOpen={isMoreMenuOpen && moreMenuPosition !== null}
-          onClose={() => setIsMoreMenuOpen(false)}
-          menuRef={moreMenuRef}
-          position={moreMenuPosition}
+          featureItems={moreMenu.moreMenuFeatureItems}
+          isOpen={moreMenu.isMoreMenuOpen && moreMenu.moreMenuPosition !== null}
+          onClose={() => moreMenu.setIsMoreMenuOpen(false)}
+          menuRef={moreMenu.moreMenuRef}
+          position={moreMenu.moreMenuPosition}
         />
       )}
     </>

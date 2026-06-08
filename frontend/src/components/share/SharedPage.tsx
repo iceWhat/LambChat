@@ -52,6 +52,7 @@ import {
   PersonaAvatarImage,
   PersonaAvatarIcon,
 } from "../persona/PersonaAvatarIcon";
+import { isEmojiAvatar, getEmojiAvatarUrl } from "../persona/personaAvatar";
 
 const LANGUAGES = [
   { code: "en", nativeName: "English" },
@@ -677,9 +678,15 @@ export function SharedPage() {
                 {data.session.persona_preset_name && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/80 dark:bg-stone-800/60 text-[11px] text-stone-500 dark:text-stone-400 font-medium">
                     {data.session.persona_avatar &&
-                    !data.session.persona_avatar.startsWith("icon:") ? (
+                    !data.session.persona_avatar.startsWith("icon:") &&
+                    !isEmojiAvatar(data.session.persona_avatar) ? (
                       <PersonaAvatarImage
                         avatar={data.session.persona_avatar}
+                        className="w-3.5 h-3.5 rounded-full object-cover"
+                      />
+                    ) : isEmojiAvatar(data.session.persona_avatar) ? (
+                      <PersonaAvatarImage
+                        avatar={getEmojiAvatarUrl(data.session.persona_avatar)}
                         className="w-3.5 h-3.5 rounded-full object-cover"
                       />
                     ) : (

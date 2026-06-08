@@ -6,7 +6,10 @@ import {
   prepareFullscreenMermaidSvg,
   stripResponsiveWidthAttribute,
 } from "./mermaidSvgUtils";
+import { ViewerDropdownMenuItem } from "../../common";
 import { ViewerToolbar } from "../../common/ViewerToolbar";
+import { ViewerTopBarButton } from "../../common/ViewerTopBarButton";
+import { downloadBlob } from "../../common/viewerDownload";
 import { copyToClipboard } from "../../../utils/clipboard";
 
 // Fix common AI-generated mermaid syntax issues:
@@ -216,14 +219,7 @@ export function MermaidDiagram({
     if (!svg) return;
 
     const blob = new Blob([svg], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "diagram.svg";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, "diagram.svg");
   };
 
   const getSvgDimensions = (
@@ -282,14 +278,7 @@ export function MermaidDiagram({
 
       canvas.toBlob((blob) => {
         if (!blob) return;
-        const pngUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = pngUrl;
-        a.download = "diagram.png";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(pngUrl);
+        downloadBlob(blob, "diagram.png");
       }, "image/png");
     };
 
@@ -445,26 +434,24 @@ export function MermaidDiagram({
               </button>
               {showDownloadMenu && (
                 <div className="absolute right-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg overflow-hidden">
-                  <button
+                  <ViewerDropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDownloadSVG();
                       setShowDownloadMenu(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
                   >
                     SVG
-                  </button>
-                  <button
+                  </ViewerDropdownMenuItem>
+                  <ViewerDropdownMenuItem
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDownloadPNG();
                       setShowDownloadMenu(false);
                     }}
-                    className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
                   >
                     PNG
-                  </button>
+                  </ViewerDropdownMenuItem>
                 </div>
               )}
             </div>
@@ -704,9 +691,6 @@ function MermaidViewer({
     onToggleCode(next);
   };
 
-  const btnCls =
-    "flex items-center justify-center w-10 h-10 rounded-lg hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed";
-
   return createPortal(
     <div
       data-yields-sidebar
@@ -714,14 +698,12 @@ function MermaidViewer({
     >
       {/* Top bar - close + code actions */}
       <div className="safe-area-top flex items-center justify-between px-3 sm:px-6 py-3 bg-black">
-        <button
-          type="button"
+        <ViewerTopBarButton
           onClick={onClose}
-          className={btnCls}
           aria-label={t("common.close")}
-        >
-          <X size={20} className="text-white/70" />
-        </button>
+          icon={<X size={20} className="text-white/70" />}
+          iconOnly
+        />
 
         <div className="flex items-center gap-1">
           {/* Toggle code view */}
@@ -776,25 +758,18 @@ function MermaidViewer({
           </button>
 
           {/* Download SVG */}
-          <button
-            type="button"
+          <ViewerTopBarButton
             onClick={() => {
               const blob = new Blob([fullscreenSvg], { type: "image/svg+xml" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "mermaid.svg";
-              a.click();
-              URL.revokeObjectURL(url);
+              downloadBlob(blob, "mermaid.svg");
             }}
-            className="flex items-center gap-1.5 rounded-lg px-3 h-10 text-sm font-medium transition-colors cursor-pointer hover:bg-white/10 text-white/70"
             aria-label={t("imageViewer.download")}
+            icon={<Download size={18} className="text-white/70" />}
           >
-            <Download size={18} className="text-white/70" />
             <span className="hidden sm:inline">
               {t("imageViewer.download")}
             </span>
-          </button>
+          </ViewerTopBarButton>
         </div>
       </div>
 

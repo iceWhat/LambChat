@@ -354,28 +354,31 @@ export function CollapsibleSection({
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const isError = variant === "error";
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), []);
+
   return (
     <div
       className={clsx(
         "p-3 sm:p-4 rounded-lg sm:rounded-xl",
         isError
           ? "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50"
-          : "bg-stone-100 dark:bg-stone-700/50",
+          : "bg-theme-bg-subtle",
       )}
     >
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="flex items-center justify-between w-full text-left"
-      >
-        <div className="flex items-center gap-1.5">
+      <div className="flex items-center justify-between w-full gap-2">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          onClick={toggleExpanded}
+          className="flex items-center gap-1.5 flex-1 min-w-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--theme-primary)]/50 rounded-md"
+        >
           <ChevronDown
             size={12}
             className={clsx(
               "transition-transform duration-200",
               isError
                 ? "text-red-500 dark:text-red-400"
-                : "text-stone-400 dark:text-stone-500",
+                : "text-theme-text-tertiary",
               !expanded && "-rotate-90",
             )}
           />
@@ -384,14 +387,14 @@ export function CollapsibleSection({
               "text-xs uppercase tracking-wider font-medium",
               isError
                 ? "text-red-600 dark:text-red-400"
-                : "text-stone-400 dark:text-stone-500",
+                : "text-theme-text-tertiary",
             )}
           >
             {title}
           </span>
-        </div>
-        {action && <span onClick={(e) => e.stopPropagation()}>{action}</span>}
-      </button>
+        </button>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
       {expanded && (
         <div className="mt-2 animate-[fade-in_150ms_ease-out]">{children}</div>
       )}
@@ -763,23 +766,30 @@ export function SubagentBlock({
     <div
       className={clsx(
         "my-1.5 rounded-xl overflow-hidden min-w-0 group relative",
-        "border transition-all duration-200",
+        "border transition-all duration-250",
         effectiveStatus === "running" &&
-          "border-amber-200/60 dark:border-stone-700/40 bg-amber-50/80 dark:bg-stone-800/50",
+          "border-amber-200/60 dark:border-amber-800/30 bg-amber-50/80 dark:bg-amber-950/15",
         effectiveStatus === "complete" &&
-          "border-stone-300/60 dark:border-stone-600/40 bg-white dark:bg-stone-700/50",
+          "border-theme-border/60 bg-theme-bg-card dark:bg-theme-bg-card",
         effectiveStatus === "error" &&
           "border-red-200/60 dark:border-red-900/40 bg-gradient-to-r from-red-50/60 to-transparent dark:from-red-950/20",
         effectiveStatus === "cancelled" &&
-          "border-stone-300/60 dark:border-stone-600/40 bg-white dark:bg-stone-700/50",
+          "border-theme-border/60 bg-theme-bg-card dark:bg-theme-bg-card",
         (!effectiveStatus || effectiveStatus === "pending") &&
-          "border-stone-200/60 dark:border-stone-700/40",
+          "border-theme-border/50",
       )}
+      style={
+        effectiveStatus === "running"
+          ? {
+              animation: "subagent-border-pulse 2.5s ease-in-out infinite",
+            }
+          : undefined
+      }
     >
       <div
         className={clsx(
           "absolute right-2.5 top-2.5 z-[1] flex h-5 w-5 items-center justify-center rounded-full",
-          "bg-white/90 shadow-sm ring-1 ring-stone-200/70 dark:bg-stone-900/90 dark:ring-stone-700/70",
+          "bg-theme-bg-card/90 shadow-sm ring-1 ring-theme-border/70",
         )}
         aria-label={t("chat.subagentStatus", {
           status: effectiveStatus || "pending",
@@ -788,7 +798,7 @@ export function SubagentBlock({
         <SubagentStatusIcon status={effectiveStatus} size={11} />
       </div>
       <div
-        className="flex items-center gap-3 px-3.5 py-2.5 pr-10 cursor-pointer transition-colors hover:bg-white/60 dark:hover:bg-white/5"
+        className="flex items-center gap-3 px-3.5 py-2.5 pr-10 cursor-pointer transition-colors duration-150 hover:bg-theme-bg-card/60 dark:hover:bg-theme-bg-card/10"
         onClick={handleOpenInPanel}
       >
         <div
@@ -830,20 +840,18 @@ export function SubagentBlock({
             className={clsx(
               "text-[13px] font-medium truncate block",
               effectiveStatus === "running" &&
-                "text-stone-700 dark:text-stone-300",
-              effectiveStatus === "complete" &&
-                "text-stone-700 dark:text-stone-300",
+                "text-amber-700 dark:text-amber-300",
+              effectiveStatus === "complete" && "text-theme-text",
               effectiveStatus === "error" && "text-red-700 dark:text-red-300",
-              effectiveStatus === "cancelled" &&
-                "text-stone-700 dark:text-stone-300",
+              effectiveStatus === "cancelled" && "text-theme-text",
               (!effectiveStatus || effectiveStatus === "pending") &&
-                "text-stone-600 dark:text-stone-400",
+                "text-theme-text-secondary",
             )}
           >
             {formattedAgentName}
           </span>
           {input && (
-            <p className="text-[11px] text-stone-400 dark:text-stone-500 truncate mt-px">
+            <p className="text-[11px] text-theme-text-tertiary truncate mt-px">
               {input}
             </p>
           )}
@@ -896,9 +904,9 @@ export function SandboxItem({
       animatedDots={status === "starting"}
     >
       {isExpanded && hasDetails && (
-        <div className="mt-1 ml-4 pl-3 border-l-2 border-stone-300 dark:border-stone-600 max-h-40 overflow-y-auto">
+        <div className="mt-1 ml-4 pl-3 border-l-2 border-theme-border max-h-40 overflow-y-auto">
           {status === "ready" && sandboxId && (
-            <div className="text-xs text-stone-600 dark:text-stone-300 pl-1 py-1 font-mono">
+            <div className="text-xs text-theme-text pl-1 py-1 font-mono">
               {t("chat.sandboxId", { id: sandboxId })}
             </div>
           )}

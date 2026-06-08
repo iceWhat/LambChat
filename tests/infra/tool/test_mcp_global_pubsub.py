@@ -67,6 +67,30 @@ async def test_mcp_cache_pubsub_subscribes_to_invalidation_channel(
 
 
 @pytest.mark.asyncio
+async def test_close_mcp_cache_pubsub_stops_and_releases_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_hub = _FakeHub()
+    monkeypatch.setattr("src.infra.tool.mcp_global.get_pubsub_hub", lambda: fake_hub)
+    pubsub = mcp_global.get_mcp_cache_pubsub()
+    await pubsub.start_listener()
+
+    await mcp_global.close_mcp_cache_pubsub()
+
+    assert mcp_global._mcp_cache_pubsub is None
+    assert fake_hub.unsubscribed == ["token-1"]
+
+
+@pytest.mark.asyncio
+async def test_close_mcp_cache_pubsub_does_not_create_singleton_when_unused() -> None:
+    mcp_global._mcp_cache_pubsub = None
+
+    await mcp_global.close_mcp_cache_pubsub()
+
+    assert mcp_global._mcp_cache_pubsub is None
+
+
+@pytest.mark.asyncio
 async def test_mcp_cache_pubsub_invalidates_foreign_user_cache(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -126,6 +150,52 @@ async def test_invalidate_global_cache_publishes_cross_instance_notification(
             ),
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_close_global_mcp_cache_closes_managers_without_publishing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FakeRedisClient()
+    monkeypatch.setattr("src.infra.tool.mcp_global.get_redis_client", lambda: fake_redis)
+
+    first_manager = _FakeManager()
+    second_manager = _FakeManager()
+    mcp_global._global_entries["user-1"] = mcp_global.GlobalMCPEntry(
+        manager=first_manager,
+        tools=[],
+    )
+    mcp_global._global_entries["user-2"] = mcp_global.GlobalMCPEntry(
+        manager=second_manager,
+        tools=[],
+    )
+
+    count = await mcp_global.close_global_mcp_cache()
+
+    assert count == 2
+    assert mcp_global._global_entries == {}
+    assert first_manager.close_calls == 1
+    assert second_manager.close_calls == 1
+    assert fake_redis.published == []
+
+
+@pytest.mark.asyncio
+async def test_schedule_manager_close_accepts_future_returned_by_close() -> None:
+    class _FutureCloseManager:
+        def __init__(self) -> None:
+            self.close_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+        def close(self) -> asyncio.Future[None]:
+            asyncio.get_running_loop().call_later(0.01, self.close_future.set_result, None)
+            return self.close_future
+
+    mcp_global._background_tasks.clear()
+    manager = _FutureCloseManager()
+
+    mcp_global._schedule_manager_close(manager)  # type: ignore[arg-type]
+    await mcp_global.drain_background_tasks(timeout=1)
+
+    assert manager.close_future.done() is True
 
 
 def test_global_mcp_cache_uses_configured_max_entries(

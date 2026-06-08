@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { ChevronDown, X, Search, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { roleApi } from "../../services/api/role";
+import { McpSelectorEmptyState } from "./McpSelectorEmptyState";
 
 interface RoleSelectorProps {
   selectedRoles: string[];
@@ -136,17 +137,15 @@ export function RoleSelector({ selectedRoles, onChange }: RoleSelectorProps) {
           {/* Options */}
           <div className="max-h-48 overflow-y-auto p-1">
             {loading ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
-                ...
-              </div>
+              <McpSelectorEmptyState>...</McpSelectorEmptyState>
             ) : availableRoles.length === 0 ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
+              <McpSelectorEmptyState>
                 {t("mcp.form.noRoles")}
-              </div>
+              </McpSelectorEmptyState>
             ) : filteredRoles.length === 0 ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
+              <McpSelectorEmptyState>
                 {t("mcp.form.noMatchingRoles")}
-              </div>
+              </McpSelectorEmptyState>
             ) : (
               filteredRoles.map((role) => (
                 <label

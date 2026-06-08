@@ -35,6 +35,27 @@ class _FakeArqPool:
         self.wait_closed_calls += 1
 
 
+class _FutureCloseArqPool(_FakeArqPool):
+    def __init__(self) -> None:
+        super().__init__()
+        self.close_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self.wait_closed_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+    def close(self) -> asyncio.Future[None]:
+        self.close_calls += 1
+        asyncio.get_running_loop().call_later(0.01, self.close_future.set_result, None)
+        return self.close_future
+
+    def wait_closed(self) -> asyncio.Future[None]:
+        self.wait_closed_calls += 1
+        asyncio.get_running_loop().call_later(
+            0.01,
+            self.wait_closed_future.set_result,
+            None,
+        )
+        return self.wait_closed_future
+
+
 class _LockCheckingArqPool(_FakeArqPool):
     def __init__(self, manager: BackgroundTaskManager) -> None:
         super().__init__()
@@ -106,6 +127,35 @@ async def test_submit_arq_persists_payload_and_enqueues_job() -> None:
     assert payload_store.saved[0][1]["trace_id"] == "trace-1"
     assert payload_store.saved[0][1]["display_message"] == "hello display"
     assert arq_pool.enqueued == [("run_agent_task", ("run-1",), {"_job_id": "run-1"})]
+
+
+@pytest.mark.asyncio
+async def test_submit_arq_passes_session_metadata_to_initial_session() -> None:
+    manager = BackgroundTaskManager()
+    fake_executor = _FakeExecutor()
+    payload_store = _FakePayloadStore()
+    arq_pool = _FakeArqPool()
+    manager._executor = fake_executor  # type: ignore[assignment]
+
+    session_metadata = {
+        "source": "scheduled_task",
+        "scheduled_task_id": "task-1",
+        "hidden_from_conversation_list": True,
+    }
+
+    await manager.submit_arq(
+        session_id="session-1",
+        agent_id="search",
+        message="hello",
+        user_id="user-1",
+        executor_key="agent_stream",
+        payload_store=cast(Any, payload_store),
+        arq_pool=arq_pool,
+        run_id="run-1",
+        session_metadata=session_metadata,
+    )
+
+    assert fake_executor.ensure_calls[0][1]["session_metadata"] == session_metadata
 
 
 @pytest.mark.asyncio
@@ -202,6 +252,21 @@ async def test_submit_arq_reuses_manager_owned_pool_until_shutdown(
 
     assert created_pools[0].close_calls == 1
     assert created_pools[0].wait_closed_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_awaits_future_returned_by_arq_pool_close_methods() -> None:
+    manager = BackgroundTaskManager()
+    arq_pool = _FutureCloseArqPool()
+    manager._arq_pool = arq_pool
+
+    await manager.shutdown()
+
+    assert arq_pool.close_calls == 1
+    assert arq_pool.wait_closed_calls == 1
+    assert arq_pool.close_future.done() is True
+    assert arq_pool.wait_closed_future.done() is True
+    assert manager._arq_pool is None
 
 
 @pytest.mark.asyncio

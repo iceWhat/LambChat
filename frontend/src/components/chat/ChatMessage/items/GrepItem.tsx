@@ -1,10 +1,14 @@
 import { memo, useMemo } from "react";
-import { Clock, Search, FileText } from "lucide-react";
+import { Search, FileText } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, CopyButton } from "../../../common";
+import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { extractText } from "./toolUtils";
 import { openPersistentToolPanel } from "./persistentToolPanelState";
+import { ToolArgsBlock } from "./ToolArgsBlock";
+import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { ToolInlineDetails } from "./ToolInlineDetails";
+import { ToolDurationFooter } from "./ToolDurationFooter";
 
 const GrepItem = memo(function GrepItem({
   args,
@@ -24,22 +28,9 @@ const GrepItem = memo(function GrepItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const durationFooter = useMemo(() => {
-    if (!startedAt || !completedAt) return undefined;
-    const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-    if (ms < 0) return undefined;
-    const seconds = Math.round(ms / 1000);
-    const text =
-      seconds < 60
-        ? `${seconds}s`
-        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-    return (
-      <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-stone-400 dark:text-stone-500 border-t border-stone-100 dark:border-stone-800">
-        <Clock size={11} className="shrink-0" />
-        <span className="tabular-nums">{text}</span>
-      </div>
-    );
-  }, [startedAt, completedAt]);
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
   const pattern = (args.pattern as string) || "";
   const searchPath = (args.path as string) || "";
   const glob = (args.glob as string) || "";
@@ -92,28 +83,28 @@ const GrepItem = memo(function GrepItem({
         : "error";
 
   const detailContent = canExpand && (
-    <div className="p-4 sm:p-5 space-y-3">
-      <div className="group/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-500 dark:text-stone-400 font-mono flex-wrap">
-        <span className="text-violet-600 dark:text-violet-400 font-semibold">
+    <div className="p-4 sm:p-5 space-y-4">
+      <ToolArgsBlock size="detail" wrap>
+        <Search
+          size={14}
+          className="shrink-0 text-violet-500 dark:text-violet-400"
+        />
+        <span className="text-violet-600 dark:text-violet-400 font-semibold font-mono">
           {pattern}
         </span>
         {searchPath && (
-          <span className="text-stone-400 dark:text-stone-500">
-            in {searchPath}
-          </span>
+          <span className="text-theme-text-tertiary">in {searchPath}</span>
         )}
         {glob && (
-          <span className="shrink-0 px-2 py-0.5 rounded-md bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300 text-xs">
+          <span className="shrink-0 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-theme-text-secondary text-xs ring-1 ring-theme-border/50">
             {glob}
           </span>
         )}
-        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-          <CopyButton text={pattern} size={12} />
-        </div>
-      </div>
+        <ToolHoverCopyButton text={pattern} position="args" />
+      </ToolArgsBlock>
       {parsedResult.files.length > 0 && (
         <div>
-          <div className="text-xs text-stone-400 dark:text-stone-500 mb-2">
+          <div className="text-xs text-theme-text-tertiary mb-2">
             {t("chat.message.toolFileCount", {
               count: parsedResult.files.length,
             })}
@@ -122,14 +113,14 @@ const GrepItem = memo(function GrepItem({
             {parsedResult.files.slice(0, 20).map((f, i) => (
               <span
                 key={i}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 font-mono"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-theme-bg-subtle text-xs text-theme-text-secondary font-mono"
               >
                 <FileText size={11} className="shrink-0 opacity-40" />
                 {f.split("/").pop() || f}
               </span>
             ))}
             {parsedResult.files.length > 20 && (
-              <span className="text-xs text-stone-400 dark:text-stone-500 px-1 py-1">
+              <span className="text-xs text-theme-text-tertiary px-1 py-1">
                 +{parsedResult.files.length - 20} more
               </span>
             )}
@@ -137,19 +128,18 @@ const GrepItem = memo(function GrepItem({
         </div>
       )}
       {outputMode === "content" && parsedResult.lines.length > 0 && (
-        <div className="relative group rounded-lg border border-stone-200/60 dark:border-stone-700/50 overflow-hidden">
+        <div className="relative group rounded-lg border border-theme-border overflow-hidden">
           <DeferredCodeMirrorViewer
             value={parsedResult.lines.join("\n")}
             lineNumbers={false}
             fontSize="0.8rem"
           />
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <CopyButton
-              text={parsedResult.lines.join("\n")}
-              size={14}
-              className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-            />
-          </div>
+          <ToolHoverCopyButton
+            text={parsedResult.lines.join("\n")}
+            size={14}
+            position="panel"
+            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+          />
         </div>
       )}
       {result &&
@@ -158,15 +148,13 @@ const GrepItem = memo(function GrepItem({
           return text &&
             parsedResult.lines.length === 0 &&
             parsedResult.files.length === 0 ? (
-            <pre className="group/result relative text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words p-3 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50">
+            <pre className="group/result relative text-xs text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
               {text}
-              <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                <CopyButton
-                  text={text}
-                  size={12}
-                  className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md"
-                />
-              </div>
+              <ToolHoverCopyButton
+                text={text}
+                position="result"
+                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md"
+              />
             </pre>
           ) : null;
         })()}
@@ -194,28 +182,26 @@ const GrepItem = memo(function GrepItem({
         }}
       >
         {canExpand && (
-          <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 max-h-80 overflow-y-auto min-w-0">
-            <div className="group/args relative flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono flex-wrap">
+          <ToolInlineDetails>
+            <ToolArgsBlock size="compact" wrap>
               <span className="text-violet-600 dark:text-violet-400 font-semibold">
                 {pattern}
               </span>
               {searchPath && (
-                <span className="text-stone-400 dark:text-stone-500">
+                <span className="text-theme-text-tertiary">
                   {t("chat.message.toolInPath", { path: searchPath })}
                 </span>
               )}
               {glob && (
-                <span className="shrink-0 px-1.5 py-0.5 rounded bg-stone-200 dark:bg-stone-700 text-stone-600 dark:text-stone-300">
+                <span className="shrink-0 px-1.5 py-0.5 rounded bg-theme-bg-subtle text-theme-text-secondary">
                   {glob}
                 </span>
               )}
-              <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-                <CopyButton text={pattern} size={12} />
-              </div>
-            </div>
+              <ToolHoverCopyButton text={pattern} position="argsCompact" />
+            </ToolArgsBlock>
             {parsedResult.files.length > 0 && (
               <div className="mb-2">
-                <div className="text-xs text-stone-400 dark:text-stone-500 mb-1">
+                <div className="text-xs text-theme-text-tertiary mb-1">
                   {t("chat.message.toolFileCount", {
                     count: parsedResult.files.length,
                   })}
@@ -224,14 +210,14 @@ const GrepItem = memo(function GrepItem({
                   {parsedResult.files.slice(0, 10).map((f, i) => (
                     <span
                       key={i}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-600 dark:text-stone-300 font-mono"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-theme-bg-subtle text-xs text-theme-text-secondary font-mono"
                     >
                       <FileText size={10} className="shrink-0 opacity-40" />
                       {f.split("/").pop() || f}
                     </span>
                   ))}
                   {parsedResult.files.length > 10 && (
-                    <span className="text-xs text-stone-400 dark:text-stone-500 px-1">
+                    <span className="text-xs text-theme-text-tertiary px-1">
                       {t("chat.message.toolMoreFiles", {
                         count: parsedResult.files.length - 10,
                       })}
@@ -241,21 +227,19 @@ const GrepItem = memo(function GrepItem({
               </div>
             )}
             {outputMode === "content" && parsedResult.lines.length > 0 && (
-              <div className="relative group max-h-48 overflow-y-auto rounded-md border border-stone-200/60 dark:border-stone-700/50">
+              <div className="relative group max-h-48 overflow-y-auto rounded-md border border-theme-border">
                 <DeferredCodeMirrorViewer
                   value={parsedResult.lines.slice(0, 50).join("\n")}
                   lineNumbers={false}
                   fontSize="0.75rem"
                 />
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <CopyButton
-                    text={parsedResult.lines.slice(0, 50).join("\n")}
-                    size={12}
-                    className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-                  />
-                </div>
+                <ToolHoverCopyButton
+                  text={parsedResult.lines.slice(0, 50).join("\n")}
+                  position="panelCompact"
+                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+                />
                 {parsedResult.lines.length > 50 && (
-                  <div className="text-stone-400 dark:text-stone-500 mt-1 text-xs px-2 pb-2">
+                  <div className="text-theme-text-tertiary mt-1 text-xs px-2 pb-2">
                     {t("chat.message.toolMoreLines", {
                       count: parsedResult.lines.length - 50,
                     })}
@@ -269,15 +253,13 @@ const GrepItem = memo(function GrepItem({
                 return text &&
                   parsedResult.lines.length === 0 &&
                   parsedResult.files.length === 0 ? (
-                  <pre className="group/result relative text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words overflow-y-auto min-w-0">
+                  <pre className="group/result relative text-xs text-theme-text-tertiary whitespace-pre-wrap break-words overflow-y-auto min-w-0">
                     {text}
-                    <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                      <CopyButton text={text} size={12} />
-                    </div>
+                    <ToolHoverCopyButton text={text} position="resultCompact" />
                   </pre>
                 ) : null;
               })()}
-          </div>
+          </ToolInlineDetails>
         )}
       </CollapsiblePill>
     </>

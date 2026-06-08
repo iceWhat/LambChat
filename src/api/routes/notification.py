@@ -23,6 +23,15 @@ def get_notification_manager() -> NotificationManager:
     return NotificationManager()
 
 
+async def close_notification_manager() -> None:
+    if get_notification_manager.cache_info().currsize == 0:
+        return
+    try:
+        await get_notification_manager().close()
+    finally:
+        get_notification_manager.cache_clear()
+
+
 @router.get("/active")
 async def get_active_notifications(
     user: TokenPayload = Depends(get_current_user_required),

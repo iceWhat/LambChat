@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.infra.upload.file_record import FileRecordStorage
@@ -33,3 +35,30 @@ async def test_add_references_bounds_unique_keys_before_mongo_update() -> None:
     assert modified == 100
     query, _update = storage.collection.update_calls[0]
     assert len(query["key"]["$in"]) == storage.REFERENCE_KEYS_MAX
+
+
+@pytest.mark.asyncio
+async def test_close_cancels_inflight_index_task_and_resets_lazy_state() -> None:
+    started = asyncio.Event()
+
+    class _SlowIndexStorage(FileRecordStorage):
+        async def _ensure_indexes(self) -> None:
+            started.set()
+            await asyncio.Event().wait()
+
+    storage = _SlowIndexStorage()
+
+    await storage.ensure_indexes_if_needed()
+    first_task = storage._indexes_task
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    await storage.ensure_indexes_if_needed()
+
+    assert storage._indexes_task is first_task
+
+    await storage.close()
+
+    assert first_task.cancelled() is True
+    assert storage._indexes_task is None
+    assert storage._collection is None
+    assert not hasattr(storage, "_indexes_ensured")

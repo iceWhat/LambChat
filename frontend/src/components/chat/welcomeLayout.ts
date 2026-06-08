@@ -66,14 +66,11 @@ export function getWelcomeSuggestionButtonClass(_index: number): string {
 }
 
 export function getWelcomeSuggestionsContainerClass(
-  variant: "personas" | "prompts",
+  _variant: "personas" | "prompts",
 ): string {
   const base =
-    "welcome-suggestions relative px-0 sm:px-4 sm:mt-1.5 md:mt-2 xl:mt-3 2xl:mt-3";
-  if (variant === "personas") {
-    return `${base} w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]`;
-  }
-  return `${base} w-[85%] sm:max-w-[38rem] md:max-w-[40rem] lg:max-w-[42rem] xl:max-w-[44rem] 2xl:max-w-[46rem]`;
+    "welcome-suggestions relative mx-auto px-2 sm:px-0 sm:mt-2 md:mt-2.5 xl:mt-3 2xl:mt-3 w-full sm:max-w-[44rem] md:max-w-[46rem] lg:max-w-[48rem] xl:max-w-[50rem] 2xl:max-w-[52rem]";
+  return base;
 }
 
 export function resolveLocalizedText(

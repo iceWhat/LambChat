@@ -482,8 +482,17 @@ class EmailService:
             await self._http_client.aclose()
             self._http_client = None
             logger.info("[EmailService] HTTP client closed")
+        if EmailService._instance is self:
+            EmailService._instance = None
 
 
 async def get_email_service() -> EmailService:
     """Get the singleton EmailService instance."""
     return await EmailService.get_instance()
+
+
+async def close_email_service() -> None:
+    """Close the singleton EmailService without creating it during shutdown."""
+    service = EmailService._instance
+    if service is not None:
+        await service.close()

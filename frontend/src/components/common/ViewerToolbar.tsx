@@ -1,3 +1,4 @@
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { ZoomIn, ZoomOut, RotateCcw, RotateCw, Shrink } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import clsx from "clsx";
@@ -14,6 +15,31 @@ interface ViewerToolbarProps {
   onRotateRight: () => void;
   onReset: () => void;
   className?: string;
+}
+
+interface ViewerToolbarButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+  icon: ReactNode;
+}
+
+function ViewerToolbarButton({
+  icon,
+  className,
+  type = "button",
+  ...props
+}: ViewerToolbarButtonProps) {
+  return (
+    <button
+      type={type}
+      className={clsx(
+        "flex shrink-0 items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70 disabled:opacity-50 disabled:cursor-not-allowed",
+        className,
+      )}
+      {...props}
+    >
+      {icon}
+    </button>
+  );
 }
 
 export function ViewerToolbar({
@@ -41,25 +67,19 @@ export function ViewerToolbar({
       {showRotation && (
         <>
           <div className="flex items-center rounded-xl hover:bg-white/5 transition-colors">
-            <button
-              type="button"
+            <ViewerToolbarButton
               onClick={onRotateLeft}
-              className="flex items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70"
               aria-label={t("imageViewer.rotateLeft")}
               title={t("imageViewer.rotateLeft")}
-            >
-              <RotateCcw size={18} />
-            </button>
+              icon={<RotateCcw size={18} />}
+            />
 
-            <button
-              type="button"
+            <ViewerToolbarButton
               onClick={onRotateRight}
-              className="flex items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70"
               aria-label={t("imageViewer.rotateRight")}
               title={t("imageViewer.rotateRight")}
-            >
-              <RotateCw size={18} />
-            </button>
+              icon={<RotateCw size={18} />}
+            />
           </div>
 
           <div className="w-px h-5 sm:h-6 bg-white/20 mx-0.5 sm:mx-1" />
@@ -67,45 +87,36 @@ export function ViewerToolbar({
       )}
 
       <div className="flex items-center rounded-xl hover:bg-white/5 transition-colors">
-        <button
-          type="button"
+        <ViewerToolbarButton
           onClick={onZoomOut}
           disabled={scale <= minScale}
-          className="flex items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={t("imageViewer.zoomOut")}
           title={t("imageViewer.zoomOut")}
-        >
-          <ZoomOut size={18} />
-        </button>
+          icon={<ZoomOut size={18} />}
+        />
 
         <span className="min-w-[48px] sm:min-w-[52px] text-center text-white/70 text-xs sm:text-sm font-medium tabular-nums">
           {scalePercentage}%
         </span>
 
-        <button
-          type="button"
+        <ViewerToolbarButton
           onClick={onZoomIn}
           disabled={scale >= maxScale}
-          className="flex items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={t("imageViewer.zoomIn")}
           title={t("imageViewer.zoomIn")}
-        >
-          <ZoomIn size={18} />
-        </button>
+          icon={<ZoomIn size={18} />}
+        />
       </div>
 
       <div className="w-px h-5 sm:h-6 bg-white/20 mx-0.5 sm:mx-1" />
 
       <div className="flex items-center rounded-xl hover:bg-white/5 transition-colors">
-        <button
-          type="button"
+        <ViewerToolbarButton
           onClick={onReset}
-          className="flex items-center justify-center size-8 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-white/70"
           aria-label={t("imageViewer.reset")}
           title={t("imageViewer.reset")}
-        >
-          <Shrink size={18} />
-        </button>
+          icon={<Shrink size={18} />}
+        />
       </div>
     </div>
   );

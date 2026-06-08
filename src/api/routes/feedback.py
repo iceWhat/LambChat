@@ -34,6 +34,15 @@ def get_feedback_manager() -> FeedbackManager:
     return FeedbackManager()
 
 
+async def close_feedback_manager() -> None:
+    if get_feedback_manager.cache_info().currsize == 0:
+        return
+    try:
+        await get_feedback_manager().close()
+    finally:
+        get_feedback_manager.cache_clear()
+
+
 def validate_object_id(id_str: str) -> ObjectId:
     """验证并转换字符串为 ObjectId"""
     try:

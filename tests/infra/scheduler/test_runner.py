@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -9,7 +10,9 @@ import pytest
 
 from src.infra.scheduler.runner import ScheduledTaskRunner
 from src.infra.task.status import TaskStatus
+from src.kernel.schemas.channel import ChannelType
 from src.kernel.schemas.scheduled_task import (
+    ChannelDeliveryConfig,
     RunStatus,
     ScheduledTask,
     ScheduledTaskStatus,
@@ -30,6 +33,7 @@ def _make_task(**overrides: Any) -> ScheduledTask:
         owner_id="user_1",
         timeout_seconds=60,
         max_retries=0,
+        created_at=datetime(2026, 6, 8, 5, 0, tzinfo=timezone.utc),
     )
     defaults.update(overrides)
     return ScheduledTask(**defaults)
@@ -50,6 +54,10 @@ def mock_lock():
             "src.infra.scheduler.runner.acquire_task_lock",
             new=AsyncMock(return_value="token"),
         ),
+        patch(
+            "src.infra.scheduler.runner.acquire_task_slot_lock",
+            new=AsyncMock(return_value=True),
+        ),
         patch("src.infra.scheduler.runner.release_task_lock", new=AsyncMock()),
     ):
         yield
@@ -67,6 +75,10 @@ async def test_runner_lock_ttl_covers_all_attempts(
             "src.infra.scheduler.runner.acquire_task_lock",
             new=AsyncMock(return_value="token"),
         ) as acquire_lock,
+        patch(
+            "src.infra.scheduler.runner.acquire_task_slot_lock",
+            new=AsyncMock(return_value=True),
+        ),
         patch("src.infra.scheduler.runner.release_task_lock", new=AsyncMock()),
     ):
         runner = ScheduledTaskRunner()
@@ -78,6 +90,93 @@ async def test_runner_lock_ttl_covers_all_attempts(
 
     acquire_lock.assert_awaited_once()
     assert acquire_lock.call_args.kwargs["ttl"] >= 180
+
+
+@pytest.mark.asyncio
+async def test_runner_skips_when_distributed_schedule_slot_is_claimed(
+    mock_storage: AsyncMock,
+) -> None:
+    task = _make_task()
+    mock_storage.get_task = AsyncMock(return_value=task)
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock()  # type: ignore[method-assign]
+
+    with (
+        patch(
+            "src.infra.scheduler.runner.acquire_task_slot_lock",
+            new=AsyncMock(return_value=False),
+        ) as acquire_slot,
+        patch(
+            "src.infra.scheduler.runner.acquire_task_lock",
+            new=AsyncMock(return_value="token"),
+        ) as acquire_lock,
+    ):
+        result = await runner.run("task_1", trigger_type="interval")
+
+    assert result == {"skipped": True, "reason": "slot_contended"}
+    acquire_slot.assert_awaited_once()
+    acquire_lock.assert_not_awaited()
+    runner._execute_agent.assert_not_awaited()
+    mock_storage.create_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_runner_manual_run_bypasses_distributed_schedule_slot(
+    mock_storage: AsyncMock,
+) -> None:
+    task = _make_task()
+    mock_storage.get_task = AsyncMock(return_value=task)
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
+        return_value={"session_status": "completed", "session_id": "session_1"}
+    )
+
+    with (
+        patch(
+            "src.infra.scheduler.runner.acquire_task_slot_lock",
+            new=AsyncMock(return_value=False),
+        ) as acquire_slot,
+        patch(
+            "src.infra.scheduler.runner.acquire_task_lock",
+            new=AsyncMock(return_value="token"),
+        ),
+        patch("src.infra.scheduler.runner.release_task_lock", new=AsyncMock()),
+    ):
+        result = await runner.run("task_1", trigger_type="manual")
+
+    assert result["status"] == RunStatus.SUCCESS.value
+    acquire_slot.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_runner_allows_first_run_on_start_before_interval_due(
+    mock_storage: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 6, 8, 5, 0, tzinfo=timezone.utc)
+    task = _make_task(run_on_start=True, total_runs=0, created_at=now)
+    mock_storage.get_task = AsyncMock(return_value=task)
+    monkeypatch.setattr("src.infra.scheduler.runner.utc_now", lambda: now)
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
+        return_value={"session_status": "completed", "session_id": "session_1"}
+    )
+
+    with (
+        patch(
+            "src.infra.scheduler.runner.acquire_task_slot_lock",
+            new=AsyncMock(return_value=True),
+        ) as acquire_slot,
+        patch(
+            "src.infra.scheduler.runner.acquire_task_lock",
+            new=AsyncMock(return_value="token"),
+        ),
+        patch("src.infra.scheduler.runner.release_task_lock", new=AsyncMock()),
+    ):
+        result = await runner.run("task_1", trigger_type="interval")
+
+    assert result["status"] == RunStatus.SUCCESS.value
+    assert acquire_slot.call_args.args[1].startswith("run_on_start:")
 
 
 @pytest.mark.asyncio
@@ -137,6 +236,78 @@ async def test_runner_retries_until_success(
     assert retry_updates == [0, 1]
     final_update = mock_storage.update_run.call_args_list[-1].args[1]
     assert final_update["status"] == RunStatus.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_runner_sends_success_result_to_configured_channel(
+    mock_storage: AsyncMock,
+    mock_lock: None,
+) -> None:
+    task = _make_task(
+        delivery=ChannelDeliveryConfig(
+            channel_type="feishu",
+            chat_id="oc_target",
+            channel_instance_id="bot_a",
+        )
+    )
+    mock_storage.get_task = AsyncMock(return_value=task)
+    runner = ScheduledTaskRunner()
+    runner._execute_agent = AsyncMock(  # type: ignore[method-assign]
+        return_value={
+            "session_status": "completed",
+            "session_id": "session_1",
+            "trace_id": "trace_1",
+        }
+    )
+
+    trace_storage = AsyncMock()
+    trace_storage.get_run_events = AsyncMock(
+        return_value=[
+            {"event_type": "user:message", "data": {"content": "Generate report"}},
+            {"event_type": "message", "data": {"role": "assistant", "content": "Report ready"}},
+        ]
+    )
+    coordinator = AsyncMock()
+    coordinator.send_message = AsyncMock(return_value=True)
+
+    with (
+        patch("src.infra.scheduler.runner.get_trace_storage", return_value=trace_storage),
+        patch("src.infra.scheduler.runner.get_channel_coordinator", return_value=coordinator),
+    ):
+        result = await runner.run("task_1")
+
+    assert result["status"] == RunStatus.SUCCESS.value
+    trace_storage.get_run_events.assert_awaited_once()
+    assert trace_storage.get_run_events.call_args.args[0] == "session_1"
+    sent_run_id = trace_storage.get_run_events.call_args.args[1]
+    assert isinstance(sent_run_id, str)
+    coordinator.send_message.assert_awaited_once_with(
+        "user_1",
+        ChannelType.FEISHU,
+        "oc_target",
+        "Report ready",
+        instance_id="bot_a",
+    )
+    final_update = mock_storage.update_run.call_args_list[-1].args[1]
+    assert final_update["status"] == RunStatus.SUCCESS
+    assert final_update["output_result"]["delivery"] == {
+        "status": "sent",
+        "channel_type": "feishu",
+        "chat_id": "oc_target",
+        "channel_instance_id": "bot_a",
+    }
+
+
+def test_extract_channel_delivery_text_uses_assistant_chunks_only() -> None:
+    events = [
+        {"event_type": "message", "data": {"role": "user", "content": "Do not send me"}},
+        {"event_type": "message:chunk", "data": {"content": "Hello "}},
+        {"event_type": "message:chunk", "data": {"content": "world"}},
+    ]
+
+    text = ScheduledTaskRunner._extract_channel_delivery_text(events, max_content_chars=100)
+
+    assert text == "Hello world"
 
 
 @pytest.mark.asyncio
@@ -246,6 +417,12 @@ async def test_execute_agent_hides_injected_timestamp_from_display(
     assert "[User message sent at:" not in submitted["display_message"]
     assert "[User message sent at:" not in submitted["recommendation_input"]
     assert submitted["write_user_message_immediately"] is True
+    assert submitted["session_metadata"] == {
+        "source": "scheduled_task",
+        "scheduled_task_id": "task_1",
+        "scheduled_task_run_id": "run_1",
+        "hidden_from_conversation_list": True,
+    }
     assert session_manager.metadata == {
         "source": "scheduled_task",
         "scheduled_task_id": "task_1",
@@ -312,4 +489,10 @@ async def test_execute_agent_uses_arq_backend_when_enabled(
     assert submitted["run_id"] == "run_1"
     assert submitted["session_id"] == "session_1"
     assert submitted["display_message"] == "Run distributed report"
+    assert submitted["session_metadata"] == {
+        "source": "scheduled_task",
+        "scheduled_task_id": "task_1",
+        "scheduled_task_run_id": "run_1",
+        "hidden_from_conversation_list": True,
+    }
     assert submitted["write_user_message_immediately"] is True

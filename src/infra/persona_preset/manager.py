@@ -301,6 +301,10 @@ class PersonaPresetManager:
 
         return set(await self.skill_storage.get_all_user_skill_names(user_id))
 
+    async def close(self) -> None:
+        await self.storage.close()
+        await self.skill_storage.close()
+
 
 _persona_preset_manager: Optional[PersonaPresetManager] = None
 
@@ -311,3 +315,11 @@ def get_persona_preset_manager() -> PersonaPresetManager:
     if _persona_preset_manager is None:
         _persona_preset_manager = PersonaPresetManager()
     return _persona_preset_manager
+
+
+async def close_persona_preset_manager() -> None:
+    global _persona_preset_manager
+    manager = _persona_preset_manager
+    _persona_preset_manager = None
+    if manager is not None:
+        await manager.close()

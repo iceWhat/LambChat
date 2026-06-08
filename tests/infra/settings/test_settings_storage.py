@@ -48,6 +48,20 @@ async def test_get_all_bounds_settings_query() -> None:
 
 
 @pytest.mark.asyncio
+async def test_settings_storage_close_clears_local_client_reference() -> None:
+    from src.infra.settings.storage import SettingsStorage
+
+    storage = SettingsStorage()
+    storage._client = object()
+    storage._collection = _FakeCollection()
+
+    await storage.close()
+
+    assert storage._client is None
+    assert storage._collection is None
+
+
+@pytest.mark.asyncio
 async def test_settings_service_get_offloads_env_json_parsing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

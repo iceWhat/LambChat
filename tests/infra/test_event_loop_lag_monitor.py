@@ -4,6 +4,7 @@ import asyncio
 
 import pytest
 
+from src.infra.monitoring import event_loop as event_loop_module
 from src.infra.monitoring.event_loop import EventLoopLagMonitor
 
 
@@ -30,3 +31,23 @@ async def test_event_loop_lag_monitor_logs_when_lag_exceeds_threshold() -> None:
 
     assert logger.warnings
     assert "Event loop lag detected" in logger.warnings[0][0]
+
+
+@pytest.mark.asyncio
+async def test_stop_event_loop_lag_monitor_does_not_create_monitor_when_unused() -> None:
+    event_loop_module._monitor = None
+
+    await event_loop_module.stop_event_loop_lag_monitor()
+
+    assert event_loop_module._monitor is None
+
+
+@pytest.mark.asyncio
+async def test_stop_event_loop_lag_monitor_releases_singleton() -> None:
+    monitor = EventLoopLagMonitor(interval_seconds=60)
+    event_loop_module._monitor = monitor
+
+    await event_loop_module.start_event_loop_lag_monitor()
+    await event_loop_module.stop_event_loop_lag_monitor()
+
+    assert event_loop_module._monitor is None

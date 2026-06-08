@@ -19,6 +19,7 @@ MongoDB Store 实现
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import Iterable
 from datetime import datetime
 from itertools import islice
@@ -527,3 +528,26 @@ async def acreate_store() -> BaseStore | None:
         except Exception as e:
             logger.warning(f"MongoDBStore unavailable in async init, no store will be used: {e}")
             return None
+
+
+async def close_store() -> None:
+    """Release the process-local store singleton and close it if the backend supports it."""
+    global _store_instance, _store_initialized
+
+    store = _store_instance
+    _store_instance = None
+    _store_initialized = False
+
+    if store is None:
+        return
+
+    close = getattr(store, "aclose", None) or getattr(store, "close", None)
+    if close is None:
+        return
+
+    try:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    except Exception as e:
+        logger.warning("Error closing store singleton: %s", e)

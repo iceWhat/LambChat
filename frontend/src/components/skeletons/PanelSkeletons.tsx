@@ -1,6 +1,52 @@
 import { SkeletonLine } from "./primitives";
 import { PanelHeaderSkeleton } from "./PanelHeaderSkeleton";
 
+type PanelPaginationVariant = "default" | "wide" | "compact" | "transparent";
+
+const panelPaginationClasses: Record<PanelPaginationVariant, string> = {
+  default: "glass-divider px-3 py-3 sm:px-4 mt-2",
+  wide: "glass-divider px-3 py-3 sm:px-6 mt-2",
+  compact: "glass-divider px-3 py-3 mt-2",
+  transparent: "glass-divider bg-transparent px-4 py-4 sm:px-6 mt-2",
+};
+const panelSegmentedTabItemClass =
+  "flex items-center justify-center gap-2 rounded-md px-3 py-2";
+
+function PanelPaginationSkeleton({
+  variant = "default",
+}: {
+  variant?: PanelPaginationVariant;
+}) {
+  return (
+    <div className={panelPaginationClasses[variant]}>
+      <div className="flex items-center justify-center gap-2">
+        <div className="skeleton-line size-8 rounded-lg" />
+        <div className="skeleton-line w-24 h-3" />
+        <div className="skeleton-line size-8 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+function PanelSegmentedTabsSkeleton({
+  activeWidth,
+  inactiveWidth,
+}: {
+  activeWidth: string;
+  inactiveWidth: string;
+}) {
+  return (
+    <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 sm:my-3">
+      <div className={panelSegmentedTabItemClass}>
+        <SkeletonLine width={activeWidth} className="!h-4" />
+      </div>
+      <div className={panelSegmentedTabItemClass}>
+        <SkeletonLine width={inactiveWidth} className="!h-4 !opacity-50" />
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
    Panel-specific skeletons — updated to match latest layouts
    ═══════════════════════════════════════════════════════ */
@@ -75,13 +121,7 @@ export function SkillsPanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider px-3 py-3 sm:px-4 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton />
       </div>
     </div>
   );
@@ -145,13 +185,7 @@ export function MarketplacePanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider px-3 py-3 sm:px-4 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton />
       </div>
     </div>
   );
@@ -247,13 +281,7 @@ export function UsersPanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider px-3 py-3 sm:px-6 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton variant="wide" />
       </div>
     </div>
   );
@@ -318,13 +346,7 @@ export function RolesPanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider px-3 py-3 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton variant="compact" />
       </div>
     </div>
   );
@@ -337,7 +359,7 @@ export function MCPPanelSkeleton() {
       <PanelHeaderSkeleton />
       <div className="flex-1 overflow-y-auto py-2 sm:py-4 px-4">
         <div className="grid auto-grid-cols gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 12 }).map((_, i) => (
             <div
               key={i}
               className="pps-card group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--theme-border)] bg-[var(--theme-bg-card)] shadow-sm"
@@ -401,13 +423,7 @@ export function MCPPanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider px-3 py-3 sm:px-4 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton />
       </div>
     </div>
   );
@@ -505,13 +521,7 @@ export function FeedbackPanelSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line w-24 h-3" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton variant="transparent" />
       </div>
     </div>
   );
@@ -525,7 +535,7 @@ export function ScheduledTaskPanelSkeleton() {
 
       <div className="flex-1 overflow-y-auto px-4 py-3 sm:p-6">
         <div className="grid auto-grid-cols gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
+          {Array.from({ length: 12 }).map((_, i) => (
             <div
               key={i}
               className="glass-card scheduled-task-card border border-[var(--theme-border)]"
@@ -591,13 +601,7 @@ export function ScheduledTaskPanelSkeleton() {
         </div>
 
         {/* Pagination placeholder */}
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line h-3 w-24" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton variant="transparent" />
       </div>
     </div>
   );
@@ -613,7 +617,7 @@ export function TaskSessionListSkeleton() {
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="glass-card scheduled-task-session-card w-full text-left"
+              className="glass-card scheduled-task-session-card w-full text-left border border-[var(--theme-border)]"
             >
               {/* Left indicator — matches .scheduled-task-session-card__indicator (2.5rem × 2.5rem) */}
               <div className="scheduled-task-session-card__indicator">
@@ -648,13 +652,7 @@ export function TaskSessionListSkeleton() {
           ))}
         </div>
         {/* Pagination placeholder */}
-        <div className="glass-divider bg-transparent px-4 py-4 sm:px-6 mt-2">
-          <div className="flex items-center justify-center gap-2">
-            <div className="skeleton-line size-8 rounded-lg" />
-            <div className="skeleton-line h-3 w-24" />
-            <div className="skeleton-line size-8 rounded-lg" />
-          </div>
-        </div>
+        <PanelPaginationSkeleton variant="transparent" />
       </div>
     </div>
   );
@@ -668,7 +666,7 @@ export function ChannelsGridSkeleton() {
       <div className="flex-1 overflow-y-auto py-4">
         <div className="mx-auto max-w-full">
           <div className="grid auto-grid-cols gap-4 p-3 sm:p-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="scb">
                 {/* Banner */}
                 <div
@@ -816,14 +814,10 @@ export function AgentPanelSkeleton() {
     <div className="flex h-full min-h-0 flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch={false} />
       {/* Tab bar — segmented control */}
-      <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 sm:my-3">
-        <div className="flex items-center justify-center gap-2 rounded-md px-3 py-2">
-          <SkeletonLine width="w-16 sm:w-20" className="!h-4" />
-        </div>
-        <div className="flex items-center justify-center gap-2 rounded-md px-3 py-2">
-          <SkeletonLine width="w-12 sm:w-16" className="!h-4 !opacity-50" />
-        </div>
-      </div>
+      <PanelSegmentedTabsSkeleton
+        activeWidth="w-16 sm:w-20"
+        inactiveWidth="w-12 sm:w-16"
+      />
       {/* Description text */}
       <div className="px-4 sm:px-6">
         <SkeletonLine
@@ -881,14 +875,10 @@ export function ModelPanelSkeleton() {
     <div className="flex h-full min-h-0 flex-col gap-3 sm:gap-4 animate-fade-in">
       <PanelHeaderSkeleton hasSearch={false} />
       {/* Tab bar — segmented control */}
-      <div className="inline-grid grid-cols-2 rounded-lg border border-[var(--glass-border)] bg-[var(--glass-bg-subtle)] p-1 sm:my-3">
-        <div className="flex items-center justify-center gap-2 rounded-md px-3 py-2">
-          <SkeletonLine width="w-14 sm:w-16" className="!h-4" />
-        </div>
-        <div className="flex items-center justify-center gap-2 rounded-md px-3 py-2">
-          <SkeletonLine width="w-20 sm:w-28" className="!h-4 !opacity-50" />
-        </div>
-      </div>
+      <PanelSegmentedTabsSkeleton
+        activeWidth="w-14 sm:w-16"
+        inactiveWidth="w-20 sm:w-28"
+      />
       <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-6 sm:py-5 space-y-3">
         {/* Toolbar — description text + action buttons on right */}
         <div className="flex items-center justify-between gap-3">

@@ -45,6 +45,18 @@ class _FakeCollection:
         }
 
 
+class _FindOneCollection:
+    def __init__(self, doc: dict[str, Any] | None) -> None:
+        self.doc = doc
+        self.find_one_calls: list[dict[str, Any]] = []
+
+    async def find_one(self, query: dict[str, Any]) -> dict[str, Any] | None:
+        self.find_one_calls.append(query)
+        if self.doc is None:
+            return None
+        return dict(self.doc)
+
+
 async def _fake_run_blocking_io(func, *args, **kwargs):
     _fake_run_blocking_io.calls.append(func.__name__)
     return func(*args, **kwargs)
@@ -100,25 +112,51 @@ async def test_update_hashes_password_off_event_loop() -> None:
 
 
 @pytest.mark.asyncio
-async def test_authenticate_verifies_password_off_event_loop(monkeypatch) -> None:
+async def test_authenticate_verifies_password_off_event_loop() -> None:
     storage = UserStorage()
-    user = UserInDB(
-        id="user-id",
-        username="alice",
-        email="alice@example.com",
-        password_hash="hash:secret123",
-        roles=["user"],
-        permissions=[],
-        is_active=True,
-        email_verified=True,
-        created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
-        updated_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+    storage._collection = _FindOneCollection(
+        {
+            "_id": "user-id",
+            "username": "alice",
+            "email": "alice@example.com",
+            "password_hash": "hash:secret123",
+            "roles": ["user"],
+            "permissions": [],
+            "is_active": True,
+            "email_verified": True,
+            "created_at": datetime(2026, 4, 25, tzinfo=timezone.utc),
+            "updated_at": datetime(2026, 4, 25, tzinfo=timezone.utc),
+        }
     )
 
-    async def fake_get_by_username(_username: str):
-        return user
+    user = await storage.authenticate("alice", "secret123")
 
-    monkeypatch.setattr(storage, "get_by_username", fake_get_by_username)
-
-    assert await storage.authenticate("alice", "secret123") == user
+    assert user is not None
+    assert user.username == "alice"
     assert _fake_run_blocking_io.calls == ["<lambda>"]
+
+
+@pytest.mark.asyncio
+async def test_authenticate_fetches_username_or_email_with_single_query() -> None:
+    user_doc = {
+        "_id": "user-id",
+        "username": "alice",
+        "email": "alice@example.com",
+        "password_hash": "hash:secret123",
+        "roles": ["user"],
+        "permissions": [],
+        "is_active": True,
+        "email_verified": True,
+        "created_at": datetime(2026, 4, 25, tzinfo=timezone.utc),
+        "updated_at": datetime(2026, 4, 25, tzinfo=timezone.utc),
+    }
+    storage = UserStorage()
+    storage._collection = _FindOneCollection(user_doc)
+
+    user = await storage.authenticate("alice@example.com", "secret123")
+
+    assert user is not None
+    assert user.email == "alice@example.com"
+    assert storage.collection.find_one_calls == [
+        {"$or": [{"username": "alice@example.com"}, {"email": "alice@example.com"}]}
+    ]

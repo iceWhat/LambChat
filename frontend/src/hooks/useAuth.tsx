@@ -21,58 +21,28 @@ import {
   getRedirectPath,
   clearRedirectPath,
 } from "../services/api";
-import { DEFAULT_THINKING_LEVEL_STORAGE_KEY } from "../components/layout/AppContent/useAgentOptions";
+import {
+  applyUserMetadataPreferences,
+  SIDEBAR_COLLAPSED_STORAGE_KEY,
+} from "./userMetadataPreferences";
 import { Permission } from "../types";
 import type { User, UserCreate, LoginRequest, AuthState } from "../types";
 import i18n from "../i18n";
 
-export const SIDEBAR_COLLAPSED_STORAGE_KEY = "lamb-sidebar-collapsed";
+export { SIDEBAR_COLLAPSED_STORAGE_KEY };
 
 /** Apply user metadata preferences from backend */
-function applyUserMetadata(metadata?: {
-  language?: string;
-  theme?: string;
-  defaultThinkingLevel?: string;
-  sidebarCollapsed?: string;
-}) {
-  if (!metadata) return;
-
-  if (metadata.language) {
-    localStorage.setItem("language", metadata.language);
-    i18n.changeLanguage(metadata.language);
-  }
-
-  if (metadata.theme) {
-    localStorage.setItem("lamb-agent-theme", metadata.theme);
-    // Notify ThemeContext to update React state + DOM in sync
-    window.dispatchEvent(
-      new CustomEvent("theme:external-change", { detail: metadata.theme }),
-    );
-  }
-
-  if (metadata.defaultThinkingLevel) {
-    localStorage.setItem(
-      DEFAULT_THINKING_LEVEL_STORAGE_KEY,
-      metadata.defaultThinkingLevel,
-    );
-    window.dispatchEvent(
-      new CustomEvent("thinking-preference-updated", {
-        detail: metadata.defaultThinkingLevel,
-      }),
-    );
-  }
-
-  if (metadata.sidebarCollapsed !== undefined) {
-    localStorage.setItem(
-      SIDEBAR_COLLAPSED_STORAGE_KEY,
-      metadata.sidebarCollapsed,
-    );
-    window.dispatchEvent(
-      new CustomEvent("sidebar-collapsed-changed", {
-        detail: metadata.sidebarCollapsed === "true",
-      }),
-    );
-  }
+function applyUserMetadata(metadata?: User["metadata"]) {
+  applyUserMetadataPreferences({
+    metadata,
+    localStorage,
+    changeLanguage: (language) => {
+      i18n.changeLanguage(language);
+    },
+    dispatchEvent: (event) => {
+      window.dispatchEvent(event);
+    },
+  });
 }
 
 // 认证上下文类型

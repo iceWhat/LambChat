@@ -18,6 +18,13 @@ function assertCssSelector(source: string, selector: string): void {
   assert.match(source, new RegExp(`${escaped}[\\s\\S]*?\\{`));
 }
 
+function cssBlock(source: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+  assert.ok(match, `Expected CSS block for ${selector}`);
+  return match[1];
+}
+
 test("common ui primitives are exposed from a single reusable entrypoint", () => {
   const commonIndex = readSource("../index.ts");
   const uiIndex = readSource("../ui/index.ts");
@@ -52,6 +59,213 @@ test("common panel controls are exposed for consistent admin panel composition",
   assert.match(panelControls, /panel-footer-actions/);
 });
 
+test("toolbar icon button centralizes shared panel toolbar button behavior", () => {
+  const commonIndex = readSource("../index.ts");
+  const uiIndex = readSource("../ui/index.ts");
+  const toolbarIconButton = readSource("../ui/ToolbarIconButton.tsx");
+  const documentToolbar = readSource(
+    "../../documents/DocumentPreviewToolbar.tsx",
+  );
+  const toolResultPanel = readSource(
+    "../../chat/ChatMessage/items/ToolResultPanel.tsx",
+  );
+
+  assertExports(uiIndex, "ToolbarIconButton");
+  assertExports(commonIndex, "ToolbarIconButton");
+  assert.match(
+    toolbarIconButton,
+    /type ToolbarIconButtonVariant = "stone" \| "muted"/,
+  );
+  assert.match(toolbarIconButton, /stopPropagation\(\)/);
+  assert.match(toolbarIconButton, /flex shrink-0 items-center justify-center/);
+  assert.match(toolbarIconButton, /size-8 rounded-lg/);
+  assert.match(toolbarIconButton, /size-8 rounded-xl/);
+
+  assert.match(documentToolbar, /import \{[\s\S]*ToolbarIconButton/);
+  assert.match(toolResultPanel, /import \{[\s\S]*ToolbarIconButton/);
+  assert.doesNotMatch(documentToolbar, /const toolbarBtnClass/);
+  assert.doesNotMatch(toolResultPanel, /const panelBtnClass/);
+  assert.doesNotMatch(toolResultPanel, /const panelCloseBtnClass/);
+});
+
+test("floating icon button centralizes fullscreen overlay icon actions", () => {
+  const commonIndex = readSource("../index.ts");
+  const uiIndex = readSource("../ui/index.ts");
+  const floatingIconButton = readSource("../ui/FloatingIconButton.tsx");
+  const documentToolbar = readSource(
+    "../../documents/DocumentPreviewToolbar.tsx",
+  );
+  const skillFullscreen = readSource("../../skill/SkillFormFullscreen.tsx");
+
+  assertExports(uiIndex, "FloatingIconButton");
+  assertExports(commonIndex, "FloatingIconButton");
+  assert.match(floatingIconButton, /fixed right-4 z-\[410\]/);
+  assert.match(floatingIconButton, /flex shrink-0 items-center justify-center/);
+  assert.match(floatingIconButton, /w-11 h-11 rounded-xl bg-black\/80/);
+
+  assert.match(documentToolbar, /import \{[\s\S]*FloatingIconButton/);
+  assert.match(skillFullscreen, /import \{ FloatingIconButton \}/);
+  assert.doesNotMatch(documentToolbar, /w-11 h-11 rounded-xl bg-black\/80/);
+  assert.doesNotMatch(skillFullscreen, /w-11 h-11 rounded-xl bg-black\/80/);
+});
+
+test("viewer toolbar uses a fixed-size reusable icon button for overlay controls", () => {
+  const source = readSource("../ViewerToolbar.tsx");
+
+  assert.match(source, /function ViewerToolbarButton/);
+  assert.match(source, /flex shrink-0 items-center justify-center size-8/);
+  assert.match(source, /disabled:opacity-50 disabled:cursor-not-allowed/);
+  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.rotateLeft/);
+  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.zoomOut/);
+  assert.match(source, /<ViewerToolbarButton[\s\S]*imageViewer\.reset/);
+  assert.doesNotMatch(
+    source,
+    /<button[\s\S]*flex items-center justify-center size-8 rounded-lg hover:bg-white\/10/,
+  );
+});
+
+test("viewer top bar buttons keep overlay actions fixed and non-wrapping", () => {
+  const commonIndex = readSource("../index.ts");
+  const source = readSource("../ViewerTopBarButton.tsx");
+  const imageViewer = readSource("../ImageViewer.tsx");
+  const videoViewer = readSource("../VideoViewer.tsx");
+  const mermaidViewer = readSource("../../chat/ChatMessage/MermaidDiagram.tsx");
+  const excalidrawViewer = readSource(
+    "../../documents/previews/ExcalidrawPreview.tsx",
+  );
+
+  assertExports(commonIndex, "ViewerTopBarButton");
+  assert.match(source, /flex shrink-0/);
+  assert.match(source, /whitespace-nowrap/);
+  assert.match(source, /w-10 h-10/);
+  assert.match(source, /px-3 h-10/);
+  assert.match(source, /disabled:opacity-50 disabled:cursor-not-allowed/);
+
+  assert.match(imageViewer, /import \{ ViewerTopBarButton \}/);
+  assert.match(videoViewer, /import \{ ViewerTopBarButton \}/);
+  assert.match(imageViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
+  assert.match(videoViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
+  assert.match(mermaidViewer, /import \{[\s\S]*ViewerTopBarButton/);
+  assert.match(excalidrawViewer, /import \{[\s\S]*ViewerTopBarButton/);
+  assert.match(mermaidViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
+  assert.match(
+    mermaidViewer,
+    /<ViewerTopBarButton[\s\S]*imageViewer\.download/,
+  );
+  assert.match(excalidrawViewer, /<ViewerTopBarButton[\s\S]*common\.close/);
+  assert.match(
+    excalidrawViewer,
+    /<ViewerTopBarButton[\s\S]*documents\.download/,
+  );
+  assert.doesNotMatch(
+    [imageViewer, videoViewer, mermaidViewer, excalidrawViewer].join("\n"),
+    /className=\{?btnCls\}?|className="flex items-center (?:justify-center w-10 h-10|gap-1\.5 rounded-lg px-3 h-10[^"]*text-white\/70)/,
+  );
+});
+
+test("image and video viewers share direct URL download behavior", () => {
+  const commonIndex = readSource("../index.ts");
+  const helper = readSource("../viewerDownload.ts");
+  const imageViewer = readSource("../ImageViewer.tsx");
+  const videoViewer = readSource("../VideoViewer.tsx");
+
+  assertExports(commonIndex, "downloadUrl");
+  assert.match(helper, /export function downloadUrl/);
+  assert.match(helper, /document\.createElement\("a"\)/);
+  assert.match(helper, /anchor\.download = fileName \?\? ""/);
+  assert.match(helper, /anchor\.click\(\)/);
+
+  assert.match(imageViewer, /import \{ downloadUrl \}/);
+  assert.match(videoViewer, /import \{ downloadUrl \}/);
+  assert.match(imageViewer, /onClick=\{\(\) => downloadUrl\(src\)\}/);
+  assert.match(videoViewer, /onClick=\{\(\) => downloadUrl\(src\)\}/);
+  assert.doesNotMatch(
+    [imageViewer, videoViewer].join("\n"),
+    /document\.createElement\("a"\)|\.download = ""/,
+  );
+});
+
+test("diagram viewers share blob download behavior", () => {
+  const commonIndex = readSource("../index.ts");
+  const helper = readSource("../viewerDownload.ts");
+  const menuItem = readSource("../ViewerDropdownMenuItem.tsx");
+  const mermaidViewer = readSource("../../chat/ChatMessage/MermaidDiagram.tsx");
+  const documentMermaidViewer = readSource(
+    "../../documents/previews/MermaidDiagram.tsx",
+  );
+  const excalidrawViewer = readSource(
+    "../../documents/previews/ExcalidrawPreview.tsx",
+  );
+
+  assertExports(commonIndex, "downloadBlob");
+  assert.match(helper, /export function downloadBlob/);
+  assert.match(helper, /URL\.createObjectURL\(blob\)/);
+  assert.match(helper, /downloadUrl\(url, fileName\)/);
+  assert.match(helper, /URL\.revokeObjectURL\(url\)/);
+  assertExports(commonIndex, "ViewerDropdownMenuItem");
+  assert.match(
+    menuItem,
+    /type ViewerDropdownMenuItemVariant = "stone" \| "dark"/,
+  );
+  assert.match(menuItem, /whitespace-nowrap/);
+
+  assert.match(mermaidViewer, /import \{ downloadBlob \}/);
+  assert.match(mermaidViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
+  assert.match(documentMermaidViewer, /import \{ downloadBlob \}/);
+  assert.match(documentMermaidViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
+  assert.match(excalidrawViewer, /import \{ downloadBlob \}/);
+  assert.match(excalidrawViewer, /import \{[\s\S]*ViewerDropdownMenuItem/);
+  assert.match(mermaidViewer, /downloadBlob\([^)]*"diagram\.svg"/);
+  assert.match(mermaidViewer, /downloadBlob\([^)]*"diagram\.png"/);
+  assert.match(mermaidViewer, /downloadBlob\([^)]*"mermaid\.svg"/);
+  assert.match(mermaidViewer, /<ViewerDropdownMenuItem[\s\S]*SVG/);
+  assert.match(mermaidViewer, /<ViewerDropdownMenuItem[\s\S]*PNG/);
+  assert.match(documentMermaidViewer, /downloadBlob\([^)]*"diagram\.svg"/);
+  assert.match(documentMermaidViewer, /downloadBlob\([^)]*"diagram\.png"/);
+  assert.match(documentMermaidViewer, /<ViewerDropdownMenuItem[\s\S]*SVG/);
+  assert.match(documentMermaidViewer, /<ViewerDropdownMenuItem[\s\S]*PNG/);
+  assert.match(
+    excalidrawViewer,
+    /downloadBlob\([^)]*"excalidraw-diagram\.svg"/,
+  );
+  assert.match(
+    excalidrawViewer,
+    /downloadBlob\([^)]*"excalidraw-diagram\.png"/,
+  );
+  assert.match(
+    excalidrawViewer,
+    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*SVG/,
+  );
+  assert.match(
+    excalidrawViewer,
+    /<ViewerDropdownMenuItem[\s\S]*variant="dark"[\s\S]*PNG/,
+  );
+  assert.doesNotMatch(
+    [mermaidViewer, documentMermaidViewer, excalidrawViewer].join("\n"),
+    /const (?:pngUrl|url) = URL\.createObjectURL\(blob\)|URL\.revokeObjectURL\(pngUrl\)|w-full px-(?:3 py-2 text-left text-xs text-stone-700|4 py-2\.5 text-left text-sm text-white\/80)/,
+  );
+});
+
+test("overlay round icon button centralizes center-mode floating panel actions", () => {
+  const commonIndex = readSource("../index.ts");
+  const uiIndex = readSource("../ui/index.ts");
+  const source = readSource("../ui/OverlayRoundIconButton.tsx");
+  const toolResultPanel = readSource(
+    "../../chat/ChatMessage/items/ToolResultPanel.tsx",
+  );
+
+  assertExports(uiIndex, "OverlayRoundIconButton");
+  assertExports(commonIndex, "OverlayRoundIconButton");
+  assert.match(source, /flex shrink-0 items-center justify-center/);
+  assert.match(source, /w-10 h-10 rounded-full bg-black\/70/);
+  assert.match(source, /hover:bg-black\/90 text-white shadow-lg/);
+
+  assert.match(toolResultPanel, /import \{[\s\S]*OverlayRoundIconButton/);
+  assert.match(toolResultPanel, /<OverlayRoundIconButton[\s\S]*common\.back/);
+  assert.match(toolResultPanel, /<OverlayRoundIconButton[\s\S]*common\.close/);
+  assert.doesNotMatch(toolResultPanel, /rounded-full bg-black\/70/);
+});
+
 test("ui primitive styles share one visual system in components css", () => {
   const css = readSource("../../../styles/components.css");
 
@@ -75,6 +289,10 @@ test("ui primitive styles share one visual system in components css", () => {
 
   assert.match(css, /\.btn-primary\s*\{[\s\S]*?\.ui-button--primary/);
   assert.match(css, /\.glass-input\.es-input\s*\{[\s\S]*?\.ui-input/);
+
+  const buttonLabel = cssBlock(css, ".ui-button__label");
+  assert.match(buttonLabel, /display:\s*inline-flex/);
+  assert.match(buttonLabel, /white-space:\s*nowrap/);
 });
 
 test("legacy GlassSelect delegates to the shared Select primitive", () => {
@@ -184,7 +402,7 @@ test("profile info editor uses shared primitives for generic controls", () => {
   assert.match(source, /<Button[\s\S]*handleAvatarDelete/);
   assert.match(source, /<Button[\s\S]*handleUsernameUpdate/);
   assert.match(source, /<IconButton[\s\S]*setIsEditingUsername\(true\)/);
-  assert.doesNotMatch(source, /<input[\s\S]*value=\{newUsername\}/);
+  assert.doesNotMatch(source, /<input\b[^>]*value=\{newUsername\}/);
   assert.doesNotMatch(source, /<button[\s\S]*handleUsernameUpdate/);
   assert.doesNotMatch(source, /<button[\s\S]*handleAvatarDelete/);
 });

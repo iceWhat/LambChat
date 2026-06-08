@@ -92,3 +92,12 @@ def get_rate_limiter() -> RateLimiter:
     if _rate_limiter is None:
         _rate_limiter = RateLimiter()
     return _rate_limiter
+
+
+async def close_rate_limiter() -> None:
+    """Release the singleton rate limiter without creating it during shutdown."""
+    global _rate_limiter
+    limiter = _rate_limiter
+    _rate_limiter = None
+    if limiter is not None:
+        await limiter.close()

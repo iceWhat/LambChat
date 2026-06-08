@@ -1,10 +1,14 @@
-import { memo, useMemo } from "react";
-import { Clock, FilePlus } from "lucide-react";
+import { memo } from "react";
+import { FilePlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { CollapsiblePill, CopyButton } from "../../../common";
+import { CollapsiblePill } from "../../../common";
 import { DeferredCodeMirrorViewer } from "../../../common/DeferredCodeMirrorViewer";
 import { extractText } from "./toolUtils";
 import { openPersistentToolPanel } from "./persistentToolPanelState";
+import { ToolArgsBlock } from "./ToolArgsBlock";
+import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
+import { ToolInlineDetails } from "./ToolInlineDetails";
+import { ToolDurationFooter } from "./ToolDurationFooter";
 
 const WriteFileItem = memo(function WriteFileItem({
   args,
@@ -24,22 +28,9 @@ const WriteFileItem = memo(function WriteFileItem({
   completedAt?: string;
 }) {
   const { t } = useTranslation();
-  const durationFooter = useMemo(() => {
-    if (!startedAt || !completedAt) return undefined;
-    const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-    if (ms < 0) return undefined;
-    const seconds = Math.round(ms / 1000);
-    const text =
-      seconds < 60
-        ? `${seconds}s`
-        : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-    return (
-      <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-stone-400 dark:text-stone-500 border-t border-stone-100 dark:border-stone-800">
-        <Clock size={11} className="shrink-0" />
-        <span className="tabular-nums">{text}</span>
-      </div>
-    );
-  }, [startedAt, completedAt]);
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
   const filePath = (args.file_path as string) || "";
   const fileName = filePath.split("/").pop() || filePath;
   const content = (args.content as string) || "";
@@ -55,42 +46,37 @@ const WriteFileItem = memo(function WriteFileItem({
 
   const detailContent = canExpand && (
     <div className="p-4 sm:p-5 space-y-3">
-      <div className="group/args relative flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-sm text-stone-500 dark:text-stone-400 font-mono">
+      <ToolArgsBlock size="detail">
         <span className="truncate">{filePath}</span>
-        <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-          <CopyButton text={filePath} size={12} />
-        </div>
-      </div>
+        <ToolHoverCopyButton text={filePath} position="args" />
+      </ToolArgsBlock>
       {content && (
-        <div className="relative group rounded-lg border border-stone-200/60 dark:border-stone-700/50 overflow-hidden">
+        <div className="relative group rounded-lg border border-theme-border overflow-hidden">
           <DeferredCodeMirrorViewer
             value={content}
             filePath={filePath}
             lineNumbers={true}
             fontSize="0.8rem"
           />
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <CopyButton
-              text={content}
-              size={14}
-              className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-            />
-          </div>
+          <ToolHoverCopyButton
+            text={content}
+            size={14}
+            position="panel"
+            copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+          />
         </div>
       )}
       {result &&
         (() => {
           const text = extractText(result);
           return text ? (
-            <pre className="group/result relative text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words p-3 rounded-lg bg-stone-50 dark:bg-stone-900 border border-stone-200/60 dark:border-stone-700/50">
+            <pre className="group/result relative text-xs text-theme-text-tertiary whitespace-pre-wrap break-words p-3 rounded-lg bg-theme-bg border border-theme-border">
               {text}
-              <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                <CopyButton
-                  text={text}
-                  size={12}
-                  className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md"
-                />
-              </div>
+              <ToolHoverCopyButton
+                text={text}
+                position="result"
+                copyButtonClassName="!bg-theme-bg-card/80 !rounded-md"
+              />
             </pre>
           ) : null;
         })()}
@@ -119,43 +105,37 @@ const WriteFileItem = memo(function WriteFileItem({
         }}
       >
         {canExpand && (
-          <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 max-h-80 overflow-y-auto min-w-0">
-            <div className="group/args relative flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-stone-100 dark:bg-stone-800 text-xs text-stone-500 dark:text-stone-400 font-mono">
+          <ToolInlineDetails>
+            <ToolArgsBlock size="compact">
               <span className="truncate">{filePath}</span>
-              <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/args:opacity-100 transition-opacity">
-                <CopyButton text={filePath} size={12} />
-              </div>
-            </div>
+              <ToolHoverCopyButton text={filePath} position="argsCompact" />
+            </ToolArgsBlock>
             {content && (
-              <div className="relative group rounded-md border border-stone-200/60 dark:border-stone-700/50">
+              <div className="relative group rounded-md border border-theme-border">
                 <DeferredCodeMirrorViewer
                   value={content}
                   filePath={filePath}
                   lineNumbers={true}
                   fontSize="0.75rem"
                 />
-                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <CopyButton
-                    text={content}
-                    size={12}
-                    className="!bg-white/80 dark:!bg-stone-800/80 !rounded-md !border !border-stone-200 dark:!border-stone-700"
-                  />
-                </div>
+                <ToolHoverCopyButton
+                  text={content}
+                  position="panelCompact"
+                  copyButtonClassName="!bg-theme-bg-card/80 !rounded-md !border !border-theme-border"
+                />
               </div>
             )}
             {result &&
               (() => {
                 const text = extractText(result);
                 return text ? (
-                  <pre className="group/result relative text-xs text-stone-500 dark:text-stone-400 whitespace-pre-wrap break-words mt-1 overflow-y-auto min-w-0">
+                  <pre className="group/result relative text-xs text-theme-text-tertiary whitespace-pre-wrap break-words mt-1 overflow-y-auto min-w-0">
                     {text}
-                    <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                      <CopyButton text={text} size={12} />
-                    </div>
+                    <ToolHoverCopyButton text={text} position="resultCompact" />
                   </pre>
                 ) : null;
               })()}
-          </div>
+          </ToolInlineDetails>
         )}
       </CollapsiblePill>
     </>

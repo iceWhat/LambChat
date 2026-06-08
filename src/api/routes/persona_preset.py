@@ -91,7 +91,7 @@ async def create_persona_preset(
 
 @router.post("/batch", response_model=list[PersonaPreset])
 async def batch_create_persona_presets(
-    items: Annotated[list[PersonaPresetCreate], Body(max_length=100)],
+    items: Annotated[list[PersonaPresetCreate], Body(max_length=500)],
     user: TokenPayload = Depends(require_permissions("persona_preset:write")),
 ):
     """Batch create persona presets."""

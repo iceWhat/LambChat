@@ -1,5 +1,7 @@
 import { memo, useEffect, useRef, useState, useCallback } from "react";
 import { Copy, Check, Download, ChevronDown } from "lucide-react";
+import { ViewerDropdownMenuItem } from "../../common";
+import { downloadBlob } from "../../common/viewerDownload";
 import { copyToClipboard } from "../../../utils/clipboard";
 
 interface MermaidDiagramProps {
@@ -150,14 +152,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
     if (!svg) return;
 
     const blob = new Blob([svg], { type: "image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "diagram.svg";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, "diagram.svg");
   };
 
   // Helper function to extract dimensions from SVG
@@ -222,14 +217,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
       canvas.toBlob((blob) => {
         if (!blob) return;
-        const pngUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = pngUrl;
-        a.download = "diagram.png";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(pngUrl);
+        downloadBlob(blob, "diagram.png");
       }, "image/png");
     };
 
@@ -259,7 +247,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <button
           onClick={handleCopyCode}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
         >
           {copied ? (
             <>
@@ -280,7 +268,7 @@ const MermaidDiagram = memo(function MermaidDiagram({
               e.stopPropagation();
               setShowDownloadMenu(!showDownloadMenu);
             }}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-xs font-medium text-stone-600 dark:text-stone-300 transition-colors"
           >
             <Download size={14} />
             <span>{t("documents.download")}</span>
@@ -288,26 +276,24 @@ const MermaidDiagram = memo(function MermaidDiagram({
           </button>
           {showDownloadMenu && (
             <div className="absolute left-0 top-full mt-1 z-50 min-w-[100px] rounded-lg border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-800 shadow-lg overflow-hidden">
-              <button
+              <ViewerDropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDownloadSVG();
                   setShowDownloadMenu(false);
                 }}
-                className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
               >
                 SVG
-              </button>
-              <button
+              </ViewerDropdownMenuItem>
+              <ViewerDropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDownloadPNG();
                   setShowDownloadMenu(false);
                 }}
-                className="w-full px-3 py-2 text-left text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 flex items-center gap-2"
               >
                 PNG
-              </button>
+              </ViewerDropdownMenuItem>
             </div>
           )}
         </div>

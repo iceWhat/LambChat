@@ -1,5 +1,6 @@
 """Revealed file index storage — tracks all files/projects revealed via agent tools."""
 
+import asyncio
 import re
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -270,9 +271,11 @@ class RevealedFileStorage:
         else:
             sort_key = "created_at"
 
-        total = await self.collection.count_documents(query)
         cursor = self.collection.find(query).sort(sort_key, sort_dir).skip(skip).limit(limit)
-        items = await cursor.to_list(length=limit)
+        total, items = await asyncio.gather(
+            self.collection.count_documents(query),
+            cursor.to_list(length=limit),
+        )
 
         # Enrich with session_name from sessions collection
         session_ids = list({item["session_id"] for item in items if item.get("session_id")})
@@ -592,6 +595,9 @@ class RevealedFileStorage:
         )
         return result.modified_count
 
+    async def close(self) -> None:
+        self._collection = None
+
 
 # Singleton
 _revealed_file_storage: Optional[RevealedFileStorage] = None
@@ -602,3 +608,11 @@ def get_revealed_file_storage() -> RevealedFileStorage:
     if _revealed_file_storage is None:
         _revealed_file_storage = RevealedFileStorage()
     return _revealed_file_storage
+
+
+async def close_revealed_file_storage() -> None:
+    global _revealed_file_storage
+    storage = _revealed_file_storage
+    _revealed_file_storage = None
+    if storage is not None:
+        await storage.close()

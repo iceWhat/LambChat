@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { envvarApi } from "../../services/api/envvar";
 import { useAuth } from "../../hooks/useAuth";
 import { Permission } from "../../types/auth";
+import { McpSelectorEmptyState } from "./McpSelectorEmptyState";
 
 interface EnvKeysSelectorProps {
   selectedKeys: string[];
@@ -133,17 +134,15 @@ export function EnvKeysSelector({
           {/* Options */}
           <div className="max-h-48 overflow-y-auto p-1">
             {loading ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
-                ...
-              </div>
+              <McpSelectorEmptyState>...</McpSelectorEmptyState>
             ) : availableKeys.length === 0 ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
+              <McpSelectorEmptyState>
                 {t("mcp.form.noEnvVars")}
-              </div>
+              </McpSelectorEmptyState>
             ) : filteredKeys.length === 0 ? (
-              <div className="py-3 text-center text-xs text-stone-400 dark:text-stone-500">
+              <McpSelectorEmptyState>
                 {t("mcp.form.noMatchingKeys")}
-              </div>
+              </McpSelectorEmptyState>
             ) : (
               filteredKeys.map((key) => (
                 <label

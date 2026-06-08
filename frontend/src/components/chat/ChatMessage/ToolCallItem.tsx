@@ -1,9 +1,10 @@
-import { Wrench, Globe, Clock } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Wrench, Globe } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import { ToolResultContent } from "./items/McpBlockPreview";
+import { ToolDurationFooter } from "./items/ToolDurationFooter";
 import { CollapsibleSection } from "./SubagentBlocks";
 import { openPersistentToolPanel } from "./items/persistentToolPanelState";
 
@@ -45,25 +46,6 @@ function formatElapsed(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
-/** Compute the tool's final duration in seconds from startedAt/completedAt ISO strings. */
-function computeDuration(
-  startedAt?: string,
-  completedAt?: string,
-): number | null {
-  if (!startedAt || !completedAt) return null;
-  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
-  if (ms < 0) return null;
-  return Math.round(ms / 1000);
-}
-
-/** Format duration for display: <60s → "Xs", >=60s → "Xm Ys". For sub-second use ".Xs". */
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}m ${s}s`;
-}
-
 // Re-export all sub-components
 export { ReadFileItem } from "./items/ReadFileItem";
 export { EditFileItem } from "./items/EditFileItem";
@@ -74,6 +56,13 @@ export { GlobItem } from "./items/GlobItem";
 export { ExecuteItem } from "./items/ExecuteItem";
 export { FileRevealItem } from "./items/FileRevealItem";
 export { ProjectRevealItem } from "./items/ProjectRevealItem";
+export { ImageGenerateItem } from "./items/ImageGenerateItem";
+export { AudioTranscribeItem } from "./items/AudioTranscribeItem";
+export { ScheduledTaskItem } from "./items/ScheduledTaskItem";
+export { EnvVarItem } from "./items/EnvVarItem";
+export { PersonaItem } from "./items/PersonaItem";
+export { TeamItem } from "./items/TeamItem";
+export { SandboxMcpItem } from "./items/SandboxMcpItem";
 
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
@@ -98,17 +87,9 @@ export function ToolCallItem({
   const { t } = useTranslation();
   const hasResult = result !== undefined;
   const elapsedSeconds = useElapsedSeconds(isPending, startedAt);
-  const finalDuration = computeDuration(startedAt, completedAt);
-
-  const durationFooter = useMemo(() => {
-    if (finalDuration === null) return undefined;
-    return (
-      <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-stone-400 dark:text-stone-500 border-t border-stone-100 dark:border-stone-800">
-        <Clock size={11} className="shrink-0" />
-        <span className="tabular-nums">{formatDuration(finalDuration)}</span>
-      </div>
-    );
-  }, [finalDuration]);
+  const durationFooter = (
+    <ToolDurationFooter startedAt={startedAt} completedAt={completedAt} />
+  );
 
   // Parse MCP server name from tool name (format: "server_name:tool_name")
   const colonIdx = name.indexOf(":");

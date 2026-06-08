@@ -20,6 +20,7 @@ from src.infra.tool.backend_utils import get_user_id_from_runtime
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import parse_iso, to_iso, utc_now
 from src.kernel.schemas.scheduled_task import (
+    ChannelDeliveryConfig,
     ScheduledTaskCreate,
     ScheduledTaskStatus,
     ScheduledTaskUpdate,
@@ -84,24 +85,29 @@ async def _resolve_user(user_id: str) -> TokenPayload | None:
     )
 
 
-async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any], str | None]:
+async def _get_current_session_defaults() -> tuple[
+    str | None,
+    dict[str, Any],
+    str | None,
+    ChannelDeliveryConfig | None,
+]:
     """Return agent/model defaults from the conversation that invoked the tool."""
     from src.infra.logging.context import TraceContext
     from src.infra.session.manager import SessionManager
 
     ctx = TraceContext.get_request_context()
     if not ctx.session_id:
-        return None, {}, None
+        return None, {}, None, None
 
     try:
         session = await SessionManager().get_session(ctx.session_id)
     except Exception as e:
         logger.warning("[ScheduledTask] Failed to load source session defaults: %s", e)
-        return None, {}, None
+        return None, {}, None, None
 
     metadata = session.metadata if session else {}
     if not isinstance(metadata, dict):
-        return None, {}, None
+        return None, {}, None, None
 
     agent_id = metadata.get("agent_id")
     raw_options = metadata.get("agent_options")
@@ -109,11 +115,25 @@ async def _get_current_session_defaults() -> tuple[str | None, dict[str, Any], s
         _strip_resolved_agent_options(dict(raw_options)) if isinstance(raw_options, dict) else {}
     )
     user_timezone = metadata.get("user_timezone")
+    channel_delivery = _coerce_channel_delivery(metadata.get("channel_delivery"))
     return (
         agent_id if isinstance(agent_id, str) and agent_id else None,
         agent_options,
         user_timezone if isinstance(user_timezone, str) and user_timezone else None,
+        channel_delivery,
     )
+
+
+def _coerce_channel_delivery(value: Any) -> ChannelDeliveryConfig | None:
+    """Parse optional channel delivery metadata from the current session."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        delivery = ChannelDeliveryConfig.model_validate(value)
+    except Exception as e:
+        logger.warning("[ScheduledTask] Ignoring invalid channel delivery metadata: %s", e)
+        return None
+    return delivery if delivery.enabled else None
 
 
 async def _permission_error(
@@ -186,18 +206,17 @@ def _build_task_preview(
 
 
 def _format_approval_message(preview: dict[str, Any]) -> str:
-    description = preview.get("description") or "(none)"
-    immediate = "yes" if preview["run_on_start"] else "no"
+    immediate = "✅ Yes" if preview["run_on_start"] else "❌ No"
     return (
         "Please confirm creation of this scheduled task.\n\n"
-        "No scheduled task has been created yet. If you approve, the task below will be created.\n\n"
-        f"**Name:** {preview['name']}\n\n"
-        f"**Description:** {description}\n\n"
-        f"**Agent:** {preview['agent_id']}\n\n"
-        f"**Schedule:** {preview['schedule']}\n\n"
-        f"**Immediate run after creation:** {immediate}\n\n"
-        f"**Timeout:** {preview['timeout_seconds']} seconds\n\n"
-        "**What this scheduled task will do:**\n\n"
+        "No task has been created yet. Approve to create it.\n\n"
+        f"| | |\n|---|---|\n"
+        f"| **Name** | {preview['name']} |\n"
+        f"| **Agent** | `{preview['agent_id']}` |\n"
+        f"| **Schedule** | {preview['schedule']} |\n"
+        f"| **Run immediately** | {immediate} |\n"
+        f"| **Timeout** | {preview['timeout_seconds']}s |\n"
+        "\n"
         f"{preview['effect']}\n\n"
         "**Prompt sent on each run:**\n\n"
         f"```text\n{preview['message']}\n```"
@@ -443,6 +462,7 @@ async def scheduled_task_create(
         session_agent_id,
         session_agent_options,
         session_user_timezone,
+        session_channel_delivery,
     ) = await _get_current_session_defaults()
     effective_agent_id = agent_id or session_agent_id or "fast"
     effective_agent_options = dict(session_agent_options)
@@ -503,6 +523,7 @@ async def scheduled_task_create(
                 source_session_id=ctx.session_id or None,
                 source_run_id=ctx.run_id or None,
                 created_by="agent",
+                delivery=session_channel_delivery,
             ),
             owner_id=user_id,
         )

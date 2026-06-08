@@ -264,7 +264,10 @@ async def _cancel_background_tasks(app: FastAPI, *task_names: str) -> None:
     tasks = []
     for task_name in task_names:
         task = getattr(app.state, task_name, None)
-        if task and not task.done():
+        if task is None:
+            continue
+        setattr(app.state, task_name, None)
+        if not task.done():
             task.cancel()
             tasks.append(task)
     if tasks:
@@ -280,6 +283,23 @@ async def _stop_feishu_channels_for_shutdown(app: FastAPI) -> None:
         logger.info("Feishu channels stopped")
     except Exception as e:
         logger.warning(f"Failed to stop Feishu channels: {e}")
+
+
+async def _close_route_dependency_singletons() -> None:
+    from src.infra.persona_preset.manager import close_persona_preset_manager
+    from src.infra.revealed_file.storage import close_revealed_file_storage
+
+    await feedback.close_feedback_manager()
+    await notification.close_notification_manager()
+    await close_revealed_file_storage()
+    await upload.close_upload_route_dependencies()
+    await close_persona_preset_manager()
+
+
+async def _close_session_sandbox_manager_for_shutdown() -> None:
+    from src.infra.sandbox.session_manager import close_session_sandbox_manager
+
+    await close_session_sandbox_manager()
 
 
 async def _cancel_lifespan_background_tasks_for_shutdown(app: FastAPI) -> None:
@@ -335,6 +355,12 @@ def _startup_index_initializers():
         await NotificationStorage().create_indexes()
         logger.info("NotificationStorage indexes initialized")
 
+    async def _init_user_storage() -> None:
+        from src.infra.user.storage import UserStorage
+
+        await UserStorage().ensure_indexes_if_needed()
+        logger.info("UserStorage indexes initialized")
+
     return [
         ("agent_config_storage", _init_agent_config_storage),
         ("model_storage", _init_model_storage),
@@ -344,6 +370,7 @@ def _startup_index_initializers():
         ("session_storage", _init_session_storage),
         ("revealed_file_storage", _init_revealed_file_storage),
         ("notification_storage", _init_notification_storage),
+        ("user_storage", _init_user_storage),
     ]
 
 
@@ -504,11 +531,12 @@ async def lifespan(app: FastAPI):
         await _cancel_lifespan_background_tasks_for_shutdown(app)
 
         # 停止事件合并器
-        from src.infra.session.event_merger import get_event_merger
+        from src.infra.session.event_merger import close_event_merger
+        from src.infra.session.trace_storage import close_trace_storage
         from src.infra.task.manager import get_task_manager
 
-        merger = get_event_merger(None)
-        await merger.stop()
+        await close_event_merger()
+        await close_trace_storage()
         logger.info("EventMerger stopped")
 
         # 标记所有运行中的任务为失败
@@ -518,8 +546,9 @@ async def lifespan(app: FastAPI):
         await stop_runtime_services()
         logger.info("Runtime distributed listeners stopped")
 
-        memory_monitor = get_memory_monitor()
-        await memory_monitor.stop()
+        from src.infra.monitoring import close_memory_monitor
+
+        await close_memory_monitor()
         logger.info("Memory monitor stopped")
 
         await task_manager.shutdown()
@@ -535,36 +564,35 @@ async def lifespan(app: FastAPI):
         await SandboxFactory.close_all()
 
         # 关闭用户级沙箱（SessionSandboxManager 管理的）
-        from src.infra.sandbox.session_manager import get_session_sandbox_manager
-
-        sandbox_manager = get_session_sandbox_manager()
-        await sandbox_manager.close_all()
+        await _close_session_sandbox_manager_for_shutdown()
         logger.info("User sandboxes stopped")
 
         await AgentFactory.close_all()
+
+        await _close_route_dependency_singletons()
 
         # 关闭 PostgreSQL 连接池
         from src.infra.storage.checkpoint import (
             close_async_checkpointer,
             close_pg_checkpointer,
         )
+        from src.infra.storage.mongodb_store import close_store
         from src.infra.storage.postgres import close_connection_pool
 
+        await close_store()
         close_async_checkpointer()
         close_connection_pool()
         await close_pg_checkpointer()
 
         # 关闭 EmailService HTTP 客户端
-        from src.infra.email import get_email_service
+        from src.infra.email import close_email_service
 
-        email_service = await get_email_service()
-        await email_service.close()
+        await close_email_service()
 
         # 关闭 OAuth 客户端
-        from src.infra.auth.oauth import get_oauth_service
+        from src.infra.auth.oauth import close_oauth_service
 
-        oauth_service = get_oauth_service()
-        await oauth_service.close()
+        await close_oauth_service()
 
         # 关闭 MCP 连接池
         from src.infra.tool.mcp_pool import close_all_connections
@@ -572,10 +600,9 @@ async def lifespan(app: FastAPI):
         await close_all_connections()
 
         # 关闭 RateLimiter Redis 连接
-        from src.api.routes.auth import get_rate_limiter
+        from src.api.routes.auth import close_rate_limiter
 
-        rate_limiter = get_rate_limiter()
-        await rate_limiter.close()
+        await close_rate_limiter()
 
         # 关闭主 Redis 连接池
         from src.infra.storage.redis import close_redis_client
@@ -588,8 +615,9 @@ async def lifespan(app: FastAPI):
         close_mongo_checkpointer()
 
         # 关闭 MongoDB 连接池
-        from src.infra.storage.mongodb import close_mongo_client
+        from src.infra.storage.mongodb import close_approval_storage, close_mongo_client
 
+        close_approval_storage()
         await close_mongo_client()
 
         # Cancel remaining background tasks (e.g., lark_oapi ExpiringCache cron)

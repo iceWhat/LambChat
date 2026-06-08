@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from collections import OrderedDict
+from typing import Any
 
 import pytest
 
@@ -21,6 +23,16 @@ class _FakeE2BAdapter:
     def get_work_dir(self, _provider_obj) -> str:
         self.method_calls.append("get_work_dir")
         return "/home/user"
+
+
+class _FakeMongoClient:
+    def __init__(self, collection: Any) -> None:
+        self._collection = collection
+
+    def __getitem__(self, name: str):
+        if name == sandbox_module.BINDING_COLLECTION:
+            return self._collection
+        return self
 
 
 @pytest.mark.asyncio
@@ -55,3 +67,92 @@ async def test_e2b_cache_hit_runs_sync_sdk_calls_in_blocking_executor(
     assert work_dir == "/home/user"
     assert blocking_calls == ["sandbox_is_running", "extend_timeout", "get_work_dir"]
     assert adapter.method_calls == ["sandbox_is_running", "extend_timeout", "get_work_dir"]
+
+
+@pytest.mark.asyncio
+async def test_close_session_sandbox_manager_does_not_create_unused_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox_module._session_sandbox_manager = None
+
+    def _raise_if_created() -> None:
+        raise AssertionError("unused sandbox manager should not be created during close")
+
+    monkeypatch.setattr(sandbox_module, "SessionSandboxManager", _raise_if_created)
+
+    await sandbox_module.close_session_sandbox_manager()
+
+    assert sandbox_module._session_sandbox_manager is None
+
+
+@pytest.mark.asyncio
+async def test_close_session_sandbox_manager_closes_existing_singleton() -> None:
+    class _Manager:
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        async def close_all(self) -> None:
+            self.close_calls += 1
+
+    manager = _Manager()
+    sandbox_module._session_sandbox_manager = manager
+
+    await sandbox_module.close_session_sandbox_manager()
+
+    assert manager.close_calls == 1
+    assert sandbox_module._session_sandbox_manager is None
+
+
+@pytest.mark.asyncio
+async def test_close_all_clears_collection_reference() -> None:
+    manager = sandbox_module.SessionSandboxManager()
+    manager._collection = object()
+
+    await manager.close_all()
+
+    assert manager._collection is None
+
+
+@pytest.mark.asyncio
+async def test_bindings_reuses_inflight_index_task_across_instances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class _SlowIndexCollection:
+        def __init__(self) -> None:
+            self.create_index_calls = 0
+
+        async def create_index(self, *_args, **_kwargs) -> None:
+            self.create_index_calls += 1
+            started.set()
+            await release.wait()
+
+    collection = _SlowIndexCollection()
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(sandbox_module.SessionSandboxManager, "_index_task", None, raising=False)
+    monkeypatch.setattr(
+        sandbox_module.SessionSandboxManager,
+        "_index_ensured",
+        False,
+        raising=False,
+    )
+
+    first = sandbox_module.SessionSandboxManager()
+    second = sandbox_module.SessionSandboxManager()
+
+    first._bindings
+    await asyncio.wait_for(started.wait(), timeout=1)
+    second._bindings
+    await asyncio.sleep(0)
+
+    release.set()
+    task = sandbox_module.SessionSandboxManager._index_task
+    if task is not None:
+        await task
+
+    assert collection.create_index_calls == 1

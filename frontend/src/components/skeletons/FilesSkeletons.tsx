@@ -46,7 +46,7 @@ export function FilesContentSkeleton() {
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
             <div className="grid auto-grid-cols gap-3 items-start">
-              {[0, 1, 2, 3].map((i) => (
+              {[0, 1, 2, 3, 4, 5].map((i) => (
                 <FileCardSkeleton key={i} i={i} />
               ))}
             </div>
@@ -62,7 +62,7 @@ export function FilesContentSkeleton() {
               <div className="skeleton-line h-[16px] sm:h-[18px] w-8 sm:w-10 rounded-md" />
             </div>
             <div className="grid auto-grid-cols gap-3 items-start">
-              {[0, 1, 2].map((i) => (
+              {[0, 1, 2, 3].map((i) => (
                 <FileCardSkeleton key={i} i={i} />
               ))}
             </div>

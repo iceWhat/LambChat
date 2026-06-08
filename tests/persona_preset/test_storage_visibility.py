@@ -182,6 +182,58 @@ async def test_list_visible_bounds_large_user_preference_arrays() -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_visible_reuses_preference_lookup_when_filtering_preferences() -> None:
+    user_id = str(ObjectId())
+    favorite_id = str(ObjectId())
+
+    class _Cursor:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    class _Collection:
+        def aggregate(self, _pipeline):
+            return _Cursor()
+
+    class _UserCollection:
+        def __init__(self) -> None:
+            self.find_calls = 0
+
+        async def find_one(self, _query, _projection=None):
+            self.find_calls += 1
+            return {
+                "metadata": {
+                    "pinned_preset_ids": [],
+                    "favorite_preset_ids": [favorite_id],
+                }
+            }
+
+    user_collection = _UserCollection()
+    storage = PersonaPresetStorage()
+    storage._collection = _Collection()
+    storage._user_collection = user_collection
+
+    docs = await storage.list_visible(user_id=user_id, favorite=True)
+
+    assert docs == []
+    assert user_collection.find_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_persona_preset_storage_close_clears_collection_references() -> None:
+    storage = PersonaPresetStorage()
+    storage._collection = object()
+    storage._user_collection = object()
+
+    await storage.close()
+
+    assert storage._collection is None
+    assert storage._user_collection is None
+
+
+@pytest.mark.asyncio
 async def test_update_user_preference_rejects_favorite_overflow() -> None:
     user_id = str(ObjectId())
     preset_id = str(ObjectId())

@@ -12,7 +12,9 @@ from src.infra.storage.redis import get_redis_client
 logger = get_logger(__name__)
 
 _LOCK_PREFIX = "scheduler:task_lock:"
+_SLOT_PREFIX = "scheduler:task_slot:"
 _LOCK_TTL = 600  # 10 min default TTL
+_SLOT_TTL = 86400  # Keep completed schedule slots long enough to dedupe delayed peers.
 
 # Lua: atomic compare-and-delete to avoid releasing another instance's lock
 _RELEASE_LOCK_LUA = """
@@ -55,6 +57,27 @@ async def acquire_task_lock(
         return token
     logger.debug("[SchedulerLock] lock contested for task=%s, skipping", task_id)
     return None
+
+
+async def acquire_task_slot_lock(
+    task_id: str,
+    slot_id: str,
+    ttl: int = _SLOT_TTL,
+) -> bool:
+    """Claim a scheduled fire slot across all scheduler instances.
+
+    Unlike the execution lock, this claim is intentionally not released after
+    the run. It prevents delayed peers from executing the same schedule slot
+    after the first instance has finished and released the execution lock.
+    """
+    redis = get_redis_client()
+    lock_key = f"{_SLOT_PREFIX}{task_id}:{slot_id}"
+    acquired = await redis.set(lock_key, "1", nx=True, ex=ttl)
+    if acquired:
+        logger.debug("[SchedulerSlot] claimed slot=%s for task=%s", slot_id, task_id)
+        return True
+    logger.debug("[SchedulerSlot] slot contested for task=%s slot=%s", task_id, slot_id)
+    return False
 
 
 async def release_task_lock(task_id: str, token: str) -> None:

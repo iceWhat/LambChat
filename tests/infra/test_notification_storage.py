@@ -168,3 +168,15 @@ async def test_active_notifications_clamps_storage_limit() -> None:
 
     assert storage.collection.pipeline is not None
     assert storage.collection.pipeline[-1] == {"$limit": NOTIFICATION_LIST_LIMIT_MAX}
+
+
+@pytest.mark.asyncio
+async def test_notification_storage_close_clears_collection_refs() -> None:
+    storage = NotificationStorage()
+    storage._collection = object()
+    storage._dismissal_collection = object()
+
+    await storage.close()
+
+    assert storage._collection is None
+    assert storage._dismissal_collection is None

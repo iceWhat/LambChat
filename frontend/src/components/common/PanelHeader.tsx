@@ -89,7 +89,8 @@ export function PanelHeader({
       const target = event.target as Node;
       if (
         target instanceof Element &&
-        target.closest("[data-panel-header-dropdown]")
+        (target.closest("[data-panel-header-dropdown]") ||
+          target.closest(".ui-select-dropdown"))
       ) {
         return;
       }
@@ -161,7 +162,10 @@ export function PanelHeader({
                     <div
                       key={index}
                       className="panel-header__mobile-menu-item"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={(e) => {
+                        if ((e.target as Element).closest(".ui-select")) return;
+                        setIsMobileMenuOpen(false);
+                      }}
                     >
                       {action}
                     </div>

@@ -6,6 +6,7 @@ from src.infra.revealed_file.storage import (
     REVEALED_FILE_GROUPED_FILES_PER_SESSION_MAX,
     REVEALED_FILE_SESSION_LIST_LIMIT,
     RevealedFileStorage,
+    close_revealed_file_storage,
 )
 
 
@@ -132,6 +133,20 @@ class _FakeCollection:
         if any("$count" in stage for stage in pipeline):
             return _FakeAggregateResult(self.count_result)
         return _FakeAggregateResult(self.session_results)
+
+
+class _ConcurrentListCollection(_FakeCollection):
+    def __init__(self, docs=None):
+        super().__init__(docs=docs)
+        self.find_called_before_count_await = False
+
+    async def count_documents(self, query):
+        assert self.find_called_before_count_await is True
+        return await super().count_documents(query)
+
+    def find(self, query, projection=None):
+        self.find_called_before_count_await = True
+        return super().find(query, projection)
 
 
 class _FakeMongoClient:
@@ -293,6 +308,38 @@ async def test_list_files_clamps_storage_limit(
     assert len(result["items"]) == 50
     assert result["limit"] == 50
     assert storage.collection.find_cursors[0]._limit == 50
+
+
+@pytest.mark.asyncio
+async def test_list_files_fetches_count_and_page_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime.now(timezone.utc)
+    storage = RevealedFileStorage()
+    storage._collection = _ConcurrentListCollection(
+        docs=[
+            {
+                "_id": "file-1",
+                "user_id": "user-1",
+                "session_id": "session-1",
+                "file_name": "file.txt",
+                "file_type": "document",
+                "source": "reveal_file",
+                "file_key": "revealed_files/file.txt",
+                "created_at": now,
+            }
+        ]
+    )
+    storage.ensure_indexes_if_needed = _no_op_async
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient([{"session_id": "session-1", "name": "Session One"}]),
+    )
+
+    result = await storage.list_files("user-1")
+
+    assert result["total"] == 1
+    assert result["items"][0]["file_name"] == "file.txt"
 
 
 @pytest.mark.asyncio
@@ -499,3 +546,28 @@ async def test_ensure_indexes_deduplicates_without_collecting_duplicate_ids() ->
             "_id": {"$ne": "newest-id"},
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_close_revealed_file_storage_clears_singleton() -> None:
+    from src.infra.revealed_file import storage as storage_module
+
+    storage = RevealedFileStorage()
+    storage._collection = object()
+    storage_module._revealed_file_storage = storage
+
+    await close_revealed_file_storage()
+
+    assert storage._collection is None
+    assert storage_module._revealed_file_storage is None
+
+
+@pytest.mark.asyncio
+async def test_close_revealed_file_storage_does_not_create_singleton_when_unused() -> None:
+    from src.infra.revealed_file import storage as storage_module
+
+    storage_module._revealed_file_storage = None
+
+    await close_revealed_file_storage()
+
+    assert storage_module._revealed_file_storage is None

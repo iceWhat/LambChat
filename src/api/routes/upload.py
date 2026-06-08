@@ -75,6 +75,11 @@ async def drain_upload_delete_tasks() -> None:
     await _upload_delete_tasks.drain()
 
 
+async def close_upload_route_dependencies() -> None:
+    await drain_upload_delete_tasks()
+    await _file_record_storage.close()
+
+
 def _parse_bool(value: Any) -> bool:
     """Parse boolean value from various types."""
     if value is None:

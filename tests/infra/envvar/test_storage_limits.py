@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -55,6 +56,16 @@ class _FakeCollection:
 
     async def update_one(self, *_args, **_kwargs):
         self.update_calls += 1
+
+
+class _FakeMongoClient:
+    def __init__(self, collection: Any) -> None:
+        self._collection = collection
+
+    def __getitem__(self, name: str):
+        if name == envvar_storage.COLLECTION_NAME:
+            return self._collection
+        return self
 
 
 def _env_doc(index: int) -> dict[str, Any]:
@@ -238,3 +249,79 @@ async def test_set_vars_bulk_offloads_each_encryption(monkeypatch: pytest.Monkey
     assert updated == 2
     assert calls == [envvar_storage.encrypt_value, envvar_storage.encrypt_value]
     assert storage._coll.update_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_env_var_storage_reuses_inflight_index_task_across_instances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    class _SlowIndexCollection(_FakeCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.create_index_calls = 0
+
+        async def create_index(self, *_args, **_kwargs) -> None:
+            self.create_index_calls += 1
+            started.set()
+            await release.wait()
+
+    collection = _SlowIndexCollection()
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(collection),
+    )
+    monkeypatch.setattr(EnvVarStorage, "_index_task", None, raising=False)
+    monkeypatch.setattr(EnvVarStorage, "_index_ensured", False, raising=False)
+
+    first = EnvVarStorage()
+    second = EnvVarStorage()
+
+    first._coll
+    await asyncio.wait_for(started.wait(), timeout=1)
+    second._coll
+    await asyncio.sleep(0)
+
+    release.set()
+    task = EnvVarStorage._index_task
+    if task is not None:
+        await task
+
+    assert collection.create_index_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_env_var_storage_close_cancels_index_task_and_clears_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+
+    class _SlowIndexCollection(_FakeCollection):
+        def __init__(self) -> None:
+            super().__init__([])
+
+        async def create_index(self, *_args, **_kwargs) -> None:
+            started.set()
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        "src.infra.storage.mongodb.get_mongo_client",
+        lambda: _FakeMongoClient(_SlowIndexCollection()),
+    )
+    monkeypatch.setattr(EnvVarStorage, "_index_task", None, raising=False)
+    monkeypatch.setattr(EnvVarStorage, "_index_ensured", False, raising=False)
+
+    storage = EnvVarStorage()
+    storage._coll
+    task = EnvVarStorage._index_task
+    assert task is not None
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    await storage.close()
+
+    assert task.cancelled() is True
+    assert storage._collection is None
+    assert EnvVarStorage._index_task is None
+    assert EnvVarStorage._index_ensured is False

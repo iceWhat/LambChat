@@ -265,6 +265,9 @@ class SettingsService:
     async def close(self) -> None:
         """Close connections"""
         await self._storage.close()
+        self._initialized = False
+        if SettingsService._instance is self:
+            SettingsService._instance = None
 
     @staticmethod
     async def _publish_change(key: Optional[str], value: Any) -> None:

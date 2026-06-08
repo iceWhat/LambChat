@@ -77,6 +77,8 @@ def get_mongo_client() -> "AsyncIOMotorClient":
 async def close_mongo_client() -> None:
     """关闭 MongoDB 连接池"""
     try:
+        if get_mongo_client.cache_info().currsize == 0:
+            return
         client = get_mongo_client()
         client.close()
         get_mongo_client.cache_clear()
@@ -347,6 +349,11 @@ class ApprovalStorage:
 def get_approval_storage() -> ApprovalStorage:
     """获取审批存储实例（单例）"""
     return ApprovalStorage()
+
+
+def close_approval_storage() -> None:
+    """Release cached approval storage without creating it during shutdown."""
+    get_approval_storage.cache_clear()
 
 
 # ============================================================================

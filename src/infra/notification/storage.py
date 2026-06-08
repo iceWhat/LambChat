@@ -209,3 +209,7 @@ class NotificationStorage:
         except Exception as e:
             logger.error(f"Error dismissing notification: {e}")
             return False
+
+    async def close(self) -> None:
+        self._collection = None
+        self._dismissal_collection = None

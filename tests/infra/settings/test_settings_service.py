@@ -14,6 +14,14 @@ class _EmptySettingsStorage:
         return None
 
 
+class _ClosableSettingsStorage:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
+
+
 @pytest.mark.asyncio
 async def test_get_offloads_json_env_value_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
@@ -31,3 +39,18 @@ async def test_get_offloads_json_env_value_parsing(monkeypatch: pytest.MonkeyPat
 
     assert calls == ["loads"]
     assert value == {"en": [{"text": "hello"}]}
+
+
+@pytest.mark.asyncio
+async def test_close_releases_settings_service_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    storage = _ClosableSettingsStorage()
+    service = settings_service.SettingsService()
+    service._storage = storage  # type: ignore[assignment]
+    monkeypatch.setattr(settings_service.SettingsService, "_instance", service)
+
+    await service.close()
+
+    assert storage.closed is True
+    assert settings_service.SettingsService._instance is None

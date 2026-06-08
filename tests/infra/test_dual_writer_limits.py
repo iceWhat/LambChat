@@ -394,3 +394,30 @@ async def test_flush_mongo_buffer_offloads_bulk_operation_building(
     assert calls == ["_build_mongo_bulk_operations"]
     assert len(writer.trace.collection.operations) == 1
     assert writer._mongo_buffer == []
+
+
+@pytest.mark.asyncio
+async def test_close_dual_writer_flushes_and_releases_singleton() -> None:
+    writer = dual_writer.DualEventWriter()
+    flush_calls = 0
+
+    async def _fake_flush_mongo_buffer() -> None:
+        nonlocal flush_calls
+        flush_calls += 1
+
+    writer.flush_mongo_buffer = _fake_flush_mongo_buffer  # type: ignore[method-assign]
+    dual_writer._dual_writer = writer
+
+    await dual_writer.close_dual_writer()
+
+    assert flush_calls == 1
+    assert dual_writer._dual_writer is None
+
+
+@pytest.mark.asyncio
+async def test_close_dual_writer_does_not_create_singleton_when_unused() -> None:
+    dual_writer._dual_writer = None
+
+    await dual_writer.close_dual_writer()
+
+    assert dual_writer._dual_writer is None

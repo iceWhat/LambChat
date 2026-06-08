@@ -414,6 +414,26 @@ def test_parse_zip_skills_rejects_too_many_members_before_reading_files(
         skill_route._parse_zip_skills(zip_buffer.getvalue())
 
 
+def test_parse_zip_skills_rejects_unsafe_member_paths() -> None:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("evil/SKILL.md", "---\nname: evil\n---\n")
+        archive.writestr("evil/../outside.txt", "nope")
+
+    with pytest.raises(ValueError, match="Unsafe ZIP member path"):
+        skill_route._parse_zip_skills(zip_buffer.getvalue())
+
+
+def test_parse_zip_preview_rejects_unsafe_member_paths() -> None:
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("evil/SKILL.md", "---\nname: evil\n---\n")
+        archive.writestr("/absolute.txt", "nope")
+
+    with pytest.raises(ValueError, match="Unsafe ZIP member path"):
+        skill_route._parse_zip_skill_preview(zip_buffer.getvalue())
+
+
 def test_parse_zip_preview_skips_large_non_skill_members_before_reading(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

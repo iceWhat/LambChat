@@ -14,6 +14,50 @@ class _TestAgent(BaseGraphAgent):
         return None
 
 
+class _CaptureStreamAgent(_TestAgent):
+    def _stream(self, _message, session_id, user_id=None, **_kwargs):
+        async def _gen():
+            yield {"session_id": session_id, "user_id": user_id}
+
+        return _gen()
+
+
+class _CaptureInvokeGraph:
+    def __init__(self) -> None:
+        self.thread_ids: list[str] = []
+
+    async def ainvoke(self, _state, config):
+        self.thread_ids.append(config["configurable"]["thread_id"])
+        return {"output": "ok"}
+
+
+def test_stream_generates_fresh_default_session_id_per_call() -> None:
+    agent = _CaptureStreamAgent()
+
+    first = agent.stream("hello")
+    second = agent.stream("hello")
+
+    async def _collect():
+        return await first.__anext__(), await second.__anext__()
+
+    first_event, second_event = asyncio.run(_collect())
+
+    assert first_event["session_id"] != second_event["session_id"]
+
+
+@pytest.mark.asyncio
+async def test_invoke_generates_fresh_default_session_id_per_call() -> None:
+    agent = _TestAgent()
+    graph = _CaptureInvokeGraph()
+    agent._initialized = True
+    agent._graph = graph
+
+    await agent.invoke("hello")
+    await agent.invoke("hello")
+
+    assert graph.thread_ids[0] != graph.thread_ids[1]
+
+
 @pytest.mark.asyncio
 async def test_close_cancels_background_cleanup_task() -> None:
     agent = _TestAgent()

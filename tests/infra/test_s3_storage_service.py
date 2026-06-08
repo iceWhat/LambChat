@@ -11,14 +11,22 @@ from src.infra.storage.s3.backends.aliyun import AliyunOssBackend
 from src.infra.storage.s3.backends.local import LocalStorageBackend
 from src.infra.storage.s3.backends.minio import MinioS3Backend
 from src.infra.storage.s3.base import S3StorageBackend
-from src.infra.storage.s3.service import get_or_init_storage, get_storage_service, init_storage
+from src.infra.storage.s3.service import (
+    close_storage,
+    get_or_init_storage,
+    get_storage_service,
+    init_storage,
+)
 from src.infra.storage.s3.types import S3Config, S3Provider
 from src.kernel.config import settings
 
 
 class _FakeBackend:
+    def __init__(self) -> None:
+        self.closed = False
+
     async def close(self) -> None:
-        pass
+        self.closed = True
 
 
 @pytest.mark.asyncio
@@ -181,6 +189,27 @@ async def test_get_or_init_storage_switches_to_local_when_s3_is_disabled(
 
     assert storage.is_local
     assert storage._config.storage_path == str(tmp_path / "uploads")
+
+
+@pytest.mark.asyncio
+async def test_close_storage_closes_backend_and_releases_global_service() -> None:
+    await init_storage(
+        S3Config(
+            provider=S3Provider.MINIO,
+            endpoint_url="http://minio.example.test:9000",
+            bucket_name="old-bucket",
+        )
+    )
+    storage = get_storage_service()
+    backend = _FakeBackend()
+    storage._backend = backend
+
+    await close_storage()
+
+    assert backend.closed is True
+    assert storage._backend is None
+    assert s3_service._storage_service is None
+    assert s3_service.S3StorageService._instance is None
 
 
 @pytest.mark.asyncio

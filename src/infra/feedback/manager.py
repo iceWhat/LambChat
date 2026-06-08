@@ -155,3 +155,6 @@ class FeedbackManager:
             统计信息
         """
         return await self.storage.get_stats(session_id, run_id)
+
+    async def close(self) -> None:
+        await self.storage.close()

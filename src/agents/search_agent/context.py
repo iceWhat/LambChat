@@ -38,7 +38,7 @@ class SearchAgentContext:
 
     def __init__(
         self,
-        session_id: str = str(uuid.uuid4()),
+        session_id: str | None = None,
         agent_id: str = "search",
         user_id: Optional[str] = None,
         disabled_tools: Optional[List[str]] = None,
@@ -46,7 +46,7 @@ class SearchAgentContext:
         enabled_skills: Optional[List[str]] = None,
         disabled_mcp_tools: Optional[List[str]] = None,
     ):
-        self.session_id = session_id
+        self.session_id = session_id or str(uuid.uuid4())
         self.agent_id = agent_id
         self.user_id = user_id
         self.disabled_tools = disabled_tools

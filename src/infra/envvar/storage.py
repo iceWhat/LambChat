@@ -53,6 +53,9 @@ def _validate_env_var_bulk_value_size(variables: dict[str, str]) -> None:
 class EnvVarStorage:
     """用户环境变量存储（加密）"""
 
+    _index_task: asyncio.Task[None] | None = None
+    _index_ensured = False
+
     def __init__(self):
         self._collection: Any = None
 
@@ -65,11 +68,23 @@ class EnvVarStorage:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db[COLLECTION_NAME]
-            try:
-                asyncio.create_task(self._ensure_index())
-            except RuntimeError:
-                pass
+            self._schedule_index()
         return self._collection
+
+    def _schedule_index(self) -> None:
+        cls = type(self)
+        if cls._index_ensured:
+            return
+        task = cls._index_task
+        if task is not None and not task.done():
+            return
+        try:
+            task = asyncio.create_task(self._ensure_index())
+        except RuntimeError:
+            return
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        cls._index_task = task
+        cls._index_ensured = True
 
     async def _ensure_index(self):
         """创建唯一索引 (user_id + key)"""
@@ -239,3 +254,13 @@ class EnvVarStorage:
         """删除用户所有环境变量"""
         result = await self._coll.delete_many({"user_id": user_id})
         return result.deleted_count
+
+    async def close(self) -> None:
+        cls = type(self)
+        task = cls._index_task
+        cls._index_task = None
+        cls._index_ensured = False
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self._collection = None

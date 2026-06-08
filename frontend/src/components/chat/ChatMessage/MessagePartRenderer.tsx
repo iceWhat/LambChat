@@ -14,6 +14,13 @@ import {
   LsItem,
   GlobItem,
   ExecuteItem,
+  ImageGenerateItem,
+  AudioTranscribeItem,
+  ScheduledTaskItem,
+  EnvVarItem,
+  PersonaItem,
+  TeamItem,
+  SandboxMcpItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
@@ -205,6 +212,118 @@ export function MessagePartRenderer({
     if (part.name === "execute") {
       return (
         <ExecuteItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    // Detect internal MCP tools, use dedicated themed components
+    if (part.name === "image_generate") {
+      return (
+        <ImageGenerateItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "audio_transcribe") {
+      return (
+        <AudioTranscribeItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "scheduled_task_create" ||
+      part.name === "scheduled_task_list" ||
+      part.name === "scheduled_task_update" ||
+      part.name === "scheduled_task_delete"
+    ) {
+      return (
+        <ScheduledTaskItem
+          toolName={part.name}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "env_var_list" ||
+      part.name === "env_var_set" ||
+      part.name === "env_var_delete"
+    ) {
+      return (
+        <EnvVarItem
+          toolName={part.name}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (part.name === "save_persona_preset") {
+      return (
+        <PersonaItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "search_persona_presets" ||
+      part.name === "create_agent_team"
+    ) {
+      return (
+        <TeamItem
+          toolName={part.name}
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
+    if (
+      part.name === "sandbox_mcp_add" ||
+      part.name === "sandbox_mcp_update" ||
+      part.name === "sandbox_mcp_remove"
+    ) {
+      return (
+        <SandboxMcpItem
+          toolName={part.name}
           args={part.args}
           result={part.result}
           success={part.success}

@@ -678,3 +678,12 @@ def get_dual_writer() -> DualEventWriter:
     if _dual_writer is None:
         _dual_writer = DualEventWriter()
     return _dual_writer
+
+
+async def close_dual_writer() -> None:
+    """Flush and release the DualEventWriter singleton without creating it."""
+    global _dual_writer
+    writer = _dual_writer
+    _dual_writer = None
+    if writer is not None:
+        await writer.flush_mongo_buffer()

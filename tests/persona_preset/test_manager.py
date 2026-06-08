@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pytest
 
+from src.infra.persona_preset import manager as manager_module
 from src.infra.persona_preset.manager import PersonaPresetManager
 from src.kernel.exceptions import AuthorizationError, NotFoundError
 from src.kernel.schemas.persona_preset import (
@@ -20,6 +21,7 @@ class FakePresetStorage:
         self.docs: dict[str, dict] = {}
         self.preferences: dict[tuple[str, str], dict] = {}
         self.next_id = 1
+        self.close_calls = 0
 
     async def create(self, data: dict) -> dict:
         preset_id = f"preset-{self.next_id}"
@@ -139,18 +141,67 @@ class FakePresetStorage:
         self.preferences[(user_id, preset_id)] = current
         return dict(current)
 
+    async def close(self) -> None:
+        self.close_calls += 1
+
 
 class FakeSkillStorage:
     def __init__(self, names: set[str]) -> None:
         self.names = names
+        self.close_calls = 0
 
     async def get_all_user_skill_names(self, user_id: str) -> list[str]:
         return sorted(self.names)
+
+    async def close(self) -> None:
+        self.close_calls += 1
 
 
 class FakeEffectiveSkillStorage(FakeSkillStorage):
     async def get_effective_skills(self, user_id: str) -> dict:
         return {"skills": {name: {"enabled": True} for name in sorted(self.names)}}
+
+
+@pytest.mark.asyncio
+async def test_manager_close_releases_storage_references() -> None:
+    storage = FakePresetStorage()
+    skill_storage = FakeSkillStorage(set())
+    manager = PersonaPresetManager(storage, skill_storage)
+
+    await manager.close()
+
+    assert storage.close_calls == 1
+    assert skill_storage.close_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_close_persona_preset_manager_does_not_create_unused_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager_module._persona_preset_manager = None
+
+    def _raise_if_created() -> None:
+        raise AssertionError("unused persona preset manager should not be created during close")
+
+    monkeypatch.setattr(manager_module, "PersonaPresetManager", _raise_if_created)
+
+    await manager_module.close_persona_preset_manager()
+
+    assert manager_module._persona_preset_manager is None
+
+
+@pytest.mark.asyncio
+async def test_close_persona_preset_manager_closes_existing_singleton() -> None:
+    storage = FakePresetStorage()
+    skill_storage = FakeSkillStorage(set())
+    manager = PersonaPresetManager(storage, skill_storage)
+    manager_module._persona_preset_manager = manager
+
+    await manager_module.close_persona_preset_manager()
+
+    assert storage.close_calls == 1
+    assert skill_storage.close_calls == 1
+    assert manager_module._persona_preset_manager is None
 
 
 @pytest.mark.asyncio

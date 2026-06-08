@@ -514,3 +514,12 @@ def get_memory_monitor() -> MemoryMonitor:
     if _memory_monitor is None:
         _memory_monitor = MemoryMonitor()
     return _memory_monitor
+
+
+async def close_memory_monitor() -> None:
+    """Stop and release the singleton memory monitor without creating it."""
+    global _memory_monitor
+    monitor = _memory_monitor
+    _memory_monitor = None
+    if monitor is not None:
+        await monitor.stop()

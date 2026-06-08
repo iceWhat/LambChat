@@ -181,7 +181,7 @@ export function RevealedFilesPanel() {
         />
 
         {/* Content area */}
-        <div className="flex-1 overflow-y-auto min-h-0 relative z-[1]">
+        <div className="flex-1 overflow-y-auto min-h-0 relative z-[1] flex flex-col">
           <EmptyState
             isLoading={isLoading}
             hasFiles={sessionGroups.length > 0}

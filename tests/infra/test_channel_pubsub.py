@@ -7,6 +7,7 @@ import pytest
 from src.infra.channel.pubsub import (
     CHANNEL_CONFIG_CHANNEL,
     ChannelConfigPubSub,
+    close_channel_config_pubsub,
     publish_channel_config_changed,
 )
 
@@ -65,6 +66,14 @@ class _FakeRegistry:
 
     def get_manager_class(self, channel_type):
         return self._manager_cls
+
+
+class _FakeChannelConfigPubSub:
+    def __init__(self) -> None:
+        self.stop_calls = 0
+
+    async def stop_listener(self) -> None:
+        self.stop_calls += 1
 
 
 @pytest.mark.asyncio
@@ -143,3 +152,31 @@ async def test_publish_channel_config_changed_broadcasts_instance_scoped_payload
             ),
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_close_channel_config_pubsub_stops_and_releases_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_pubsub = _FakeChannelConfigPubSub()
+    monkeypatch.setattr("src.infra.channel.pubsub._channel_config_pubsub", fake_pubsub)
+
+    await close_channel_config_pubsub()
+
+    assert fake_pubsub.stop_calls == 1
+    from src.infra.channel import pubsub as channel_pubsub
+
+    assert channel_pubsub._channel_config_pubsub is None
+
+
+@pytest.mark.asyncio
+async def test_close_channel_config_pubsub_does_not_create_singleton_when_unused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("src.infra.channel.pubsub._channel_config_pubsub", None)
+
+    await close_channel_config_pubsub()
+
+    from src.infra.channel import pubsub as channel_pubsub
+
+    assert channel_pubsub._channel_config_pubsub is None

@@ -299,7 +299,7 @@ class BaseGraphAgent(ABC):
     def stream(
         self,
         message: str,
-        session_id: str = str(uuid.uuid4()),
+        session_id: str | None = None,
         user_id: Optional[str] = None,
         **kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
@@ -309,6 +309,8 @@ class BaseGraphAgent(ABC):
         这是主要的对外接口，返回格式:
             {"event": "message:chunk", "data": {"content": "..."}}
         """
+        if session_id is None:
+            session_id = str(uuid.uuid4())
         return self._stream(message, session_id, user_id=user_id, **kwargs)
 
     async def _stream(
@@ -566,8 +568,10 @@ class BaseGraphAgent(ABC):
             TraceContext.clear_request_context()
             TraceContext.clear()
 
-    async def invoke(self, message: str, session_id: str = str(uuid.uuid4()), **kwargs) -> str:
+    async def invoke(self, message: str, session_id: str | None = None, **kwargs) -> str:
         """非流式执行，返回最终结果"""
+        if session_id is None:
+            session_id = str(uuid.uuid4())
         if not self._initialized:
             await self.initialize()
 

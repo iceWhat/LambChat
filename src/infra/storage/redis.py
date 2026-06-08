@@ -82,6 +82,8 @@ def get_redis_client() -> Redis:
 async def close_redis_client() -> None:
     """关闭 Redis 连接池"""
     try:
+        if get_redis_connection_pool.cache_info().currsize == 0:
+            return
         pool = get_redis_connection_pool()
         await pool.aclose()
         get_redis_connection_pool.cache_clear()

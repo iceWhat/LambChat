@@ -127,6 +127,11 @@ class RuntimeScheduler:
             await shutdown_result
         logger.info("[Scheduler] stopped")
 
+    def clear(self) -> None:
+        """Release registered job handlers and interval bookkeeping."""
+        self._jobs.clear()
+        self._scheduled_intervals.clear()
+
     async def run_job_now(self, job_id: str) -> Any:
         """Run a registered job immediately; mainly useful for tests and admin hooks."""
         job = self._jobs[job_id]
@@ -223,3 +228,14 @@ def get_runtime_scheduler() -> RuntimeScheduler:
     if _runtime_scheduler is None:
         _runtime_scheduler = RuntimeScheduler()
     return _runtime_scheduler
+
+
+async def close_runtime_scheduler() -> None:
+    """Stop and release the process-local scheduler without creating it."""
+    global _runtime_scheduler
+    scheduler = _runtime_scheduler
+    _runtime_scheduler = None
+    if scheduler is None:
+        return
+    await scheduler.stop()
+    scheduler.clear()

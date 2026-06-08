@@ -4,6 +4,7 @@
 提供角色的数据库操作。
 """
 
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -36,6 +37,19 @@ async def _get_redis():
     if _role_cache_redis is None:
         _role_cache_redis = create_redis_client(isolated_pool=True)
     return _role_cache_redis
+
+
+async def close_role_cache_redis() -> None:
+    """Close the dedicated Redis client used by the role object cache."""
+    global _role_cache_redis
+    redis = _role_cache_redis
+    _role_cache_redis = None
+    if redis is None:
+        return
+    try:
+        await redis.aclose()
+    except Exception as e:
+        logger.warning("[Role Cache] Failed to close Redis client: %s", e)
 
 
 def _role_to_cache_dict(role: Role) -> dict:
@@ -464,12 +478,8 @@ class RoleStorage:
         names = _bounded_unique_strings(names, ROLE_BATCH_LOOKUP_LIMIT)
         if not names:
             return []
-        roles = []
-        for name in names:
-            role = await self.get_by_name(name)
-            if role:
-                roles.append(role)
-        return roles
+        results = await asyncio.gather(*(self.get_by_name(name) for name in names))
+        return [role for role in results if role]
 
     async def invalidate_cache(self, role_name: str) -> None:
         """使指定角色的缓存失效（递增版本号）"""

@@ -267,7 +267,7 @@ export function WelcomeSkeleton() {
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg">
-              <div className="skeleton-line size-3 xl:size-3.5 rounded-sm" />
+              <div className="skeleton-line size-3 xl:size-3.5 rounded-full" />
               <SkeletonLine
                 width="w-14 sm:w-16"
                 className="!h-[11px] sm:!h-3"

@@ -62,3 +62,30 @@ async def test_get_accounts_offloads_account_json_parsing(monkeypatch) -> None:
             "email_from_name": "LambChat",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_close_email_service_closes_existing_singleton_without_creating_one() -> None:
+    class _FakeHttpClient:
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        async def aclose(self) -> None:
+            self.close_calls += 1
+
+    EmailService._instance = None
+
+    await email_service_module.close_email_service()
+
+    assert EmailService._instance is None
+
+    service = EmailService()
+    http_client = _FakeHttpClient()
+    service._http_client = http_client
+    EmailService._instance = service
+
+    await email_service_module.close_email_service()
+
+    assert http_client.close_calls == 1
+    assert service._http_client is None
+    assert EmailService._instance is None

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from src.infra.tool import mcp_cache
@@ -11,6 +13,15 @@ class _FakeClient:
 
     async def close(self) -> None:
         self.close_calls += 1
+
+
+class _FutureCloseClient:
+    def __init__(self) -> None:
+        self.close_future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+
+    def close(self) -> asyncio.Future[None]:
+        asyncio.get_running_loop().call_later(0.01, self.close_future.set_result, None)
+        return self.close_future
 
 
 class _PagedRedis:
@@ -61,6 +72,33 @@ async def test_cleanup_expired_cache_drains_scheduled_client_closes(
 
     assert removed == 1
     assert client.close_calls == 1
+    assert not mcp_cache._background_tasks
+
+
+@pytest.mark.asyncio
+async def test_close_client_awaits_future_returned_by_close() -> None:
+    client = _FutureCloseClient()
+
+    await mcp_cache._close_client(client)  # type: ignore[arg-type]
+
+    assert client.close_future.done() is True
+
+
+@pytest.mark.asyncio
+async def test_drain_background_tasks_cancels_tasks_that_exceed_timeout() -> None:
+    started = asyncio.Event()
+
+    async def _never_finishes() -> None:
+        started.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(_never_finishes())
+    mcp_cache._track_background_task(task)
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    await mcp_cache.drain_background_tasks(timeout=0.01)
+
+    assert task.cancelled() is True
     assert not mcp_cache._background_tasks
 
 

@@ -219,6 +219,7 @@ class SettingsStorage:
 
     async def close(self):
         """Close MongoDB connection (only clears local refs, does not close global client)"""
+        self._client = None
         self._collection = None
 
 

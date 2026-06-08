@@ -77,6 +77,18 @@ class _FakeSkillFilesCollection:
         )
 
 
+@pytest.mark.asyncio
+async def test_skill_storage_close_clears_local_client_reference() -> None:
+    storage = SkillStorage()
+    storage._client = object()
+    storage._files_collection = object()
+
+    await storage.close()
+
+    assert storage._client is None
+    assert storage._files_collection is None
+
+
 class _FindOneMetaCollection:
     async def find_one(self, query: dict[str, Any]) -> dict[str, Any]:
         assert query == {

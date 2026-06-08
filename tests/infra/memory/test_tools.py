@@ -475,3 +475,38 @@ async def test_scheduled_memory_compaction_runs_periodic_once(monkeypatch):
 
     assert result == {"checked": 1, "triggered": 1}
     assert events == ["run"]
+
+
+@pytest.mark.asyncio
+async def test_schedule_backend_reset_deduplicates_inflight_reset_task(monkeypatch):
+    from src.infra.memory import tools as memory_tools
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+
+    async def fake_close_and_reset_backend():
+        nonlocal calls
+        calls += 1
+        started.set()
+        await release.wait()
+
+    monkeypatch.setattr(
+        memory_tools,
+        "_close_and_reset_backend",
+        fake_close_and_reset_backend,
+    )
+    memory_tools._background_tasks.clear()
+    memory_tools._backend_reset_task = None
+
+    memory_tools.schedule_backend_reset()
+    await asyncio.wait_for(started.wait(), timeout=1)
+    memory_tools.schedule_backend_reset()
+
+    assert len(memory_tools._background_tasks) == 1
+    assert calls == 1
+
+    release.set()
+    await asyncio.gather(*list(memory_tools._background_tasks))
+
+    assert memory_tools._backend_reset_task is None

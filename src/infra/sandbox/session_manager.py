@@ -203,6 +203,9 @@ class E2BSandboxAdapter:
 class SessionSandboxManager:
     """管理 User 与 Sandbox 的绑定关系（每个用户一个沙箱，跨 session 共享）"""
 
+    _index_task: asyncio.Task[None] | None = None
+    _index_ensured = False
+
     def __init__(self):
         self._daytona_client: Optional["Daytona"] = None
         self._e2b_adapter: Optional[E2BSandboxAdapter] = None
@@ -230,14 +233,24 @@ class SessionSandboxManager:
             client = get_mongo_client()
             db = client[settings.MONGODB_DB]
             self._collection = db[BINDING_COLLECTION]
-            # 在后台异步创建索引（幂等，已存在则跳过）
-            try:
-                asyncio.create_task(self._ensure_index())
-            except RuntimeError:
-                # 没有 event loop 时（如测试），同步创建
-                pass
+            self._schedule_index()
         assert self._collection is not None
         return self._collection
+
+    def _schedule_index(self) -> None:
+        cls = type(self)
+        if cls._index_ensured:
+            return
+        task = cls._index_task
+        if task is not None and not task.done():
+            return
+        try:
+            task = asyncio.create_task(self._ensure_index())
+        except RuntimeError:
+            return
+        task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        cls._index_task = task
+        cls._index_ensured = True
 
     async def _ensure_index(self):
         """异步创建索引"""
@@ -859,6 +872,13 @@ class SessionSandboxManager:
         self._cache.clear()
         with self._locks_mutex:
             self._locks.clear()
+        task = type(self)._index_task
+        type(self)._index_task = None
+        type(self)._index_ensured = False
+        if task is not None and not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self._collection = None
         logger.info("[SessionSandboxManager] All sandboxes stopped and resources cleaned up")
 
 
@@ -872,3 +892,11 @@ def get_session_sandbox_manager() -> SessionSandboxManager:
     if _session_sandbox_manager is None:
         _session_sandbox_manager = SessionSandboxManager()
     return _session_sandbox_manager
+
+
+async def close_session_sandbox_manager() -> None:
+    global _session_sandbox_manager
+    manager = _session_sandbox_manager
+    _session_sandbox_manager = None
+    if manager is not None:
+        await manager.close_all()

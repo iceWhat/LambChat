@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,6 +19,7 @@ import { useSwipeToClose } from "../../hooks/useSwipeToClose";
 import { useClientPagination } from "../../hooks/useClientPagination";
 import { Pagination } from "../common/Pagination";
 import { createPagedGroups } from "./selectorPagination";
+import { SelectorModalPortal } from "./SelectorModal";
 
 interface ToolSelectorProps {
   tools: ToolState[];
@@ -415,24 +415,11 @@ export function ToolSelector({
 
   // When controlled externally, only render the modal — no trigger button
   if (externalOnOpenChange) {
-    return isOpen
-      ? createPortal(
-          <>
-            <div
-              data-yields-sidebar
-              className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
-              onClick={() => setIsOpen(false)}
-            />
-            <div
-              className="safe-area-viewport-padding fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
-              onClick={() => setIsOpen(false)}
-            >
-              <ModalContent />
-            </div>
-          </>,
-          document.body,
-        )
-      : null;
+    return (
+      <SelectorModalPortal open={isOpen} onClose={() => setIsOpen(false)}>
+        <ModalContent />
+      </SelectorModalPortal>
+    );
   }
 
   // 空状态：没有工具时显示禁用状态的图标（仅非外部控制模式）
@@ -465,25 +452,11 @@ export function ToolSelector({
       </button>
 
       {/* Modal */}
-      {isOpen &&
-        createPortal(
-          <>
-            <div
-              data-yields-sidebar
-              className="fixed inset-0 z-[300] bg-black/50 animate-fade-in"
-              onClick={() => setIsOpen(false)}
-            />
-
-            {/* Modal Content - Desktop: centered, Mobile: bottom sheet */}
-            <div
-              className="safe-area-viewport-padding fixed z-[301] sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-4 inset-x-0 bottom-0 animate-slide-up sm:animate-scale-in"
-              onClick={() => setIsOpen(false)}
-            >
-              <ModalContent />
-            </div>
-          </>,
-          document.body,
-        )}
+      {isOpen && (
+        <SelectorModalPortal open={isOpen} onClose={() => setIsOpen(false)}>
+          <ModalContent />
+        </SelectorModalPortal>
+      )}
     </div>
   );
 }

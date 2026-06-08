@@ -4,11 +4,11 @@
     transition: max-width 300ms ease-out;
   }
   html[data-sidebar-preview="open"] #root {
-    max-width: calc(100% - var(--sidebar-preview-width, 35%)) !important;
+    max-width: calc(100% - var(--sidebar-preview-width, 60%)) !important;
   }
   /* Fixed/absolute elements inside #root must also yield space for the sidebar panel */
   html[data-sidebar-preview="open"] #root [data-yields-sidebar] {
-    right: var(--sidebar-preview-width, 35%) !important;
+    right: var(--sidebar-preview-width, 60%) !important;
   }
   [data-yields-sidebar] {
     transition: right 300ms ease-out;
@@ -20,11 +20,11 @@
       right 300ms ease-out;
   }
   html[data-sidebar-preview="open"] .app-toaster {
-    right: calc(var(--sidebar-preview-width, 35%) + 16px) !important;
+    right: calc(var(--sidebar-preview-width, 60%) + 16px) !important;
   }
   /* Sidebar panel uses percentage width on desktop */
   [data-sidebar-panel] {
-    width: var(--sidebar-preview-width, 35%) !important;
+    width: var(--sidebar-preview-width, 60%) !important;
   }
 }
 
@@ -47,7 +47,7 @@
   /* When both sidebars are open, compress #root for the combined width */
   html[data-sidebar-preview="open"][data-editor-sidebar="open"] #root {
     max-width: calc(
-      100% - var(--sidebar-preview-width, 35%) -
+      100% - var(--sidebar-preview-width, 60%) -
         var(--editor-sidebar-width, 30%)
     ) !important;
   }
@@ -55,12 +55,12 @@
     #root
     [data-yields-sidebar] {
     right: calc(
-      var(--sidebar-preview-width, 35%) + var(--editor-sidebar-width, 30%)
+      var(--sidebar-preview-width, 60%) + var(--editor-sidebar-width, 30%)
     ) !important;
   }
   html[data-sidebar-preview="open"][data-editor-sidebar="open"] .app-toaster {
     right: calc(
-      var(--sidebar-preview-width, 35%) + var(--editor-sidebar-width, 30%) +
+      var(--sidebar-preview-width, 60%) + var(--editor-sidebar-width, 30%) +
         16px
     ) !important;
   }

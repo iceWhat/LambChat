@@ -43,3 +43,6 @@ class NotificationManager:
 
     async def dismiss(self, notification_id: str, user_id: str) -> bool:
         return await self.storage.dismiss(notification_id, user_id)
+
+    async def close(self) -> None:
+        await self.storage.close()

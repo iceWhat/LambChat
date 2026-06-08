@@ -92,6 +92,15 @@ def get_tool_cache_pubsub() -> ToolCachePubSub:
     return _tool_cache_pubsub
 
 
+async def close_tool_cache_pubsub() -> None:
+    """Stop and release the tool cache pub/sub singleton without creating it."""
+    global _tool_cache_pubsub
+    pubsub = _tool_cache_pubsub
+    _tool_cache_pubsub = None
+    if pubsub is not None:
+        await pubsub.stop_listener()
+
+
 async def publish_tool_cache_invalidation(cache: str, *, user_id: str | None = None) -> None:
     try:
         redis_client = get_redis_client()

@@ -820,6 +820,24 @@ def create_feishu_message_handler(
                 team_id=team_id if agent_to_use == "team" else None,
             )
             collector.set_session_link(session_id, run_id)
+            try:
+                from src.infra.session.manager import SessionManager
+                from src.kernel.schemas.channel import ChannelType
+
+                await SessionManager().update_session_metadata(
+                    session_id,
+                    {
+                        "channel_delivery": {
+                            "channel_type": ChannelType.FEISHU.value,
+                            "chat_id": delivery_chat_id,
+                            "channel_instance_id": instance_id,
+                            "enabled": True,
+                            "send_on_success": True,
+                        }
+                    },
+                )
+            except Exception as e:
+                logger.warning(f"[Feishu] Failed to persist channel delivery metadata: {e}")
             if persona_metadata:
                 try:
                     from src.infra.session.manager import SessionManager

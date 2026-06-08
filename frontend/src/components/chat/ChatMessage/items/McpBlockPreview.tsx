@@ -27,6 +27,7 @@ import {
   openBlockPreview,
   subscribeBlockPreview,
 } from "./blockPreviewStore";
+import { ToolHoverCopyButton } from "./ToolHoverCopyButton";
 
 function useBlockPreview() {
   const [, setCount] = useState(0);
@@ -322,9 +323,11 @@ export function ToolResultContent({
             ) : (
               combinedText
             )}
-            <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-              {!hideCopyButton && <CopyButton text={combinedText} size={12} />}
-            </div>
+            <ToolHoverCopyButton
+              text={combinedText}
+              position="resultCompact"
+              hidden={hideCopyButton}
+            />
           </div>
         )}
         {mediaBlocks.length > 0 && (
@@ -351,16 +354,20 @@ export function ToolResultContent({
           (isMarkdownText(mcp.text) ? (
             <div className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto">
               <MarkdownContent content={mcp.text} />
-              <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                {!hideCopyButton && <CopyButton text={mcp.text} size={12} />}
-              </div>
+              <ToolHoverCopyButton
+                text={mcp.text}
+                position="resultCompact"
+                hidden={hideCopyButton}
+              />
             </div>
           ) : (
             <pre className="group/result relative text-xs text-stone-600 dark:text-stone-300 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
               {mcp.text}
-              <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-                {!hideCopyButton && <CopyButton text={mcp.text} size={12} />}
-              </div>
+              <ToolHoverCopyButton
+                text={mcp.text}
+                position="resultCompact"
+                hidden={hideCopyButton}
+              />
             </pre>
           ))}
         <div className="flex flex-wrap gap-2">
@@ -445,16 +452,20 @@ export function ToolResultContent({
     return isMarkdownText(textContent) ? (
       <div className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto">
         <MarkdownContent content={textContent} />
-        <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-          {!hideCopyButton && <CopyButton text={textContent} size={12} />}
-        </div>
+        <ToolHoverCopyButton
+          text={textContent}
+          position="resultCompact"
+          hidden={hideCopyButton}
+        />
       </div>
     ) : (
       <pre className="group/result relative text-xs text-stone-600 dark:text-stone-300 overflow-y-auto whitespace-pre-wrap break-words">
         {textContent}
-        <div className="absolute top-0.5 right-0.5 opacity-0 group-hover/result:opacity-100 transition-opacity">
-          {!hideCopyButton && <CopyButton text={textContent} size={12} />}
-        </div>
+        <ToolHoverCopyButton
+          text={textContent}
+          position="resultCompact"
+          hidden={hideCopyButton}
+        />
       </pre>
     );
   }

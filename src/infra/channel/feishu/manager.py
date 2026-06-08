@@ -659,3 +659,6 @@ async def stop_feishu_channels() -> None:
     if _feishu_channel_manager:
         await _feishu_channel_manager.stop()
         _feishu_channel_manager = None
+    from src.infra.channel.feishu.registration import close_registration_sessions
+
+    close_registration_sessions()

@@ -278,7 +278,11 @@ export function SessionItem({
 
         {/* Unread dot - hidden when session is active (user is viewing it) */}
         {!isEditing && !isActive && (session.unread_count ?? 0) > 0 && (
-          <span className="shrink-0 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white">
+          <span
+            className={`shrink-0 inline-flex items-center justify-center rounded-full bg-red-500 text-[10px] font-medium leading-none text-white ${
+              session.unread_count! <= 9 ? "w-4 h-4" : "h-4 min-w-[20px] px-1.5"
+            }`}
+          >
             {session.unread_count}
           </span>
         )}

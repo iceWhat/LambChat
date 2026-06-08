@@ -1,6 +1,7 @@
 """ZIP parsing helpers for the Skills API."""
 
 import io
+import re
 import zipfile
 
 from src.api.routes.upload import get_s3_enabled
@@ -34,11 +35,26 @@ def _strip_single_top_level_prefix(names: list[str]) -> str:
 
 
 def _normalize_zip_member_path(name: str, prefix: str) -> str | None:
+    normalized_name = name.replace("\\", "/")
+    if (
+        normalized_name.startswith("/")
+        or re.match(r"^[A-Za-z]:/", normalized_name)
+        or ".." in normalized_name.split("/")
+    ):
+        raise ValueError(f"Unsafe ZIP member path: {name}")
     if prefix:
-        if not name.startswith(prefix):
+        if not normalized_name.startswith(prefix):
             return None
-        name = name[len(prefix) :]
-    return name or None
+        normalized_name = normalized_name[len(prefix) :]
+    if not normalized_name:
+        return None
+    if (
+        normalized_name.startswith("/")
+        or re.match(r"^[A-Za-z]:/", normalized_name)
+        or ".." in normalized_name.split("/")
+    ):
+        raise ValueError(f"Unsafe ZIP member path: {name}")
+    return normalized_name
 
 
 def _get_skill_upload_max_size() -> tuple[int, int]:

@@ -9,6 +9,7 @@ class _FakeRedis:
     def __init__(self, values: dict[str, str] | None = None) -> None:
         self.values = values or {}
         self.deleted: list[str] = []
+        self.closed = False
 
     async def get(self, key: str) -> str | None:
         return self.values.get(key)
@@ -27,6 +28,9 @@ class _FakeRedis:
     async def delete(self, key: str) -> int:
         self.deleted.append(key)
         return 1
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 @pytest.mark.asyncio
@@ -74,3 +78,15 @@ async def test_rate_limiter_uses_dedicated_redis_client(
     assert allowed is True
     assert ttl == 0
     assert isolated_pool_flags == [True]
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_close_closes_and_clears_dedicated_redis_client() -> None:
+    limiter = WebSocketRateLimiter(max_failures=5)
+    redis = _FakeRedis()
+    limiter._redis = redis
+
+    await limiter.close()
+
+    assert redis.closed is True
+    assert limiter._redis is None

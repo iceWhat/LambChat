@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 
 import pytest
 
@@ -10,11 +11,98 @@ from src.infra.storage.s3.types import S3Config, S3Provider
 from src.infra.user import manager as user_manager_module
 from src.infra.user.manager import UserManager
 from src.kernel.config import settings
+from src.kernel.schemas.user import User, UserInDB
 
 
 class _UserStorage:
     async def delete(self, user_id: str) -> bool:
         return True
+
+
+class _ConcurrentListStorage:
+    def __init__(self) -> None:
+        self.list_started = asyncio.Event()
+        self.count_started = asyncio.Event()
+
+    async def list_users(self, *_args, **_kwargs) -> list[User]:
+        self.list_started.set()
+        await asyncio.wait_for(self.count_started.wait(), timeout=1)
+        return [
+            User(
+                id="user-1",
+                username="alice",
+                email="alice@example.com",
+                roles=["user"],
+                permissions=[],
+                is_active=True,
+            )
+        ]
+
+    async def count_users(self, *_args, **_kwargs) -> int:
+        self.count_started.set()
+        await asyncio.wait_for(self.list_started.wait(), timeout=1)
+        return 1
+
+
+class _LoginStorage:
+    async def authenticate(self, username_or_email: str, password: str) -> UserInDB:
+        assert username_or_email == "alice"
+        assert password == "secret"
+        return UserInDB(
+            id="user-1",
+            username="alice",
+            email="alice@example.com",
+            password_hash="hash",
+            roles=["user", "admin"],
+            permissions=[],
+            is_active=True,
+            email_verified=True,
+            created_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 4, 25, tzinfo=timezone.utc),
+        )
+
+
+class _RoleStorageShouldNotBeCalled:
+    async def get_by_name(self, name: str):
+        raise AssertionError(f"login should not fetch role {name}")
+
+    async def get_by_names(self, names):
+        raise AssertionError(f"login should not fetch roles {names}")
+
+
+@pytest.mark.asyncio
+async def test_login_does_not_fetch_roles_on_token_hot_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        user_manager_module, "create_access_token", lambda user_id: f"access:{user_id}"
+    )
+    monkeypatch.setattr(
+        user_manager_module,
+        "create_refresh_token",
+        lambda user_id, username: f"refresh:{user_id}:{username}",
+    )
+
+    manager = UserManager()
+    manager.storage = _LoginStorage()
+    manager.role_storage = _RoleStorageShouldNotBeCalled()
+
+    token = await manager.login("alice", "secret")
+
+    assert token is not None
+    assert token.access_token == "access:user-1"
+    assert token.refresh_token == "refresh:user-1:alice"
+
+
+@pytest.mark.asyncio
+async def test_list_users_fetches_rows_and_count_concurrently() -> None:
+    manager = UserManager()
+    manager.storage = _ConcurrentListStorage()
+
+    result = await manager.list_users(skip=0, limit=20)
+
+    assert result.total == 1
+    assert [user.username for user in result.users] == ["alice"]
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.infra.task import concurrency as concurrency_module
+from src.infra.task import manager as task_manager_module
 from src.infra.task import recovery as recovery_module
 from src.infra.task import startup_cleanup as startup_cleanup_module
 
@@ -51,6 +53,11 @@ class _FakeRedis:
     async def delete(self, key: str):
         self.deleted_keys.append(key)
         return 1
+
+
+class _NoopHeartbeat:
+    async def stop_all(self) -> None:
+        return None
 
 
 class _FakeCursor:
@@ -106,6 +113,26 @@ class _PagedFakeCollection:
         cursor = _PagedFakeCursor(docs, max_length=self.max_length)
         self.cursors.append(cursor)
         return cursor
+
+
+@pytest.mark.asyncio
+async def test_task_manager_shutdown_releases_global_singleton(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = task_manager_module.BackgroundTaskManager()
+    manager._heartbeat = _NoopHeartbeat()
+    manager._executor = object()
+    task_manager_module._task_manager = manager
+
+    monkeypatch.setattr(
+        concurrency_module,
+        "get_concurrency_limiter",
+        lambda: SimpleNamespace(release=lambda *args, **kwargs: None),
+    )
+
+    await manager.shutdown()
+
+    assert task_manager_module._task_manager is None
 
 
 @pytest.mark.asyncio

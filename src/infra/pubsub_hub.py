@@ -334,3 +334,12 @@ def get_pubsub_hub() -> RedisPubSubHub:
     if _pubsub_hub is None:
         _pubsub_hub = RedisPubSubHub()
     return _pubsub_hub
+
+
+async def close_pubsub_hub() -> None:
+    """Stop and release the process-local pub/sub hub without creating it."""
+    global _pubsub_hub
+    hub = _pubsub_hub
+    _pubsub_hub = None
+    if hub is not None:
+        await hub.stop()

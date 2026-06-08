@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -88,6 +89,32 @@ async def test_list_users_clamps_storage_limit() -> None:
 
     assert len(users) == USER_LIST_LIMIT_MAX
     assert storage.collection.cursor.limit_value == USER_LIST_LIMIT_MAX
+
+
+@pytest.mark.asyncio
+async def test_ensure_indexes_waits_for_user_index_creation() -> None:
+    storage = UserStorage()
+    started = asyncio.Event()
+    release = asyncio.Event()
+    finished = False
+
+    async def _slow_ensure_indexes() -> None:
+        nonlocal finished
+        started.set()
+        await release.wait()
+        finished = True
+
+    storage._ensure_indexes = _slow_ensure_indexes
+
+    task = asyncio.create_task(storage.ensure_indexes_if_needed())
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    assert task.done() is False
+    assert finished is False
+
+    release.set()
+    await task
+    assert finished is True
 
 
 @pytest.mark.asyncio

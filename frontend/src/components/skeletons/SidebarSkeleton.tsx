@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { SIDEBAR_COLLAPSED_STORAGE_KEY } from "../../hooks/useAuth";
 
 /** Sidebar skeleton — matches real SessionSidebar layout */
@@ -30,20 +32,17 @@ function SidebarRailSkeleton() {
       >
         {/* Expand button area */}
         <div className="flex items-center justify-center w-full pt-3">
-          <div className="skeleton-line size-9 rounded-full mx-2" />
+          <SidebarRailIconSkeleton />
         </div>
 
-        {/* Action icons — matches real rail: NewChat, Search, PersonaPlaza, TeamBuilder, FileLibrary, RecentChats */}
+        {/* Action icons — matches real rail: NewChat, Search, ScheduledTasks, FileLibrary, RecentChats, More */}
         <div
           className="mt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col items-center w-full space-y-1"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          <div className="skeleton-line size-9 rounded-full mx-2" />
-          <div className="skeleton-line size-9 rounded-full mx-2" />
-          <div className="skeleton-line size-9 rounded-full mx-2" />
-          <div className="skeleton-line size-9 rounded-full mx-2" />
-          <div className="skeleton-line size-9 rounded-full mx-2" />
-          <div className="skeleton-line size-9 rounded-full mx-2" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SidebarRailIconSkeleton key={i} />
+          ))}
         </div>
 
         {/* Profile avatar */}
@@ -78,39 +77,21 @@ function SidebarExpandedSkeleton() {
         <div className="skeleton-line size-8 rounded-lg shrink-0" />
       </div>
 
-      {/* Action buttons — NewChat, Search, PersonaPlaza, TeamBuilder, FileLibrary, More */}
+      {/* Action buttons — NewChat, Search, ScheduledTasks, FileLibrary, More */}
       <div className="flex flex-col gap-px px-2 mb-2 space-y-1">
         {/* New Chat */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-16 rounded-md" />
-        </div>
+        <SidebarNavRowSkeleton labelWidth="w-16" />
         {/* Search */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-14 rounded-md flex-1" />
-          <div className="skeleton-line h-4 w-10 rounded-md" />
-        </div>
-        {/* Persona Plaza */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-20 rounded-md" />
-        </div>
-        {/* Team Builder */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-16 rounded-md" />
-        </div>
+        <SidebarNavRowSkeleton
+          labelWidth="w-14 flex-1"
+          trailing={<div className="skeleton-line h-4 w-10 rounded-md" />}
+        />
+        {/* Scheduled Tasks (permission-gated) */}
+        <SidebarNavRowSkeleton labelWidth="w-20" />
         {/* File Library */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-16 rounded-md" />
-        </div>
+        <SidebarNavRowSkeleton labelWidth="w-16" />
         {/* More (conditional) */}
-        <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-          <div className="skeleton-line size-5 rounded-md shrink-0" />
-          <div className="skeleton-line h-3.5 w-10 rounded-md" />
-        </div>
+        <SidebarNavRowSkeleton labelWidth="w-10" />
       </div>
 
       {/* Session list */}
@@ -122,10 +103,7 @@ function SidebarExpandedSkeleton() {
             <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
           </div>
           {/* New Project button */}
-          <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
-            <div className="skeleton-line size-5 rounded-md shrink-0" />
-            <div className="skeleton-line h-3.5 w-20 rounded-md" />
-          </div>
+          <SidebarNavRowSkeleton labelWidth="w-20" />
           {/* Project items */}
           <div className="space-y-px">
             {[0, 1, 2].map((i) => (
@@ -137,6 +115,32 @@ function SidebarExpandedSkeleton() {
                 <div
                   className="skeleton-line h-[13px] rounded-md flex-1"
                   style={{ width: i === 0 ? "75%" : i === 1 ? "60%" : "85%" }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Separator */}
+          <div className="h-px bg-stone-200/60 dark:bg-stone-700/40 mx-2 my-1" />
+
+          {/* Section header — Scheduled Tasks */}
+          <div className="mt-1 flex items-center justify-between px-[9px] h-9">
+            <div className="skeleton-line h-3 w-20 rounded-md" />
+            <div className="skeleton-line size-3.5 rounded-sm shrink-0" />
+          </div>
+          {/* Create Task button */}
+          <SidebarNavRowSkeleton labelWidth="w-18" />
+          {/* Scheduled task items */}
+          <div className="space-y-px">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={`st-${i}`}
+                className="flex items-center gap-3 px-[9px] h-10 rounded-[10px]"
+              >
+                <div className="skeleton-line size-5 rounded shrink-0" />
+                <div
+                  className="skeleton-line h-[13px] rounded-md flex-1"
+                  style={{ width: i === 0 ? "70%" : i === 1 ? "80%" : "60%" }}
                 />
               </div>
             ))}
@@ -187,6 +191,26 @@ function SidebarExpandedSkeleton() {
           <div className="skeleton-line size-4 rounded-sm shrink-0" />
         </div>
       </div>
+    </div>
+  );
+}
+
+function SidebarRailIconSkeleton() {
+  return <div className="skeleton-line size-9 rounded-full mx-2" />;
+}
+
+function SidebarNavRowSkeleton({
+  labelWidth,
+  trailing,
+}: {
+  labelWidth: string;
+  trailing?: ReactNode;
+}) {
+  return (
+    <div className="w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px]">
+      <div className="skeleton-line size-5 rounded-md shrink-0" />
+      <div className={`skeleton-line h-3.5 ${labelWidth} rounded-md`} />
+      {trailing}
     </div>
   );
 }

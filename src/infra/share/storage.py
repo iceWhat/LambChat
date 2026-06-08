@@ -2,6 +2,7 @@
 会话分享存储层
 """
 
+import asyncio
 import secrets
 from typing import Optional
 
@@ -135,12 +136,15 @@ class ShareStorage:
         """列出用户的所有分享"""
         limit = min(max(int(limit), 1), SHARE_LIST_LIMIT_MAX)
         query = {"owner_id": owner_id}
-        total = await self.collection.count_documents(query)
 
         cursor = self.collection.find(query).skip(skip).limit(limit).sort("created_at", -1)
+        total, share_dicts = await asyncio.gather(
+            self.collection.count_documents(query),
+            cursor.to_list(length=limit),
+        )
 
         shares = []
-        for share_dict in await cursor.to_list(length=limit):
+        for share_dict in share_dicts:
             shares.append(
                 SharedSessionListItem(
                     id=str(share_dict["_id"]),

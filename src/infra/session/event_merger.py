@@ -508,3 +508,12 @@ def get_event_merger(trace_storage) -> EventMerger:
     if _event_merger is None:
         _event_merger = EventMerger(trace_storage)
     return _event_merger
+
+
+async def close_event_merger() -> None:
+    """Stop and release the singleton EventMerger without creating it."""
+    global _event_merger
+    merger = _event_merger
+    _event_merger = None
+    if merger is not None:
+        await merger.stop()

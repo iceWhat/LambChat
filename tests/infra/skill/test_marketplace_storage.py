@@ -77,12 +77,27 @@ async def test_list_marketplace_skills_counts_files_without_loading_file_content
     limit_index = next(i for i, stage in enumerate(stages) if stage == {"$limit": 10})
     assert skip_index < lookup_index
     assert limit_index < lookup_index
-
     lookup = stages[lookup_index]["$lookup"]
     assert "pipeline" in lookup
     assert lookup["pipeline"][-1] == {"$count": "count"}
     assert "as" in lookup
     assert lookup["as"] != "_files"
+
+
+@pytest.mark.asyncio
+async def test_marketplace_storage_close_clears_local_client_reference() -> None:
+    storage = MarketplaceStorage()
+    storage._client = object()
+    storage._meta_collection = object()
+    storage._files_collection = object()
+    storage._users_collection = object()
+
+    await storage.close()
+
+    assert storage._client is None
+    assert storage._meta_collection is None
+    assert storage._files_collection is None
+    assert storage._users_collection is None
 
 
 @pytest.mark.asyncio

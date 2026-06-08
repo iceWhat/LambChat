@@ -160,6 +160,6 @@ async def test_batch_create_persona_presets_rejects_too_many_items(
     item = PersonaPresetCreate(name="Preset", system_prompt="Prompt").model_dump(mode="json")
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.post("/api/persona-presets/batch", json=[item] * 101)
+        response = await client.post("/api/persona-presets/batch", json=[item] * 501)
 
     assert response.status_code == 422

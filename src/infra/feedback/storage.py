@@ -259,6 +259,9 @@ class FeedbackStorage:
             logger.error(f"Error deleting feedback {feedback_id}: {e}")
             return False
 
+    async def close(self) -> None:
+        self._collection = None
+
     async def get_stats(
         self,
         session_id: Optional[str] = None,

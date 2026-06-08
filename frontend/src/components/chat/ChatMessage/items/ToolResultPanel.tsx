@@ -13,7 +13,11 @@ import {
   Shrink,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { LoadingSpinner } from "../../../common";
+import {
+  LoadingSpinner,
+  OverlayRoundIconButton,
+  ToolbarIconButton,
+} from "../../../common";
 
 import { useSidebarPanel } from "../../../../hooks/useSidebarPanel";
 import type { CollapsibleStatus } from "../../../common/CollapsiblePill";
@@ -28,7 +32,7 @@ export { closeCurrentToolPanel } from "./toolPanelRegistry";
 
 const WIDTH_STORAGE_KEY = "sidebar-preview-width";
 const WIDTH_CSS_VAR = "--sidebar-preview-width";
-const DEFAULT_WIDTH_PCT = 35;
+const DEFAULT_WIDTH_PCT = 60;
 
 interface ToolResultPanelProps {
   open: boolean;
@@ -72,19 +76,13 @@ interface ToolResultPanelProps {
   onBack?: () => void;
 }
 
-const panelBtnClass =
-  "flex items-center justify-center size-8 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer";
-
-const panelCloseBtnClass =
-  "flex items-center justify-center size-8 rounded-lg text-stone-400 dark:text-stone-500 hover:bg-stone-200/80 dark:hover:bg-stone-700/60 active:bg-stone-200 dark:active:bg-stone-600/60 transition-all duration-200 active:scale-95 cursor-pointer";
-
 const statusConfig: Record<
   CollapsibleStatus,
   { bg: string; color: string; icon: React.ReactNode }
 > = {
   idle: {
-    bg: "bg-stone-100 dark:bg-stone-800",
-    color: "text-stone-500 dark:text-stone-400",
+    bg: "bg-theme-bg-subtle",
+    color: "text-theme-text-tertiary",
     icon: null,
   },
   loading: {
@@ -270,7 +268,7 @@ export function ToolResultPanel({
 
   const content = (
     <div
-      className={`w-full flex flex-col bg-white dark:bg-[#1e1e1e] pointer-events-auto ${
+      className={`w-full flex flex-col bg-theme-bg-card pointer-events-auto ${
         panelClass
           ? panelClass
           : isFullscreen
@@ -285,7 +283,7 @@ export function ToolResultPanel({
                   }`
                 : isCenter
                   ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
-                  : `h-full relative shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
+                  : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
                       animateIn
                         ? "animate-[slide-in-right_200ms_ease-out_backwards]"
                         : ""
@@ -356,7 +354,7 @@ export function ToolResultPanel({
           className={`flex flex-col shrink-0 ${
             isFullscreen
               ? ""
-              : "bg-gradient-to-r from-stone-50 to-white dark:from-stone-800 dark:to-[#292524]"
+              : "bg-gradient-to-r from-theme-bg-subtle to-theme-bg-card"
           }`}
         >
           {/* Mobile drag handle */}
@@ -368,25 +366,22 @@ export function ToolResultPanel({
           {hasCustomHeader ? (
             customHeader
           ) : (
-            <div className="flex items-center gap-1 px-2 sm:px-4 py-2 sm:py-3 border-b border-stone-200 dark:border-stone-700 shrink-0 overflow-hidden">
+            <div className="flex items-center gap-2 px-2 sm:px-4 py-1.5 sm:py-2 border-b border-theme-border shrink-0 overflow-hidden">
               {/* Back button */}
               {effectiveOnBack && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                <ToolbarIconButton
+                  variant="muted"
+                  onClick={() => {
                     effectiveOnBack();
                   }}
-                  className={panelCloseBtnClass + " shrink-0"}
                   title={t("common.back", "Back")}
-                >
-                  <BackIcon size={16} />
-                </button>
+                  icon={<BackIcon size={16} />}
+                />
               )}
 
               {/* Status + Icon */}
               <div
-                className={`flex items-center justify-center size-10 rounded-xl shrink-0 ${cfg.bg}`}
+                className={`flex items-center justify-center size-8 rounded-xl shrink-0 ${cfg.bg}`}
               >
                 {status === "loading" ? (
                   <LoadingSpinner
@@ -405,20 +400,20 @@ export function ToolResultPanel({
 
               {/* Title */}
               {title && (
-                <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <h3
-                    className="font-medium text-sm text-stone-900 dark:text-stone-100 truncate"
+                    className="font-medium text-sm text-theme-text truncate"
                     title={title}
                   >
                     {title}
                   </h3>
                   {subtitle && (
-                    <p
-                      className="text-xs text-stone-500 dark:text-stone-400 mt-0.5 truncate"
+                    <span
+                      className="shrink-0 inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-theme-bg-subtle px-1.5 text-[10px] font-semibold leading-none text-theme-text-secondary"
                       title={subtitle}
                     >
                       {subtitle}
-                    </p>
+                    </span>
                   )}
                 </div>
               )}
@@ -429,67 +424,59 @@ export function ToolResultPanel({
               {/* Center / Fullscreen / Close */}
               {!hideViewToggle && (
                 <div className="flex items-center gap-px sm:gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                  <ToolbarIconButton
+                    variant="muted"
+                    onClick={() => {
                       handleToggleViewMode();
                     }}
-                    className={panelBtnClass}
                     title={
                       isSidebar
                         ? t("documents.centerView", "Center view")
                         : t("documents.sidebarView", "Sidebar view")
                     }
-                  >
-                    {isSidebar ? (
-                      <Columns2 size={16} />
-                    ) : (
-                      <PanelRight size={16} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    icon={
+                      isSidebar ? (
+                        <Columns2 size={16} />
+                      ) : (
+                        <PanelRight size={16} />
+                      )
+                    }
+                  />
+                  <ToolbarIconButton
+                    variant="muted"
+                    onClick={() => {
                       handleToggleFullscreen();
                     }}
-                    className={panelBtnClass}
                     title={
                       isFullscreen
                         ? t("documents.exitFullscreen")
                         : t("documents.fullscreen")
                     }
-                  >
-                    {isFullscreen ? <Shrink size={16} /> : <Expand size={16} />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    icon={
+                      isFullscreen ? <Shrink size={16} /> : <Expand size={16} />
+                    }
+                  />
+                  <ToolbarIconButton
+                    variant="muted"
+                    onClick={() => {
                       handleUserClose();
                     }}
-                    className={panelCloseBtnClass}
                     title={t("common.close")}
                     aria-label={t("common.close")}
-                  >
-                    <X size={16} />
-                  </button>
+                    icon={<X size={16} />}
+                  />
                 </div>
               )}
               {hideViewToggle && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                <ToolbarIconButton
+                  variant="muted"
+                  onClick={() => {
                     handleUserClose();
                   }}
-                  className={panelCloseBtnClass + " shrink-0"}
                   aria-label={t("common.close")}
                   title={t("common.close")}
-                >
-                  <X size={16} />
-                </button>
+                  icon={<X size={16} />}
+                />
               )}
             </div>
           )}
@@ -500,27 +487,23 @@ export function ToolResultPanel({
       {isCenter && !hasCustomHeader && !isMobile && (
         <div className="absolute top-3 right-3 z-[310] flex items-center gap-2">
           {effectiveOnBack && (
-            <button
+            <OverlayRoundIconButton
               onClick={(e) => {
                 e.stopPropagation();
                 effectiveOnBack();
               }}
-              className="flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200 cursor-pointer"
               aria-label={t("common.back", "返回")}
-            >
-              <BackIcon size={18} />
-            </button>
+              icon={<BackIcon size={18} />}
+            />
           )}
-          <button
+          <OverlayRoundIconButton
             onClick={(e) => {
               e.stopPropagation();
               handleUserClose();
             }}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-black/70 hover:bg-black/90 text-white shadow-lg transition-all duration-200 cursor-pointer"
             aria-label={t("common.close", "关闭")}
-          >
-            <X size={18} />
-          </button>
+            icon={<X size={18} />}
+          />
         </div>
       )}
 

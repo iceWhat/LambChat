@@ -77,9 +77,88 @@
 /* Message area */
 .approval-message {
   padding: 0.25rem 1.25rem 0.625rem;
+  overflow-x: hidden;
 }
 
 .approval-message .prose {
+  color: var(--approval-text);
+  overflow-wrap: anywhere;
+}
+
+/* ── Approval prose overrides ── */
+.approval-message .prose p:first-child {
+  color: var(--approval-text-dim);
+  font-size: 0.8125rem;
+}
+
+.approval-message .prose table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  margin: 0.5rem 0;
+  border: 1px solid var(--approval-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.approval-message .prose th,
+.approval-message .prose td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--approval-border);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.approval-message .prose thead th {
+  display: none; /* hide the empty header row */
+}
+
+.approval-message .prose thead {
+  display: none; /* hide the empty header row */
+}
+
+.approval-message .prose td:first-child {
+  color: var(--approval-text-dim);
+  font-weight: 600;
+  white-space: nowrap;
+  width: 40%;
+  background: color-mix(
+    in srgb,
+    var(--approval-input-bg) 50%,
+    var(--approval-accent-light) 15%
+  );
+}
+
+.approval-message .prose td:last-child {
+  color: var(--approval-text);
+  word-break: break-word;
+}
+
+.approval-message .prose td code {
+  font-size: 0.8125rem;
+  background: var(--approval-accent-light);
+  color: var(--approval-accent);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+}
+
+.approval-message .prose pre {
+  margin: 0.5rem 0 0;
+  background: var(--approval-input-bg);
+  border: 1px solid var(--approval-border);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.approval-message .prose pre code {
+  display: block;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: none;
   color: var(--approval-text);
 }
 

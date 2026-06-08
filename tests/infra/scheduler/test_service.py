@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -64,6 +64,14 @@ def _make_create_request(**overrides: Any) -> ScheduledTaskCreate:
 
 def _make_update_request(**overrides: Any) -> ScheduledTaskUpdate:
     return ScheduledTaskUpdate.model_validate(overrides)
+
+
+def test_clear_managed_task_signatures_releases_scheduler_registration_cache() -> None:
+    service_module._managed_task_signatures["task_1"] = "signature"
+
+    service_module.clear_managed_task_signatures()
+
+    assert service_module._managed_task_signatures == {}
 
 
 @pytest.fixture
@@ -223,6 +231,41 @@ async def test_load_persisted_tasks(
 
     assert count == 3
     assert mock_scheduler.register_job.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_load_persisted_tasks_does_not_honor_run_on_start(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    task = _make_task(run_on_start=True)
+    mock_storage.list_active_tasks = AsyncMock(return_value=[task])
+
+    await service.load_persisted_tasks()
+
+    job = mock_scheduler.register_job.call_args.args[0]
+    assert job.run_on_start is False
+
+
+@pytest.mark.asyncio
+async def test_register_interval_task_aligns_trigger_to_last_run(
+    service: ScheduledTaskService,
+    mock_storage: AsyncMock,
+    mock_scheduler: MagicMock,
+) -> None:
+    last_run_at = datetime(2026, 6, 8, 5, 0, tzinfo=timezone.utc)
+    task = _make_task(
+        trigger_config={"seconds": 300},
+        last_run_at=last_run_at,
+        created_at=datetime(2026, 6, 8, 4, 0, tzinfo=timezone.utc),
+    )
+    mock_storage.list_active_tasks = AsyncMock(return_value=[task])
+
+    await service.load_persisted_tasks()
+
+    job = mock_scheduler.register_job.call_args.args[0]
+    assert job.trigger.start_date == last_run_at + timedelta(seconds=300)
 
 
 @pytest.mark.asyncio

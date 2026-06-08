@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -13,6 +14,7 @@ from src.infra.role.storage import RoleStorage
 class _FakeRedis:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
+        self.closed = False
 
     async def get(self, key: str) -> str | None:
         return self.values.get(key)
@@ -25,6 +27,9 @@ class _FakeRedis:
         next_value = int(self.values.get(key, "0")) + 1
         self.values[key] = str(next_value)
         return next_value
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 class _FakeCollection:
@@ -158,6 +163,20 @@ class _CountingRoleStorage(RoleStorage):
         return None
 
 
+class _ConcurrentCountingRoleStorage(RoleStorage):
+    def __init__(self) -> None:
+        super().__init__()
+        self.active = 0
+        self.max_active = 0
+
+    async def get_by_name(self, name: str):
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        await asyncio.sleep(0)
+        self.active -= 1
+        return None
+
+
 @pytest.mark.asyncio
 async def test_get_by_name_uses_dedicated_redis_client(
     monkeypatch: pytest.MonkeyPatch,
@@ -178,6 +197,19 @@ async def test_get_by_name_uses_dedicated_redis_client(
     assert role is not None
     assert role.name == "admin"
     assert isolated_pool_flags == [True]
+
+
+@pytest.mark.asyncio
+async def test_close_role_cache_redis_closes_and_clears_dedicated_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_redis = _FakeRedis()
+    monkeypatch.setattr(role_storage, "_role_cache_redis", fake_redis)
+
+    await role_storage.close_role_cache_redis()
+
+    assert fake_redis.closed is True
+    assert role_storage._role_cache_redis is None
 
 
 @pytest.mark.asyncio
@@ -375,3 +407,16 @@ async def test_get_by_names_caps_sequential_cache_lookups(
 
     assert roles == []
     assert storage.looked_up_names == ["role-0", "role-1", "role-2"]
+
+
+@pytest.mark.asyncio
+async def test_get_by_names_fetches_bounded_roles_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(role_storage, "ROLE_BATCH_LOOKUP_LIMIT", 3, raising=False)
+    storage = _ConcurrentCountingRoleStorage()
+
+    roles = await storage.get_by_names([f"role-{index}" for index in range(5)])
+
+    assert roles == []
+    assert storage.max_active > 1

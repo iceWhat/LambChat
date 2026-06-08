@@ -47,11 +47,15 @@ class _RecordingListCursor:
 class _RecordingListCollection:
     def __init__(self) -> None:
         self.cursor = _RecordingListCursor()
+        self.count_query = None
+        self.find_query = None
 
-    async def count_documents(self, _query):
+    async def count_documents(self, query):
+        self.count_query = query
         return 0
 
-    def find(self, *_args, **_kwargs):
+    def find(self, query, *_args, **_kwargs):
+        self.find_query = query
         return self.cursor
 
 
@@ -95,3 +99,63 @@ async def test_list_sessions_caps_direct_storage_limit(monkeypatch: pytest.Monke
     assert collection.cursor.skip_value == 0
     assert collection.cursor.limit_value == session_storage.SESSION_LIST_LOOKUP_LIMIT
     assert collection.cursor.to_list_length == session_storage.SESSION_LIST_LOOKUP_LIMIT
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_none_project_excludes_scheduled_task_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _RecordingListCollection()
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+
+    async def _skip_indexes(_self):
+        return None
+
+    monkeypatch.setattr(session_storage.SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+
+    sessions, total = await storage.list_sessions(
+        user_id="user",
+        is_active=True,
+        project_id="none",
+    )
+
+    assert sessions == []
+    assert total == 0
+    expected_query = {
+        "metadata.hidden_from_conversation_list": {"$ne": True},
+        "session_id": {"$not": {"$regex": "^sch_"}},
+        "user_id": "user",
+        "is_active": True,
+        "metadata.project_id": None,
+        "metadata.scheduled_task_id": None,
+    }
+    assert collection.count_query == expected_query
+    assert collection.find_query == expected_query
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_excludes_scheduled_task_session_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collection = _RecordingListCollection()
+    storage = session_storage.SessionStorage()
+    storage._collection = collection
+
+    async def _skip_indexes(_self):
+        return None
+
+    monkeypatch.setattr(session_storage.SessionStorage, "ensure_indexes_if_needed", _skip_indexes)
+
+    sessions, total = await storage.list_sessions(user_id="user", is_active=True)
+
+    assert sessions == []
+    assert total == 0
+    expected_query = {
+        "metadata.hidden_from_conversation_list": {"$ne": True},
+        "session_id": {"$not": {"$regex": "^sch_"}},
+        "user_id": "user",
+        "is_active": True,
+    }
+    assert collection.count_query == expected_query
+    assert collection.find_query == expected_query

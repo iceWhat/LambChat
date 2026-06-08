@@ -246,6 +246,7 @@ class PersonaPresetStorage:
             q=q,
         )
 
+        pref: dict[str, list[str]] | None = None
         if favorite is not None or pinned is not None:
             pref = await self._get_user_preset_preference(user_id)
             target_ids: set[str] = set()
@@ -261,7 +262,8 @@ class PersonaPresetStorage:
                 return []
             query["_id"] = {"$in": object_ids}
 
-        pref = await self._get_user_preset_preference(user_id)
+        if pref is None:
+            pref = await self._get_user_preset_preference(user_id)
         pinned_ids = pref["pinned"]
         favorite_ids = pref["favorite"]
         pipeline: list[dict[str, Any]] = [
@@ -443,3 +445,7 @@ class PersonaPresetStorage:
                     }
                 )
         return query
+
+    async def close(self) -> None:
+        self._collection = None
+        self._user_collection = None

@@ -8,8 +8,6 @@ import {
   FolderOpen,
   MessageSquarePlus,
   MoreHorizontal,
-  UserRound,
-  Users,
   CalendarClock,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,10 +21,10 @@ import { getFullUrl, type BackendSession } from "../../../services/api";
 import { scheduledTaskApi } from "../../../services/api/scheduledTask";
 import type { ProjectItemHandle } from "../../sidebar/ProjectItem";
 import {
-  formatUnreadCount,
   getUnreadCountForUncategorized,
   type UnreadBySession,
 } from "../../sidebar/unreadCounts";
+import { MarkAllReadBadge } from "../../sidebar/MarkAllReadBadge";
 import { groupSessionsByTime } from "../sessionHelpers";
 import { ProjectItem } from "../../sidebar/ProjectItem";
 import {
@@ -112,7 +110,8 @@ interface SessionListContentProps {
   onMarkAllRead: (opts?: {
     projectId?: string;
     scheduledTaskId?: string;
-  }) => void;
+  }) => Promise<void> | void;
+  markingReadId: string | null;
 }
 
 export function SessionListContent({
@@ -150,11 +149,11 @@ export function SessionListContent({
   autoExpandProjectId,
   onConsumeAutoExpandProjectId,
   onMarkAllRead,
+  markingReadId,
 }: SessionListContentProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const canReadTeam = hasPermission(Permission.TEAM_READ);
   const canReadScheduledTasks = hasPermission(Permission.SCHEDULED_TASK_READ);
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
   const [scheduledTaskTotal, setScheduledTaskTotal] = useState(0);
@@ -228,6 +227,18 @@ export function SessionListContent({
     },
     [],
   );
+  const handleScheduledTaskMarkAllRead = useCallback(
+    async (scheduledTaskId: string) => {
+      await onMarkAllRead({ scheduledTaskId });
+      scheduledTaskUnreadByTaskRef.current.delete(scheduledTaskId);
+      setScheduledTasks((prev) =>
+        prev.map((task) =>
+          task.id === scheduledTaskId ? { ...task, unread_count: 0 } : task,
+        ),
+      );
+    },
+    [onMarkAllRead],
+  );
 
   return (
     <>
@@ -297,24 +308,6 @@ export function SessionListContent({
             ⌘K
           </kbd>
         </button>
-
-        <button
-          onClick={() => navigate("/persona")}
-          className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
-        >
-          <UserRound size={20} />
-          <span>{t("personaPresets.title", "角色广场")}</span>
-        </button>
-
-        {canReadTeam && (
-          <button
-            onClick={() => navigate("/team")}
-            className="sidebar-nav-btn w-full h-8 rounded-[10px] flex items-center gap-3 px-[9px] focus:outline-none transition-colors"
-          >
-            <Users size={20} />
-            <span>{t("nav.team", "团队构建")}</span>
-          </button>
-        )}
 
         {canReadScheduledTasks && (
           <button
@@ -409,6 +402,7 @@ export function SessionListContent({
                   unreadBySession={unreadBySession}
                   favoritesOnly
                   onMarkAllRead={onMarkAllRead}
+                  markingReadId={markingReadId}
                 />
               );
             })()}
@@ -444,6 +438,7 @@ export function SessionListContent({
                   onConsumeAutoExpand={onConsumeAutoExpandProjectId}
                   unreadBySession={unreadBySession}
                   onMarkAllRead={onMarkAllRead}
+                  markingReadId={markingReadId}
                 />
               ))}
 
@@ -505,7 +500,10 @@ export function SessionListContent({
                         scrollRoot={scrollEl}
                         draggingSessionId={sessionActions.draggingSessionId}
                         unreadBySession={unreadBySession}
-                        onMarkAllRead={onMarkAllRead}
+                        onMarkAllRead={() =>
+                          handleScheduledTaskMarkAllRead(task.id)
+                        }
+                        markingReadId={markingReadId}
                       />
                     ))
                   )}
@@ -539,25 +537,13 @@ export function SessionListContent({
                     {t("sidebar.chats")}
                   </span>
                   {chatsUnreadCount > 0 && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkAllRead();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          onMarkAllRead();
-                        }
-                      }}
+                    <MarkAllReadBadge
+                      count={chatsUnreadCount}
+                      badgeId="all"
+                      markingReadId={markingReadId}
+                      onMarkAllRead={() => onMarkAllRead()}
                       title={t("sidebar.markAllRead")}
-                      className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium leading-none text-white cursor-pointer hover:opacity-70 transition-opacity"
-                    >
-                      {formatUnreadCount(chatsUnreadCount)}
-                    </span>
+                    />
                   )}
                 </div>
                 <ChevronDown

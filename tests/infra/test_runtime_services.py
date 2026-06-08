@@ -302,6 +302,21 @@ async def test_stop_runtime_services_skips_memory_services_when_memory_disabled(
     async def _memory_shutdown() -> None:
         memory_shutdown.calls += 1
 
+    async def _close_runtime_scheduler() -> None:
+        scheduler.stop_calls += 1
+
+    async def _close_tool_cache_pubsub() -> None:
+        await tool_cache_pubsub.stop_listener()
+
+    async def _close_mcp_cache_pubsub() -> None:
+        await mcp_cache_pubsub.stop_listener()
+
+    async def _close_channel_config_pubsub() -> None:
+        await channel_pubsub.stop_listener()
+
+    async def _close_memory_pubsub() -> None:
+        await memory_pubsub.stop_listener()
+
     monkeypatch.setattr(
         runtime_services,
         "settings",
@@ -328,13 +343,14 @@ async def test_stop_runtime_services_skips_memory_services_when_memory_disabled(
     monkeypatch.setattr(runtime_services, "memory_shutdown", _memory_shutdown, raising=False)
     monkeypatch.setattr(runtime_services, "drain_mcp_cache_background_tasks", _noop, raising=False)
     monkeypatch.setattr(runtime_services, "drain_mcp_global_background_tasks", _noop, raising=False)
-    monkeypatch.setattr(runtime_services, "close_mcp_pool_connections", _noop, raising=False)
+    monkeypatch.setattr(runtime_services, "close_tool_cache_pubsub", _close_tool_cache_pubsub)
+    monkeypatch.setattr(runtime_services, "close_mcp_cache_pubsub", _close_mcp_cache_pubsub)
     monkeypatch.setattr(
-        runtime_services,
-        "get_runtime_scheduler",
-        lambda: SimpleNamespace(stop=lambda: _increment_scheduler_stop(scheduler)),
-        raising=False,
+        runtime_services, "close_channel_config_pubsub", _close_channel_config_pubsub
     )
+    monkeypatch.setattr(runtime_services, "close_memory_pubsub", _close_memory_pubsub)
+    monkeypatch.setattr(runtime_services, "close_mcp_pool_connections", _noop, raising=False)
+    monkeypatch.setattr(runtime_services, "close_runtime_scheduler", _close_runtime_scheduler)
 
     await runtime_services.stop_runtime_services()
 
@@ -342,6 +358,61 @@ async def test_stop_runtime_services_skips_memory_services_when_memory_disabled(
     assert memory_shutdown.calls == 0
     assert settings_pubsub.stop_calls == 1
     assert model_config_pubsub.stop_calls == 1
+    assert scheduler.stop_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_close_runtime_scheduler_releases_scheduler_service_and_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def _close_runtime_scheduler() -> None:
+        calls.append("runtime")
+
+    def _clear_managed_task_signatures() -> None:
+        calls.append("signatures")
+
+    def _close_scheduled_task_storage() -> None:
+        calls.append("storage")
+
+    monkeypatch.setattr(
+        "src.infra.scheduler.runtime.close_runtime_scheduler",
+        _close_runtime_scheduler,
+    )
+    monkeypatch.setattr(
+        "src.infra.scheduler.service.clear_managed_task_signatures",
+        _clear_managed_task_signatures,
+    )
+    monkeypatch.setattr(
+        "src.infra.scheduler.storage.close_scheduled_task_storage",
+        _close_scheduled_task_storage,
+        raising=False,
+    )
+
+    await runtime_services.close_runtime_scheduler()
+
+    assert calls == ["runtime", "signatures", "storage"]
+
+
+@pytest.mark.asyncio
+async def test_drain_dual_writer_event_buffer_closes_existing_writer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def _close_dual_writer() -> None:
+        calls.append("close")
+
+    monkeypatch.setattr(
+        "src.infra.session.dual_writer.close_dual_writer",
+        _close_dual_writer,
+        raising=False,
+    )
+
+    await runtime_services.drain_dual_writer_event_buffer()
+
+    assert calls == ["close"]
 
 
 @pytest.mark.asyncio
@@ -364,12 +435,21 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     call_order: list[str] = []
     mcp_cache_drain = SimpleNamespace(calls=0)
     mcp_global_drain = SimpleNamespace(calls=0)
+    mcp_global_close = SimpleNamespace(calls=0)
     mcp_pool_close = SimpleNamespace(calls=0)
+    pubsub_hub_close = SimpleNamespace(calls=0)
+    channel_manager_close = SimpleNamespace(calls=0)
+    runtime_scheduler_close = SimpleNamespace(calls=0)
     dual_writer_drain = SimpleNamespace(calls=0)
     upload_delete_drain = SimpleNamespace(calls=0)
     user_cleanup_drain = SimpleNamespace(calls=0)
     project_cleanup_drain = SimpleNamespace(calls=0)
     llm_close_drain = SimpleNamespace(calls=0)
+    role_cache_close = SimpleNamespace(calls=0)
+    ws_rate_limiter_close = SimpleNamespace(calls=0)
+    s3_storage_close = SimpleNamespace(calls=0)
+    skills_storage_cleanup = SimpleNamespace(calls=0)
+    settings_service_close = SimpleNamespace(calls=0)
 
     async def _memory_shutdown() -> None:
         memory_shutdown.calls += 1
@@ -390,8 +470,35 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     async def _drain_mcp_global_background_tasks() -> None:
         mcp_global_drain.calls += 1
 
+    async def _close_global_mcp_cache() -> None:
+        mcp_global_close.calls += 1
+
+    async def _close_tool_cache_pubsub() -> None:
+        await tool_cache_pubsub.stop_listener()
+
+    async def _close_mcp_cache_pubsub() -> None:
+        await mcp_cache_pubsub.stop_listener()
+
+    async def _close_channel_config_pubsub() -> None:
+        await channel_pubsub.stop_listener()
+
+    async def _close_memory_pubsub() -> None:
+        await memory_pubsub.stop_listener()
+
     async def _close_mcp_pool_connections() -> None:
         mcp_pool_close.calls += 1
+
+    async def _close_pubsub_hub() -> None:
+        call_order.append("close_pubsub_hub")
+        pubsub_hub_close.calls += 1
+
+    async def _close_channel_manager_instances() -> None:
+        call_order.append("close_channel_managers")
+        channel_manager_close.calls += 1
+
+    async def _close_runtime_scheduler() -> None:
+        call_order.append("close_runtime_scheduler")
+        runtime_scheduler_close.calls += 1
 
     async def _drain_dual_writer_event_buffer() -> None:
         call_order.append("drain_dual_writer")
@@ -412,6 +519,26 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     async def _drain_llm_client_close_tasks() -> None:
         call_order.append("drain_llm_close")
         llm_close_drain.calls += 1
+
+    async def _close_role_cache_redis() -> None:
+        call_order.append("close_role_cache")
+        role_cache_close.calls += 1
+
+    async def _close_ws_rate_limiter() -> None:
+        call_order.append("close_ws_rate_limiter")
+        ws_rate_limiter_close.calls += 1
+
+    async def _close_s3_storage() -> None:
+        call_order.append("close_s3_storage")
+        s3_storage_close.calls += 1
+
+    async def _cleanup_skills_storage_cache() -> None:
+        call_order.append("cleanup_skills_storage")
+        skills_storage_cleanup.calls += 1
+
+    async def _close_settings_service() -> None:
+        call_order.append("close_settings_service")
+        settings_service_close.calls += 1
 
     monkeypatch.setattr(
         runtime_services,
@@ -457,8 +584,56 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     )
     monkeypatch.setattr(
         runtime_services,
+        "close_global_mcp_cache",
+        _close_global_mcp_cache,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_tool_cache_pubsub",
+        _close_tool_cache_pubsub,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_mcp_cache_pubsub",
+        _close_mcp_cache_pubsub,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_channel_config_pubsub",
+        _close_channel_config_pubsub,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_memory_pubsub",
+        _close_memory_pubsub,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
         "close_mcp_pool_connections",
         _close_mcp_pool_connections,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_pubsub_hub",
+        _close_pubsub_hub,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_channel_manager_instances",
+        _close_channel_manager_instances,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_runtime_scheduler",
+        _close_runtime_scheduler,
         raising=False,
     )
     monkeypatch.setattr(
@@ -493,13 +668,34 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     )
     monkeypatch.setattr(
         runtime_services,
-        "get_runtime_scheduler",
-        lambda: SimpleNamespace(
-            stop=lambda: _increment_scheduler_stop(scheduler),
-        ),
+        "close_role_cache_redis",
+        _close_role_cache_redis,
         raising=False,
     )
-
+    monkeypatch.setattr(
+        runtime_services,
+        "close_ws_rate_limiter",
+        _close_ws_rate_limiter,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_s3_storage",
+        _close_s3_storage,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "cleanup_skills_storage_cache",
+        _cleanup_skills_storage_cache,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        runtime_services,
+        "close_settings_service",
+        _close_settings_service,
+        raising=False,
+    )
     await runtime_services.stop_runtime_services()
 
     assert task_manager.stop_calls == 1
@@ -514,22 +710,38 @@ async def test_stop_runtime_services_stops_all_distributed_listeners(
     assert mcp_cache_pubsub.stop_calls == 1
     assert mcp_cache_drain.calls == 1
     assert mcp_global_drain.calls == 1
+    assert mcp_global_close.calls == 1
     assert mcp_pool_close.calls == 1
+    assert pubsub_hub_close.calls == 1
+    assert channel_manager_close.calls == 1
+    assert runtime_scheduler_close.calls == 1
     assert dual_writer_drain.calls == 1
     assert upload_delete_drain.calls == 1
     assert user_cleanup_drain.calls == 1
     assert project_cleanup_drain.calls == 1
     assert llm_close_drain.calls == 1
+    assert role_cache_close.calls == 1
+    assert ws_rate_limiter_close.calls == 1
+    assert s3_storage_close.calls == 1
+    assert skills_storage_cleanup.calls == 1
+    assert settings_service_close.calls == 1
     assert call_order == [
+        "close_channel_managers",
+        "close_runtime_scheduler",
+        "close_pubsub_hub",
         "drain_upload_delete",
         "drain_user_cleanup",
         "drain_project_cleanup",
         "drain_llm_close",
+        "close_role_cache",
+        "close_ws_rate_limiter",
+        "close_s3_storage",
+        "cleanup_skills_storage",
+        "close_settings_service",
         "drain_dual_writer",
         "shutdown_blocking_io",
     ]
     assert memory_shutdown.calls == 1
-    assert scheduler.stop_calls == 1
     assert shutdown_calls.count == 1
 
 

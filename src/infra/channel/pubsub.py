@@ -100,6 +100,15 @@ def get_channel_config_pubsub() -> ChannelConfigPubSub:
     return _channel_config_pubsub
 
 
+async def close_channel_config_pubsub() -> None:
+    """Stop and release the global ChannelConfigPubSub instance if it exists."""
+    global _channel_config_pubsub
+    pubsub = _channel_config_pubsub
+    _channel_config_pubsub = None
+    if pubsub is not None:
+        await pubsub.stop_listener()
+
+
 async def publish_channel_config_changed(
     *,
     user_id: str,

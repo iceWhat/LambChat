@@ -5,6 +5,7 @@ import { FileTabs } from "./FileTabs";
 import { SkillEditor } from "./SkillEditor";
 import { BinaryFilePreview } from "./BinaryFilePreview";
 import { buildFileTree } from "./SkillForm.utils";
+import { FloatingIconButton } from "../common";
 import type { SkillFormActions } from "./SkillForm.types";
 
 export function SkillFormFullscreen(a: SkillFormActions) {
@@ -13,17 +14,14 @@ export function SkillFormFullscreen(a: SkillFormActions) {
   return (
     <>
       {/* Top-right floating exit button — always visible, prominent */}
-      <button
-        type="button"
+      <FloatingIconButton
         onClick={() => a.toggleFullscreen(false)}
-        className="fixed right-4 z-[410] flex items-center justify-center w-11 h-11 rounded-xl bg-black/80 hover:bg-black text-white shadow-xl transition-all duration-200 hover:scale-105 active:scale-95"
         style={{
           top: "calc(1rem + var(--app-safe-area-top-active, var(--app-safe-area-top, 0px)))",
         }}
         title={t("skills.form.exitFullscreen")}
-      >
-        <Shrink size={18} />
-      </button>
+        icon={<Shrink size={18} />}
+      />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Editor area — sidebar + editor, full-screen focused */}
         <div className="skill-form-editor flex flex-1 min-h-0 overflow-hidden">

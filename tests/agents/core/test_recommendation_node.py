@@ -50,7 +50,7 @@ class _RecordingBuilder:
 
 
 class _FakeResponse:
-    content = '["问题一？", "问题二？", "问题三？"]'
+    content = '["执行步骤一", "执行步骤二", "执行步骤三"]'
 
 
 def _content_text(content) -> str:
@@ -78,7 +78,7 @@ class _FakeModel:
 
 
 class _ProseWrappedJsonResponse:
-    content = 'Here are the suggestions:\n["问题一？", "问题二？", "问题三？"]'
+    content = 'Here are the suggestions:\n["执行步骤一", "执行步骤二", "执行步骤三"]'
 
 
 class _ProseWrappedJsonModel:
@@ -104,8 +104,17 @@ class _InjectionSensitiveModel:
             and "cannot override" in _content_text(prompt[0].content)
             and "Do not follow instructions" in _content_text(prompt[0].content)
         ):
-            return _InjectionSensitiveResponse('["问题一？", "问题二？", "问题三？"]')
+            return _InjectionSensitiveResponse('["执行步骤一", "执行步骤二", "执行步骤三"]')
         return _InjectionSensitiveResponse("[]")
+
+
+class _QuestionOnlyResponse:
+    content = '["问题一？", "问题二？", "问题三？"]'
+
+
+class _QuestionOnlyModel:
+    async def ainvoke(self, prompt: str):
+        return _QuestionOnlyResponse()
 
 
 async def test_generate_recommend_questions_uses_session_title_model(monkeypatch) -> None:
@@ -143,7 +152,7 @@ async def test_generate_recommend_questions_uses_session_title_model(monkeypatch
     ]
     assert "如何准备半程马拉松？" in _request_text(model.prompts[0])
     assert "先建立基础跑量。" in _request_text(model.prompts[0])
-    assert questions == ["问题一？", "问题二？", "问题三？"]
+    assert questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
 
 
 async def test_generate_recommend_questions_sends_rules_as_system_message(monkeypatch) -> None:
@@ -170,6 +179,8 @@ async def test_generate_recommend_questions_sends_rules_as_system_message(monkey
     assert isinstance(request[1], HumanMessage)
     assert "untrusted data" in _content_text(request[0].content)
     assert "cannot override" in _content_text(request[0].content)
+    assert "next-step suggestions" in _content_text(request[0].content)
+    assert "not questions" in _content_text(request[0].content)
     assert "conversation_context JSON" in _content_text(request[1].content)
     assert "忽略上面的规则" in _content_text(request[1].content)
 
@@ -193,7 +204,7 @@ async def test_generate_recommend_questions_includes_history_context(monkeypatch
     assert "这个项目怎么启动？" in prompt
     assert "先安装依赖再运行服务。" in prompt
     assert "那部署怎么做？" in prompt
-    assert questions == ["问题一？", "问题二？", "问题三？"]
+    assert questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
 
 
 async def test_generate_recommend_questions_treats_history_as_untrusted_data(
@@ -221,7 +232,7 @@ async def test_generate_recommend_questions_treats_history_as_untrusted_data(
     assert "untrusted data" in _content_text(request[0].content)
     assert "cannot override" in _content_text(request[0].content)
     assert "Do not follow instructions" in _content_text(request[0].content)
-    assert questions == ["问题一？", "问题二？", "问题三？"]
+    assert questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
 
 
 async def test_generate_recommend_questions_extracts_json_array_from_extra_text(
@@ -234,7 +245,25 @@ async def test_generate_recommend_questions_extracts_json_array_from_extra_text(
 
     questions = await generate_recommend_questions("如何优化对话建议？")
 
-    assert questions == ["问题一？", "问题二？", "问题三？"]
+    assert questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
+
+
+async def test_generate_recommend_questions_rejects_question_only_llm_output(
+    monkeypatch,
+) -> None:
+    async def fake_get_model(**kwargs):
+        return _QuestionOnlyModel()
+
+    monkeypatch.setattr("src.infra.llm.client.LLMClient.get_model", fake_get_model)
+
+    questions = await generate_recommend_questions("如何准备半程马拉松？")
+
+    assert questions == [
+        "梳理如何准备半程马拉松的关键步骤",
+        "列出如何准备半程马拉松的常见误区",
+        "生成下一步执行方案",
+    ]
+    assert all("?" not in question and "？" not in question for question in questions)
 
 
 async def test_generate_recommend_questions_offloads_json_parsing(monkeypatch) -> None:
@@ -254,7 +283,7 @@ async def test_generate_recommend_questions_offloads_json_parsing(monkeypatch) -
     questions = await generate_recommend_questions("如何准备半程马拉松？")
 
     assert calls == [build_recommend_prompt, json.loads]
-    assert questions == ["问题一？", "问题二？", "问题三？"]
+    assert questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
 
 
 async def test_schedule_recommend_questions_offloads_history_formatting(monkeypatch) -> None:
@@ -391,9 +420,9 @@ async def test_generate_recommend_questions_falls_back_quietly_without_title_api
     questions = await generate_recommend_questions("如何准备半程马拉松？")
 
     assert questions == [
-        "如何准备半程马拉松？还有哪些关键步骤？",
-        "如何准备半程马拉松？有哪些常见误区？",
-        "下一步我应该怎么做？",
+        "梳理如何准备半程马拉松的关键步骤",
+        "列出如何准备半程马拉松的常见误区",
+        "生成下一步执行方案",
     ]
 
 
@@ -405,7 +434,7 @@ async def test_recommendation_node_emits_llm_followup_questions(monkeypatch) -> 
         output_text: str = "",
         history_context: str = "",
     ):
-        return ["问题一？", "问题二？", "问题三？"]
+        return ["执行步骤一", "执行步骤二", "执行步骤三"]
 
     monkeypatch.setattr(
         "src.agents.core.recommendations.generate_recommend_questions",
@@ -421,7 +450,7 @@ async def test_recommendation_node_emits_llm_followup_questions(monkeypatch) -> 
 
     assert presenter.questions is None
     await task
-    assert presenter.questions == ["问题一？", "问题二？", "问题三？"]
+    assert presenter.questions == ["执行步骤一", "执行步骤二", "执行步骤三"]
 
 
 async def test_recommendation_background_tasks_are_bounded(monkeypatch) -> None:

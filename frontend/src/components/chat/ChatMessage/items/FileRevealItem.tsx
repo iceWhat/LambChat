@@ -18,16 +18,17 @@ import {
 import type { RevealPreviewRequest } from "./revealPreviewData";
 import type { RevealPreviewOpenSource } from "./revealPreviewState";
 import { openRevealPreview } from "./revealPreviewActions";
+import { RevealStatusLabel, RevealStatusText } from "./RevealStatusText";
 import { useSessionImageGallery } from "../sessionImageGallery";
 
 function MediaSkeleton({ aspectRatio = "16/9" }: { aspectRatio?: string }) {
   return (
     <div
-      className="w-full bg-stone-100 dark:bg-stone-800 animate-pulse flex items-center justify-center"
+      className="w-full bg-theme-bg-subtle animate-pulse flex items-center justify-center"
       style={{ aspectRatio }}
     >
       <svg
-        className="w-10 h-10 text-stone-300 dark:text-stone-600"
+        className="w-10 h-10 text-theme-text-tertiary"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -264,23 +265,12 @@ export function FileRevealItem({
 
   if (isPending) {
     return (
-      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900">
+      <div className="my-2 flex items-center gap-3 px-4 py-3 rounded-xl border border-theme-border bg-white dark:bg-theme-bg">
         <div className={`p-2.5 rounded-lg ${bg}`}>
           <LoadingSpinner size="sm" className={color} />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
-            {fileName}
-          </div>
-          {parsed.description && (
-            <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-              {parsed.description}
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-amber-600 dark:text-amber-400">
-          {t("chat.message.running")}
-        </div>
+        <RevealStatusText title={fileName} subtitle={parsed.description} />
+        <RevealStatusLabel>{t("chat.message.running")}</RevealStatusLabel>
       </div>
     );
   }
@@ -291,19 +281,8 @@ export function FileRevealItem({
         <div className={`p-2.5 rounded-lg ${bg}`}>
           <FileIcon size={20} className={color} />
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate">
-            {fileName}
-          </div>
-          {parsed.description && (
-            <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-0.5">
-              {parsed.description}
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-amber-600 dark:text-amber-400">
-          {t("chat.message.cancelled")}
-        </div>
+        <RevealStatusText title={fileName} subtitle={parsed.description} />
+        <RevealStatusLabel>{t("chat.message.cancelled")}</RevealStatusLabel>
       </div>
     );
   }
@@ -348,8 +327,8 @@ export function FileRevealItem({
         <div
           className={clsx(
             "w-full rounded-xl border overflow-hidden transition-colors transition-shadow",
-            "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900",
-            "hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600",
+            "border-theme-border bg-white dark:bg-theme-bg",
+            "hover:shadow-lg hover:border-theme-border-hover",
           )}
         >
           {isAudio ? (
@@ -403,10 +382,10 @@ export function FileRevealItem({
               )}
               {(isImage || isVideo || isExcalidraw) && (
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center pointer-events-none">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-stone-800/90 shadow-lg pointer-events-auto cursor-pointer">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity p-2 rounded-full bg-white/90 dark:bg-theme-bg-card/90 shadow-lg pointer-events-auto cursor-pointer">
                     <ExternalLink
                       size={16}
-                      className="text-stone-600 dark:text-stone-300"
+                      className="text-theme-text-secondary"
                     />
                   </div>
                 </div>
@@ -416,7 +395,7 @@ export function FileRevealItem({
 
           <div
             className={clsx(
-              "flex items-center gap-2 px-3 py-2 bg-stone-50 dark:bg-stone-800/50 border-t border-stone-200 dark:border-stone-700",
+              "flex items-center gap-2 px-3 py-2 bg-theme-bg dark:bg-theme-bg-subtle/50 border-t border-theme-border",
               isAudio && "border-t-0",
             )}
             onClick={() => {
@@ -426,11 +405,11 @@ export function FileRevealItem({
             <div className={`p-1.5 rounded-md shrink-0 ${bg}`}>
               <FileIcon size={14} className={color} />
             </div>
-            <span className="text-xs font-medium text-stone-700 dark:text-stone-300 truncate flex-1">
+            <span className="text-xs font-medium text-theme-text-secondary truncate flex-1">
               {fileName}
             </span>
             {parsed.description && (
-              <span className="text-xs text-stone-400 dark:text-stone-500 truncate max-w-[200px]">
+              <span className="text-xs text-theme-text-tertiary truncate max-w-[200px]">
                 {parsed.description}
               </span>
             )}
@@ -449,8 +428,8 @@ export function FileRevealItem({
           className={clsx(
             "w-full flex items-center gap-3 p-4 rounded-xl border transition-colors transition-transform cursor-pointer text-left",
             success
-              ? "border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-600 hover:scale-[1.005]"
-              : "border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-800 opacity-70",
+              ? "border-theme-border bg-white dark:bg-theme-bg hover:shadow-lg hover:border-theme-border-hover hover:scale-[1.005]"
+              : "border-theme-border bg-theme-bg-subtle opacity-70",
           )}
           disabled={!parsed.filePath || !success}
         >
@@ -459,18 +438,18 @@ export function FileRevealItem({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-stone-800 dark:text-stone-200 truncate">
+            <div className="text-sm font-medium text-theme-text truncate">
               {fileName}
             </div>
             {parsed.description && (
-              <div className="text-xs text-stone-500 dark:text-stone-400 truncate mt-1">
+              <div className="text-xs text-theme-text-tertiary truncate mt-1">
                 {parsed.description}
               </div>
             )}
           </div>
 
           {success && parsed.filePath && (
-            <div className="shrink-0 p-2 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+            <div className="shrink-0 p-2 rounded-lg bg-theme-bg-subtle text-theme-text-tertiary">
               <ExternalLink size={16} />
             </div>
           )}

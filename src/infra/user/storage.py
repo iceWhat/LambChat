@@ -4,6 +4,7 @@
 提供用户的数据库操作。
 """
 
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -68,6 +69,10 @@ class UserStorage:
     使用 MongoDB 存储用户数据。
     """
 
+    _indexes_done = False
+    _indexes_lock: asyncio.Lock | None = None
+    _indexes_task: asyncio.Task | None = None
+
     def __init__(self):
         self._collection = None
 
@@ -85,12 +90,28 @@ class UserStorage:
 
     async def ensure_indexes_if_needed(self):
         """确保索引存在（由首次使用时调用）"""
-        if not hasattr(self, "_indexes_ensured"):
-            self._indexes_ensured = True
-            import asyncio
+        cls = type(self)
+        if cls._indexes_done:
+            return
 
-            task = asyncio.create_task(self._ensure_indexes())
-            task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        if cls._indexes_lock is None:
+            cls._indexes_lock = asyncio.Lock()
+
+        async with cls._indexes_lock:
+            if cls._indexes_done:
+                return
+            if cls._indexes_task is None or cls._indexes_task.cancelled():
+                cls._indexes_task = asyncio.create_task(self._ensure_indexes())
+            task = cls._indexes_task
+
+        succeeded = await task
+        if succeeded is not False:
+            cls._indexes_done = True
+            return
+
+        async with cls._indexes_lock:
+            if cls._indexes_task is task:
+                cls._indexes_task = None
 
     async def _ensure_indexes(self):
         """确保必要的索引存在（包括唯一索引）并迁移旧用户数据"""
@@ -106,9 +127,11 @@ class UserStorage:
 
             # 自动迁移旧用户：将 None 改为 True
             await self._migrate_legacy_users()
+            return True
         except Exception as e:
             # 索引创建失败不应阻止应用启动
             get_logger(__name__).warning(f"Failed to create indexes: {e}")
+            return False
 
     async def _migrate_legacy_users(self):
         """迁移旧用户数据：将 email_verified 和 is_active 从 None 改为 True"""
@@ -475,14 +498,19 @@ class UserStorage:
         Returns:
             验证成功返回用户对象，否则返回 None
         """
-        # 先尝试用户名查找
-        user = await self.get_by_username(username_or_email)
-        # 如果用户名查找失败，尝试邮箱查找
-        if not user:
-            user = await self.get_by_email(username_or_email)
-
-        if not user:
+        user_dict = await self.collection.find_one(
+            {
+                "$or": [
+                    {"username": username_or_email},
+                    {"email": username_or_email},
+                ]
+            }
+        )
+        if not user_dict:
             return None
+
+        user_dict["id"] = str(user_dict.pop("_id"))
+        user = UserInDB(**user_dict)
 
         # 只验证密码，不检查 is_active
         # is_active 检查由 UserManager.login() 处理，以便返回正确的错误信息

@@ -429,7 +429,7 @@ export function ApprovalPanel({
       className="w-full max-h-[60dvh] shrink min-h-0 overflow-y-auto overscroll-contain px-3 py-2 sm:px-4 sm:py-3"
       style={{ backgroundColor: "var(--theme-bg)" }}
     >
-      <div className="mx-auto max-w-3xl lg:max-w-4xl xl:max-w-5xl">
+      <div className="mx-auto max-w-2xl lg:max-w-3xl xl:max-w-4xl">
         {/* Pagination */}
         {approvals.length > 1 && (
           <div className="mb-2 flex items-center justify-between px-1">
@@ -490,7 +490,7 @@ export function ApprovalPanel({
           {/* Message */}
           <div className="approval-message">
             <div
-              className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-1 prose-headings:my-2 prose-headings:font-semibold prose-h1:text-xl prose-h2:text-lg prose-h3:text-base prose-code:rounded-md prose-code:px-1 prose-code:py-0.5"
+              className="prose prose-stone dark:prose-invert max-w-none text-sm leading-relaxed prose-p:my-0.5 prose-headings:my-1"
               style={{ color: "var(--theme-text)" }}
             >
               <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
