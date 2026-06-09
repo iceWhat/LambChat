@@ -239,7 +239,7 @@ function SubagentStatusIcon({
     return (
       <CheckCircle
         size={size}
-        className={clsx("text-emerald-500 dark:text-emerald-300", className)}
+        className={clsx("text-[var(--theme-primary)]", className)}
       />
     );
   }
@@ -780,17 +780,16 @@ export function SubagentBlock({
     <div
       className={clsx(
         "my-1.5 rounded-xl overflow-hidden min-w-0 group relative",
-        "ring-1 transition-all duration-250",
-        effectiveStatus === "running" &&
-          "ring-amber-300/70 dark:ring-amber-700/50 bg-amber-50/80 dark:bg-amber-950/15",
+        "ring-1 ring-stone-300/80 dark:ring-stone-600/60 transition-all duration-250",
+        effectiveStatus === "running" && "bg-amber-50/80 dark:bg-amber-950/15",
         effectiveStatus === "complete" &&
-          "ring-emerald-300/60 dark:ring-emerald-800/45 bg-emerald-50/60 dark:bg-emerald-950/10",
+          "bg-[color-mix(in_srgb,var(--theme-primary)_7%,var(--theme-bg-card))] dark:bg-[color-mix(in_srgb,var(--theme-primary)_10%,var(--theme-bg-card))]",
         effectiveStatus === "error" &&
-          "ring-red-300/70 dark:ring-red-900/45 bg-gradient-to-r from-red-50/60 to-transparent dark:from-red-950/20",
+          "bg-gradient-to-r from-red-50/60 to-transparent dark:from-red-950/20",
         effectiveStatus === "cancelled" &&
-          "ring-amber-300/55 dark:ring-amber-800/40 bg-stone-50/80 dark:bg-stone-800/40",
+          "bg-stone-50/80 dark:bg-stone-800/40",
         (!effectiveStatus || effectiveStatus === "pending") &&
-          "ring-stone-200 dark:ring-stone-700/80 bg-stone-50/80 dark:bg-stone-800/40",
+          "bg-stone-50/80 dark:bg-stone-800/40",
       )}
     >
       <div
@@ -800,7 +799,7 @@ export function SubagentBlock({
           effectiveStatus === "running" &&
             "ring-amber-300/70 dark:ring-amber-700/50",
           effectiveStatus === "complete" &&
-            "ring-emerald-300/60 dark:ring-emerald-800/45",
+            "ring-[color-mix(in_srgb,var(--theme-primary)_38%,transparent)] dark:ring-[color-mix(in_srgb,var(--theme-primary)_42%,transparent)]",
           effectiveStatus === "error" && "ring-red-300/70 dark:ring-red-900/45",
           effectiveStatus === "cancelled" &&
             "ring-amber-300/55 dark:ring-amber-800/40",

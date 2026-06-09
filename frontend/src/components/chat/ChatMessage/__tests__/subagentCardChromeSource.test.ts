@@ -7,11 +7,28 @@ const source = readFileSync(
   "utf8",
 );
 
-test("subagent card chrome uses status-colored border treatment", () => {
+test("subagent card chrome uses status-aware border treatment", () => {
   assert.match(source, /ring-amber-300\/70 dark:ring-amber-700\/50/);
-  assert.match(source, /ring-emerald-300\/60 dark:ring-emerald-800\/45/);
+  assert.match(
+    source,
+    /ring-\[color-mix\(in_srgb,var\(--theme-primary\)_38%,transparent\)\]/,
+  );
+  assert.match(
+    source,
+    /dark:ring-\[color-mix\(in_srgb,var\(--theme-primary\)_42%,transparent\)\]/,
+  );
+  assert.match(
+    source,
+    /bg-\[color-mix\(in_srgb,var\(--theme-primary\)_7%,var\(--theme-bg-card\)\)\]/,
+  );
+  assert.match(
+    source,
+    /dark:bg-\[color-mix\(in_srgb,var\(--theme-primary\)_10%,var\(--theme-bg-card\)\)\]/,
+  );
   assert.match(source, /ring-red-300\/70 dark:ring-red-900\/45/);
   assert.match(source, /bg-stone-50\/80 dark:bg-stone-800\/40/);
+  assert.doesNotMatch(source, /ring-emerald-300\/60 dark:ring-emerald-800\/45/);
+  assert.doesNotMatch(source, /bg-emerald-50\/60 dark:bg-emerald-950\/10/);
   assert.doesNotMatch(source, /ring-amber-200\/60/);
   assert.doesNotMatch(source, /ring-red-200\/60/);
   assert.doesNotMatch(source, /border-theme-border\/60/);
