@@ -1,4 +1,4 @@
-.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all frontend-dev frontend-build frontend-install
+.PHONY: help install install-pnpm dev build clean docker-up docker-down docker-logs docker-build test lint format typecheck check-all pre-commit install-hooks frontend-dev frontend-build frontend-install
 
 # 默认目标
 help:
@@ -28,11 +28,13 @@ help:
 	@echo "  make docker-restart   - 重启 Docker 容器"
 	@echo ""
 	@echo "代码质量:"
+	@echo "  make pre-commit       - 运行所有 pre-commit hooks（ruff、prettier 等）"
+	@echo "  make install-hooks    - 安装 pre-commit git hooks"
 	@echo "  make lint             - 运行 Ruff 代码检查"
 	@echo "  make format           - 格式化代码"
 	@echo "  make typecheck        - 运行 Mypy 类型检查"
 	@echo "  make test             - 运行测试"
-	@echo "  make check-all        - 运行所有检查（lint + typecheck + test）"
+	@echo "  make check-all        - 运行所有检查（pre-commit + typecheck + test）"
 	@echo ""
 	@echo "清理:"
 	@echo "  make clean            - 清理缓存和临时文件"
@@ -52,7 +54,7 @@ frontend-install: install-pnpm
 	@echo "📦 安装前端依赖..."
 	cd frontend && pnpm install
 
-install-all: install frontend-install
+install-all: install frontend-install install-hooks
 	@echo "✅ 所有依赖安装完成"
 
 # 开发运行
@@ -103,6 +105,15 @@ docker-restart: docker-down docker-up
 	@echo "🔄 Docker 容器已重启"
 
 # 代码质量
+install-hooks:
+	@echo "🪝 安装 pre-commit git hooks..."
+	uv run pre-commit install
+	@echo "✅ pre-commit hooks 已安装，每次 git commit 会自动检查"
+
+pre-commit:
+	@echo "🪝 运行所有 pre-commit hooks..."
+	uv run pre-commit run --all-files
+
 lint:
 	@echo "🔍 运行代码检查..."
 	uv run ruff check .
@@ -119,7 +130,7 @@ test:
 	@echo "🧪 运行测试..."
 	uv run pytest
 
-check-all: lint typecheck test
+check-all: pre-commit typecheck test
 	@echo "✅ 所有检查通过"
 
 # 清理

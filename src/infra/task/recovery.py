@@ -12,6 +12,7 @@ from src.infra.storage.redis import get_redis_client
 from src.infra.user.storage import UserStorage
 from src.infra.utils.datetime import utc_now_iso
 from src.infra.writer.present import Presenter, PresenterConfig
+from src.kernel.config import settings
 from src.kernel.schemas.session import SessionUpdate
 
 from .concurrency import ConcurrencyResult, get_concurrency_limiter, get_registered_executor
@@ -32,6 +33,43 @@ def _get_enabled_skills_from_metadata(session_metadata: dict[str, Any]) -> list[
         return None
     enabled_skills = session_metadata.get("enabled_skills")
     return enabled_skills if isinstance(enabled_skills, list) else None
+
+
+def _registered_agent_ids() -> set[str]:
+    from src.agents import discover_agents
+    from src.agents.core import base as agent_base
+
+    if not agent_base._AGENT_REGISTRY:
+        discover_agents()
+    return set(agent_base._AGENT_REGISTRY)
+
+
+def _resolve_recovery_agent_id(session_metadata: dict[str, Any], session: Any) -> str:
+    candidate = str(
+        session_metadata.get("agent_id") or getattr(session, "agent_id", "") or ""
+    ).strip()
+    registered_ids = _registered_agent_ids()
+    if candidate in registered_ids:
+        return candidate
+
+    fallback_candidates = [
+        str(getattr(settings, "DEFAULT_AGENT", "") or "").strip(),
+        "fast",
+        "search",
+        "team",
+        *sorted(registered_ids),
+    ]
+    for fallback in fallback_candidates:
+        if fallback and fallback in registered_ids:
+            if candidate:
+                logger.warning(
+                    "Recovery agent '%s' is not registered; using '%s' instead",
+                    candidate,
+                    fallback,
+                )
+            return fallback
+
+    return candidate or str(getattr(settings, "DEFAULT_AGENT", "") or "search")
 
 
 class TaskRecoveryService:
@@ -165,7 +203,7 @@ class TaskRecoveryService:
 
         language = await self.get_preferred_language(session.user_id, session)
         recovery_message = build_recovery_message(reason, language)
-        agent_id = str(session_metadata.get("agent_id") or getattr(session, "agent_id", "search"))
+        agent_id = _resolve_recovery_agent_id(session_metadata, session)
         new_run_id = generate_run_id()
         recovery_trace = Presenter(
             PresenterConfig(

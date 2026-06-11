@@ -92,8 +92,180 @@ export function createSubagentPart(
 }
 
 // ============================================
+// Part merge helpers
+// ============================================
+
+/**
+ * Merge a thinking chunk into an existing parts array (reverse scan).
+ * Returns a new array with content concatenated, or null if no match found.
+ */
+function mergeThinkingPart(
+  parts: MessagePart[],
+  part: ThinkingPart,
+): MessagePart[] | null {
+  const thinkingId = part.thinking_id;
+  let existingIndex = -1;
+
+  if (thinkingId !== undefined) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      if (
+        p.type === "thinking" &&
+        (p as ThinkingPart).thinking_id === thinkingId
+      ) {
+        existingIndex = i;
+        break;
+      }
+    }
+  } else {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      if (
+        p.type === "thinking" &&
+        (p as ThinkingPart).thinking_id === undefined
+      ) {
+        existingIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (existingIndex < 0) return null;
+
+  const newParts = [...parts];
+  const existing = newParts[existingIndex] as ThinkingPart;
+  newParts[existingIndex] = {
+    ...existing,
+    content: existing.content + part.content,
+    isStreaming: true,
+  };
+  return newParts;
+}
+
+/**
+ * Merge a text chunk into an existing parts array.
+ * If the last part is text, concatenates content and returns a new array.
+ * Otherwise returns null (caller should append).
+ */
+function mergeTextPart(
+  parts: MessagePart[],
+  content: string,
+): MessagePart[] | null {
+  const lastPart = parts[parts.length - 1];
+  if (lastPart?.type === "text") {
+    const newParts = [...parts];
+    newParts[newParts.length - 1] = {
+      ...lastPart,
+      content: lastPart.content + content,
+    };
+    return newParts;
+  }
+  return null;
+}
+
+/**
+ * Merge a summary chunk into an existing parts array.
+ * Returns a new array with content concatenated, or null if no match found.
+ */
+function mergeSummaryPart(
+  parts: MessagePart[],
+  part: SummaryPart,
+): MessagePart[] | null {
+  const idx = findSummaryIndex(parts, part.summary_id);
+  if (idx < 0) return null;
+
+  const newParts = [...parts];
+  const existing = newParts[idx] as SummaryPart;
+  newParts[idx] = {
+    ...existing,
+    content: existing.content + part.content,
+    isStreaming: part.isStreaming ? true : existing.isStreaming,
+  };
+  return newParts;
+}
+
+/**
+ * Merge or append a part into a parts array.
+ * Handles thinking, text, summary, and todo with merge semantics.
+ * For all other types, appends a new copy.
+ */
+function mergeOrAppendPart(
+  existingParts: MessagePart[],
+  part: MessagePart,
+): MessagePart[] {
+  switch (part.type) {
+    case "thinking": {
+      const merged = mergeThinkingPart(existingParts, part);
+      return merged ?? [...existingParts, part];
+    }
+    case "text": {
+      const merged = mergeTextPart(existingParts, part.content);
+      return merged ?? [...existingParts, part];
+    }
+    case "summary": {
+      const merged = mergeSummaryPart(existingParts, part);
+      return merged ?? [...existingParts, part];
+    }
+    case "todo": {
+      // Upsert: at most one todo per subagent
+      const todoIdx = existingParts.findIndex((p) => p.type === "todo");
+      if (todoIdx >= 0) {
+        const newParts = [...existingParts];
+        newParts[todoIdx] = part;
+        return newParts;
+      }
+      return [...existingParts, part];
+    }
+    default:
+      return [...existingParts, part];
+  }
+}
+
+// ============================================
 // Depth management
 // ============================================
+
+/**
+ * Search parts array for a matching subagent and merge/append the part into it.
+ * Recursively descends into nested subagents. Returns updated parts array,
+ * or null if no matching subagent was found.
+ */
+function findAndMergeInSubagent(
+  parts: MessagePart[],
+  part: MessagePart,
+  targetDepth: number,
+  effectiveAgentId?: string,
+): MessagePart[] | null {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+
+    if (p.type === "subagent" && p.depth === targetDepth && p.isPending) {
+      if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
+        continue;
+      }
+      const newSubagentParts = mergeOrAppendPart(p.parts || [], part);
+      const newParts = [...parts];
+      newParts[i] = { ...p, parts: newSubagentParts };
+      return newParts;
+    }
+
+    // Recurse into nested subagents
+    if (p.type === "subagent" && p.parts) {
+      const result = findAndMergeInSubagent(
+        p.parts,
+        part,
+        targetDepth,
+        effectiveAgentId,
+      );
+      if (result) {
+        const newParts = [...parts];
+        newParts[i] = { ...p, parts: result };
+        return newParts;
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Add a part to the correct depth position in the parts array.
@@ -110,7 +282,7 @@ export function addPartToDepth(
   messageId?: string,
 ): MessagePart[] {
   if (targetDepth <= 0) {
-    // Merge adjacent text blocks
+    // Merge adjacent text blocks at depth 0
     if (part.type === "text") {
       const lastPart = parts[parts.length - 1];
       if (lastPart?.type === "text" && !lastPart.depth) {
@@ -125,120 +297,39 @@ export function addPartToDepth(
     return [...parts, part];
   }
 
-  // Try to get effectiveAgentId from stack if not provided
+  // Resolve effectiveAgentId from stack (reverse scan, no allocation)
   let effectiveAgentId = targetAgentId;
   if (!effectiveAgentId && messageId) {
-    const relevantAgents = activeSubagentStack.filter(
-      (item) =>
+    for (let i = activeSubagentStack.length - 1; i >= 0; i--) {
+      const item = activeSubagentStack[i];
+      if (
         item.message_id === messageId &&
-        (item.depth === targetDepth || item.depth === targetDepth - 1),
-    );
-    if (relevantAgents.length > 0) {
-      const lastAgent = relevantAgents[relevantAgents.length - 1];
-      effectiveAgentId = lastAgent.agent_id;
-    }
-  }
-
-  // Find matching subagent (using agent_id for precise matching)
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const p = parts[i];
-    if (p.type === "subagent" && p.depth === targetDepth && p.isPending) {
-      if (effectiveAgentId && p.agent_id !== effectiveAgentId) {
-        continue;
-      }
-      const existingParts = p.parts || [];
-      let newSubagentParts: MessagePart[];
-
-      // Merge adjacent text or thinking blocks
-      if (part.type === "text") {
-        const lastPart = existingParts[existingParts.length - 1];
-        if (lastPart?.type === "text") {
-          newSubagentParts = [...existingParts];
-          newSubagentParts[newSubagentParts.length - 1] = {
-            ...lastPart,
-            content: lastPart.content + part.content,
-          };
-        } else {
-          newSubagentParts = [...existingParts, part];
-        }
-      } else if (part.type === "thinking") {
-        const thinkingId = part.thinking_id;
-        let existingIndex = -1;
-
-        if (thinkingId !== undefined) {
-          existingIndex = existingParts.findIndex(
-            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
-          );
-        } else {
-          for (let i = existingParts.length - 1; i >= 0; i--) {
-            const p = existingParts[i];
-            if (p.type === "thinking" && p.thinking_id === undefined) {
-              existingIndex = i;
-              break;
-            }
-          }
-        }
-
-        if (existingIndex >= 0) {
-          const existing = existingParts[existingIndex] as ThinkingPart;
-          newSubagentParts = [...existingParts];
-          newSubagentParts[existingIndex] = {
-            ...existing,
-            content: existing.content + part.content,
-            isStreaming: true,
-          };
-        } else {
-          newSubagentParts = [...existingParts, part];
-        }
-      } else if (part.type === "todo") {
-        // Upsert: replace existing todo or append — each subagent gets at most one todo
-        const todoIdx = existingParts.findIndex((p) => p.type === "todo");
-        if (todoIdx >= 0) {
-          newSubagentParts = [...existingParts];
-          newSubagentParts[todoIdx] = part;
-        } else {
-          newSubagentParts = [...existingParts, part];
-        }
-      } else if (part.type === "summary") {
-        const summaryIdx = findSummaryIndex(existingParts, part.summary_id);
-        if (summaryIdx >= 0) {
-          const existing = existingParts[summaryIdx] as SummaryPart;
-          newSubagentParts = [...existingParts];
-          newSubagentParts[summaryIdx] = {
-            ...existing,
-            content: existing.content + part.content,
-            isStreaming: part.isStreaming ? true : existing.isStreaming,
-          };
-        } else {
-          newSubagentParts = [...existingParts, part];
-        }
-      } else {
-        newSubagentParts = [...existingParts, part];
-      }
-
-      const newParts = [...parts];
-      newParts[i] = { ...p, parts: newSubagentParts };
-      return newParts;
-    }
-
-    // Recursively search nested subagents
-    if (p.type === "subagent" && p.parts) {
-      const result = findAndAddToSubagent(
-        p,
-        part,
-        targetDepth,
-        effectiveAgentId,
-      );
-      if (result) {
-        const newParts = [...parts];
-        newParts[i] = result;
-        return newParts;
+        (item.depth === targetDepth || item.depth === targetDepth - 1)
+      ) {
+        effectiveAgentId = item.agent_id;
+        break;
       }
     }
   }
 
-  // If no matching subagent found, add to top level
-  if (part.type !== "subagent") {
+  // Try to find matching subagent and merge into it
+  const subagentResult = findAndMergeInSubagent(
+    parts,
+    part,
+    targetDepth,
+    effectiveAgentId,
+  );
+  if (subagentResult) return subagentResult;
+
+  // Fallback: merge at top level when subagent block doesn't exist yet
+  // (e.g. thinking arrives before agent:call)
+  if (part.type === "thinking") {
+    const merged = mergeThinkingPart(parts, part);
+    if (merged) return merged;
+  } else if (part.type === "text") {
+    const merged = mergeTextPart(parts, part.content);
+    if (merged) return merged;
+  } else if (part.type !== "subagent") {
     console.warn(
       "[addPartToDepth] No matching subagent found for depth:",
       targetDepth,
@@ -248,106 +339,6 @@ export function addPartToDepth(
     );
   }
   return [...parts, part];
-}
-
-/**
- * Recursively find and add a part to a subagent.
- * Returns updated subagent or null if not found.
- */
-export function findAndAddToSubagent(
-  subagent: SubagentPart,
-  part: MessagePart,
-  targetDepth: number,
-  targetAgentId?: string,
-): SubagentPart | null {
-  if (subagent.depth === targetDepth && subagent.isPending) {
-    if (targetAgentId && subagent.agent_id !== targetAgentId) {
-      // Not matching, continue recursive search
-    } else {
-      const existingParts = subagent.parts || [];
-      let newParts: MessagePart[];
-
-      if (part.type === "text") {
-        const lastPart = existingParts[existingParts.length - 1];
-        if (lastPart?.type === "text") {
-          newParts = [...existingParts];
-          newParts[newParts.length - 1] = {
-            ...lastPart,
-            content: lastPart.content + part.content,
-          };
-        } else {
-          newParts = [...existingParts, part];
-        }
-      } else if (part.type === "thinking") {
-        const thinkingId = part.thinking_id;
-        let existingIndex = -1;
-
-        if (thinkingId !== undefined) {
-          existingIndex = existingParts.findIndex(
-            (p) => p.type === "thinking" && p.thinking_id === thinkingId,
-          );
-        } else {
-          for (let i = existingParts.length - 1; i >= 0; i--) {
-            const p = existingParts[i];
-            if (p.type === "thinking" && p.thinking_id === undefined) {
-              existingIndex = i;
-              break;
-            }
-          }
-        }
-
-        if (existingIndex >= 0) {
-          const existing = existingParts[existingIndex] as ThinkingPart;
-          newParts = [...existingParts];
-          newParts[existingIndex] = {
-            ...existing,
-            content: existing.content + part.content,
-            isStreaming: true,
-          };
-        } else {
-          newParts = [...existingParts, part];
-        }
-      } else if (part.type === "summary") {
-        const summaryIdx = findSummaryIndex(existingParts, part.summary_id);
-        if (summaryIdx >= 0) {
-          const existing = existingParts[summaryIdx] as SummaryPart;
-          newParts = [...existingParts];
-          newParts[summaryIdx] = {
-            ...existing,
-            content: existing.content + part.content,
-            isStreaming: part.isStreaming ? true : existing.isStreaming,
-          };
-        } else {
-          newParts = [...existingParts, part];
-        }
-      } else {
-        newParts = [...existingParts, part];
-      }
-
-      return { ...subagent, parts: newParts };
-    }
-  }
-
-  // Recursively search nested subagents
-  if (subagent.parts) {
-    for (let i = subagent.parts.length - 1; i >= 0; i--) {
-      const p = subagent.parts[i];
-      if (p.type === "subagent") {
-        const result = findAndAddToSubagent(
-          p as SubagentPart,
-          part,
-          targetDepth,
-          targetAgentId,
-        );
-        if (result) {
-          const newParts = [...subagent.parts];
-          newParts[i] = result;
-          return { ...subagent, parts: newParts };
-        }
-      }
-    }
-  }
-  return null;
 }
 
 // ============================================

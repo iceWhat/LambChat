@@ -244,7 +244,7 @@ class Settings(BaseSettings):
 
     # Frontend Settings
     FRONTEND_DEV_URL: str = ""
-    DEFAULT_AGENT: str = "default"
+    DEFAULT_AGENT: str = "fast"
     DEFAULT_MODEL_ID: str = ""
     WELCOME_SUGGESTIONS: list = Field(
         default_factory=lambda: [

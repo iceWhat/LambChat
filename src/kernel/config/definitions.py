@@ -24,7 +24,7 @@ SETTING_DEFINITIONS: dict[str, dict] = {
         "category": SettingCategory.FRONTEND,
         "subcategory": "display",
         "description": "settingDesc.DEFAULT_AGENT",
-        "default": "default",
+        "default": "fast",
         "frontend_visible": True,
     },
     "DEFAULT_MODEL_ID": {

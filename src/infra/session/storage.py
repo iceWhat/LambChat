@@ -169,7 +169,7 @@ class SessionStorage:
             "name": session_data.name,
             "metadata": session_data.metadata,
             "user_id": user_id,
-            "agent_id": session_data.metadata.get("agent_id", "default"),
+            "agent_id": session_data.metadata.get("agent_id", "fast"),
             "created_at": now,
             "updated_at": now,
             "is_active": True,

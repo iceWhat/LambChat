@@ -14,7 +14,6 @@ export type {
 // Re-export message parts utilities
 export {
   addPartToDepth,
-  findAndAddToSubagent,
   updateSubagentResult,
   updateSubagentResultInParts,
   updateToolResultInDepth,

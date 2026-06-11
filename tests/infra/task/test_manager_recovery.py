@@ -220,6 +220,67 @@ async def test_resume_session_uses_arq_submission_when_task_backend_is_arq(
 
 
 @pytest.mark.asyncio
+async def test_submit_recovery_run_falls_back_from_legacy_default_agent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents.core import base as base_module
+
+    class _SearchAgentClass:
+        _agent_name = "Search"
+
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="default",
+        name="Legacy Default Agent Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "failed",
+            "agent_id": "default",
+            "executor_key": "agent_stream",
+        },
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+
+    submit_calls = []
+
+    async def _fake_submit(**kwargs):
+        submit_calls.append(kwargs)
+        return kwargs["run_id"], kwargs.get("trace_id") or ""
+
+    async def _fake_executor(*args, **kwargs):
+        if False:
+            yield None
+
+    class _FakeLimiter:
+        async def claim_recovery_slot(self, **kwargs):
+            return SimpleNamespace(result=recovery_module.ConcurrencyResult.STARTED)
+
+        async def release(self, *args, **kwargs):
+            return None
+
+    class _FakeUserStorage:
+        async def get_by_id(self, user_id: str):
+            assert user_id == "user-1"
+            return SimpleNamespace(metadata={"language": "zh-CN"}, roles=[])
+
+    monkeypatch.setattr(base_module, "_AGENT_REGISTRY", {"search": _SearchAgentClass})
+    monkeypatch.setattr("src.kernel.config.settings.DEFAULT_AGENT", "fast")  # fast not in registry
+    monkeypatch.setattr(recovery_module, "UserStorage", _FakeUserStorage)
+    monkeypatch.setattr(recovery_module, "get_registered_executor", lambda key: _fake_executor)
+    monkeypatch.setattr(recovery_module, "get_concurrency_limiter", lambda: _FakeLimiter())
+    monkeypatch.setattr(manager, "_submit_recovery_task", _fake_submit)
+
+    result = await manager._submit_recovery_run(session, "run-old", "server_restart")
+
+    assert result["success"] is True
+    assert submit_calls[0]["agent_id"] == "search"
+    assert storage.updates[-1][1].metadata["agent_id"] == "search"
+
+
+@pytest.mark.asyncio
 async def test_resume_session_rejects_user_cancelled_tasks() -> None:
     session = SimpleNamespace(
         id="session-1",

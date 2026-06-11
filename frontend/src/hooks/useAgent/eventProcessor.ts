@@ -159,14 +159,16 @@ export function processMessageEvent(
         const newParts = [...parts];
         let existingIndex = -1;
 
-        if (data.thinking_id !== undefined) {
-          existingIndex = newParts.findIndex(
-            (p) => p.type === "thinking" && p.thinking_id === data.thinking_id,
-          );
-        } else {
-          for (let i = newParts.length - 1; i >= 0; i--) {
-            const p = newParts[i];
-            if (p.type === "thinking" && p.thinking_id === undefined) {
+        // Reverse scan: matching thinking part is usually at the end
+        for (let i = newParts.length - 1; i >= 0; i--) {
+          const p = newParts[i];
+          if (p.type === "thinking") {
+            const tid = (p as ThinkingPart).thinking_id;
+            if (
+              data.thinking_id !== undefined
+                ? tid === data.thinking_id
+                : tid === undefined
+            ) {
               existingIndex = i;
               break;
             }

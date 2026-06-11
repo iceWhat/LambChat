@@ -2,7 +2,7 @@
 
 # 🐑 LambChat
 
-**An open-source AI Agent platform for building, running, and sharing agents that actually do the work**
+**An open-source AI Agent platform for building, running, and sharing agents that actually finish work.**
 
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)]()
 [![React](https://img.shields.io/badge/React-19-green.svg)]()
@@ -22,15 +22,38 @@
 
 ---
 
-## 🌟 Why LambChat
+## ✨ Highlights
 
-LambChat is built for teams who want more than a chatbot UI. It gives you a complete AI Agent system with model management, MCP connectivity, skills, storage, sharing, approvals, and deployment-ready backend/frontend infrastructure in one project.
+- 🤖 **Agent Runtime** — Deep agent graphs, sub-agents, thinking mode, streaming output, and human approval
+- 🔧 **MCP & Tools** — System/user MCP, encrypted secrets, sandbox execution (Daytona/E2B)
+- 🧠 **Memory & Skills** — Cross-session memory, skill marketplace, GitHub sync, persona presets
+- 📱 **Full-Stack Client** — React 19 web, Capacitor mobile, Tauri desktop, PWA support
+- 🚀 **Production Ready** — FastAPI, auth/RBAC, realtime sync, Docker/K8s deployment
+- 🌍 **Internationalization** — English, Chinese, Japanese, Korean, Russian
+
+---
+
+## Start Here
+
+LambChat is more than a chatbot UI. It is a full-stack AI Agent system with agent runtime, model management, MCP tools, skills, memory, files, sharing, approvals, scheduled tasks, and production-ready deployment pieces in one project.
+
+| If you want to... | Go here |
+|---|---|
+| See what LambChat can do | [Product Preview](#product-preview) and [Live Examples](#live-examples) |
+| Run it quickly | [Quick Start](#quick-start) |
+| Understand the system | [Architecture](#architecture) and [Feature Map](#feature-map) |
+| Configure production pieces | [Configuration](#configuration) and [Deployment](https://yanyutin753.github.io/LambChat/en/deploy/docker.html) |
+| Contribute | [Development](#development) and [Contributing](CONTRIBUTING.md) |
+
+## Why LambChat
+
+Most agent products stop at "chat with tools." LambChat is designed for the longer path: configure models, connect tools safely, let agents create artifacts, persist useful context, share results, approve risky actions, and deploy the whole system for real users.
 
 | Agent Runtime | Tools and MCP | Skills and Memory | Production Infra |
 |---|---|---|---|
 | Deep agent graphs, streaming output, sub-agents, thinking mode, scheduled runs, and human approval. | System and user MCP, encrypted secrets, tool cache, upload/reveal tools, and sandbox execution. | Skill marketplace, GitHub sync, persona presets, model routing, and MongoDB-backed memory. | FastAPI, React 19, auth/RBAC, tracing, health checks, arq tasks, realtime sync, and deployment assets. |
 
-## 📸 Product Preview
+## Product Preview
 
 | Chat and execution | Skills marketplace | Operations console |
 |:---:|:---:|:---:|
@@ -53,131 +76,118 @@ LambChat is built for teams who want more than a chatbot UI. It gives you a comp
 
 </details>
 
-## 🎬 Use Cases
+## Live Examples
 
-| # | Case | Description | Demo |
-|---|------|-------------|------|
+These shared sessions show the kind of end-to-end work LambChat is built for.
+
+| # | Case | What the agent does | Demo |
+|---|---|---|---|
 | 1 | Supply Chain PDF Report | Generates a polished PDF efficiency report with charts, benchmark comparisons, and delivery, inventory, fulfillment, and logistics analysis from a single prompt. | [View Session](https://lambchat.com/shared/w0WA7GtMCyca) |
 | 2 | Godfather Fan Website | Builds a responsive English promo site for *The Godfather* trilogy with a cinematic visual direction, marquee hero section, generated images, and multi-device polish. | [View Session](https://lambchat.com/shared/9XlmaDANCjO9) |
 | 3 | Story Breakdown from Image | Understands visual input, identifies the stories shown in an image, and produces detailed plot-by-plot explanations with multimodal reasoning. | [View Session](https://lambchat.com/shared/MZX-eNnOoilN) |
 | 4 | EV Market Trend Analysis | Turns recent 2025-2026 electric vehicle data into a structured market analysis covering growth, regional performance, and key industry takeaways. | [View Session](https://lambchat.com/shared/5XUeuDEyd2CY) |
-| 5 | 🎮 Batch Game UI Icon Generation | Feed it one reference image and it analyzes the art style, generates **48 game UI icons** across 9 categories (candies, buttons, labels, currencies, characters, skills, navigation, frames, specials), auto-organizes them into folders, and **saves the workflow as a reusable skill** for next time. | [View Session](https://lambchat.com/shared/BFkDxT2J4pR0) |
-| 6 | 🥧 E-Commerce Product Image Suite | Enter a product keyword (e.g., "durian") and a target platform (Taobao / JD / Pinduoduo), and the Agent runs the full pipeline: audience analysis → visual strategy → auto-generate main image, lifestyle scene, detail shots, and combo images — a complete set of product-ready visuals in one shot. | [View Session](https://lambchat.com/shared/Hx8mPq3R5nW1) |
+| 5 | Batch Game UI Icon Generation | Analyzes one reference image, generates **48 game UI icons** across 9 categories, organizes them into folders, and saves the workflow as a reusable skill. | [View Session](https://lambchat.com/shared/BFkDxT2J4pR0) |
+| 6 | E-Commerce Product Image Suite | Runs audience analysis, visual strategy, main image generation, lifestyle scenes, detail shots, and combo images for a product keyword and marketplace. | [View Session](https://lambchat.com/shared/Hx8mPq3R5nW1) |
 
-## 🏗️ Architecture
+## Architecture
 
-<p align="center"><img src="docs/images/best-practice/architecture.webp" width="600" alt="Architecture"></p>
+<p align="center"><img src="docs/images/best-practice/architecture.webp" width="680" alt="LambChat architecture"></p>
 
-## ✨ Features
+LambChat keeps the product surface and runtime infrastructure in one deployable system:
 
-<details>
-<summary><b>🤖 Agent Runtime</b></summary>
+- **Frontend**: React 19, Vite, TailwindCSS, PWA workers, Capacitor mobile builds, and Tauri desktop packaging.
+- **Backend**: FastAPI, SSE/WebSocket streaming, auth/RBAC, scheduler, storage services, model routing, and MCP management.
+- **Agent runtime**: deepagents/LangGraph execution, sub-agents, approvals, skills, memory, tools, and sandbox integrations.
+- **Persistence and queues**: MongoDB, Redis, optional PostgreSQL checkpoints, S3-compatible object storage, and arq workers.
 
-- **deepagents Architecture** — Compiled graph runtime with fine-grained state management
-- **Multi-Agent Types** — Core, fast, and search agents
-- **Plugin System** — `@register_agent("id")` decorator for custom agents
-- **Streaming Output** — Native SSE support
-- **Sub-agents** — Multi-level delegation
-- **Thinking Mode** — Extended thinking for Anthropic models
-- **Scheduled Tasks** — Cron, interval, date, and manual task triggers with persisted scheduler state
-- **Human-in-the-Loop** — Approval system with countdown timer, auto-extension, and urgent-state styling
-- **Persona Presets** — Reusable persona configuration with permissions and runtime binding
+## Feature Map
 
-</details>
+<details open>
+<summary><b>Agent Runtime</b></summary>
 
-<details>
-<summary><b>🧠 Model, Memory, and Skills</b></summary>
-
-- **Multi-Provider Models** — OpenAI, Anthropic, Google Gemini, and Kimi
-- **Full CRUD** — Create, edit, delete, reorder, and batch import models via UI
-- **Channel Routing** — Route the same model through different channels with `model_id`
-- **Role-based Access** — `MODEL_ADMIN` permission and per-role model visibility
-- **Cross-session Memory** — Native MongoDB-backed memory system
-- **Dual Skills Storage** — File system plus MongoDB backup
-- **GitHub Sync** — Import custom skills from GitHub
-- **Skill Marketplace** — Browse, install, publish, and manage skills in bulk
+- **deepagents architecture** with compiled graph runtime and fine-grained state management.
+- **Multiple agent types** for core, fast, search, and team workflows.
+- **Plugin registration** through `@register_agent("id")` for custom agents.
+- **Streaming output** with native SSE support.
+- **Sub-agents** for multi-level delegation.
+- **Thinking mode** for Anthropic extended thinking.
+- **Scheduled tasks** with cron, interval, date, manual triggers, and persisted scheduler state.
+- **Human approval** with countdown timer, auto-extension, and urgent-state styling.
+- **Persona presets** with reusable configuration, permissions, and runtime binding.
+- **`/goal` command** — attach a rubric-guided objective to any run via `/goal <objective>`, with optional custom rubrics (`/goal <objective> --- <rubric>`), SSE event tracking, and auto-dismissal on completion.
 
 </details>
 
-<details>
-<summary><b>🔌 Tools, MCP, and Execution</b></summary>
+<details open>
+<summary><b>Models, Memory, and Skills</b></summary>
 
-- **System + User MCP** — Global and per-user MCP configuration
-- **Encrypted Storage** — API keys encrypted at rest
-- **Dynamic Tool Caching** — Cache MCP tools with manual refresh
-- **Multiple Transports** — SSE and HTTP
-- **Permission Control** — Transport-level access policies
-- **Sandbox Integration** — Daytona and E2B execution support
-- **Built-in Tools** — File reveal, project reveal, upload URL, env vars, audio transcription, persona preset tools, and more
-
-</details>
-
-<details>
-<summary><b>📁 Product Features</b></summary>
-
-- **File Library** — Browse revealed files with code preview, favorites, and project-based filtering
-- **Rich Previews** — PDF, Word, Excel, PPT, Markdown, Mermaid, Excalidraw, images, and video playback
-- **Project Folders** — Organize sessions into projects with drag-and-drop
-- **Session Sharing** — Generate public share links for conversations
-- **Feedback** — Thumbs rating, text comments, session linking, and run-level stats
-- **Notifications** — In-app notification storage and delivery hooks
+- **Multi-provider models** for OpenAI, Anthropic, Google Gemini, and Kimi.
+- **Model CRUD** for creating, editing, deleting, reordering, and batch importing models in the UI.
+- **Channel routing** to reuse the same model through different channels with `model_id`.
+- **Role-based model access** through `MODEL_ADMIN` and per-role visibility.
+- **Cross-session memory** backed by native MongoDB storage.
+- **Dual skills storage** with file system storage plus MongoDB backup.
+- **GitHub sync** for importing custom skills.
+- **Skill marketplace** for browsing, installing, publishing, and bulk managing skills.
 
 </details>
 
-<details>
-<summary><b>🔐 Infra, Realtime, and Frontend</b></summary>
+<details open>
+<summary><b>Tools, MCP, and Execution</b></summary>
 
-- **Realtime** — Redis + MongoDB dual-write, WebSocket, auto-reconnect, and shared-session updates
-- **Task Runtime** — Local or Redis-backed arq execution with embedded worker lifecycle
-- **Security** — JWT, RBAC, bcrypt, OAuth (Google/GitHub/Apple), email verification, CAPTCHA, and sandbox controls
-- **Observability** — LangSmith tracing, structured logging, health checks, and distributed memory diagnostics
-- **Channels** — Native Feishu integration plus an extensible multi-channel architecture
-- **Frontend Stack** — React 19, Vite 6, TailwindCSS 3.4, PWA workers, Capacitor mobile builds, Tauri desktop shell, rich rendering, and responsive layouts
-- **i18n** — English, Chinese, Japanese, Korean, and Russian
+- **System and user MCP** for global and per-user tool configuration.
+- **Encrypted storage** for API keys and MCP secrets at rest.
+- **Dynamic tool caching** with manual refresh.
+- **Multiple transports** including SSE and HTTP.
+- **Permission control** at the transport and role level.
+- **Sandbox integration** with Daytona and E2B.
+- **Built-in tools** for file reveal, project reveal, upload URLs, env vars, audio transcription, persona presets, and more.
 
 </details>
 
-## ⚙️ Configuration
+<details open>
+<summary><b>Product Surface</b></summary>
 
-Multiple setting categories can be configured through the UI or environment variables:
+- **File library** with revealed files, code preview, favorites, and project filters.
+- **Rich previews** for PDF, Word, Excel, PPT, Markdown, Mermaid, Excalidraw, images, and video.
+- **Project folders** for organizing sessions with drag-and-drop.
+- **Session sharing** through public conversation links.
+- **Feedback** with thumbs rating, comments, session links, and run-level stats.
+- **Notifications** with in-app storage and delivery hooks.
 
-| Category | Description |
-|----------|-------------|
-| Frontend | Default agent, welcome suggestions, UI preferences |
-| Agent | Debug mode, logging level |
-| Model | Multi-provider model management, per-model config, channel routing |
-| Session | Session management, message history, SSE cache |
-| Database | MongoDB connection, optional PostgreSQL |
-| Storage | Persistent storage, S3/OSS/MinIO/COS |
-| Security | Encryption and security policies |
-| Sandbox | Code sandbox settings (Daytona / E2B) |
-| Skills | Skill system config |
-| Tools | Tool system settings |
-| Tracing | LangSmith and tracing |
-| User | User management, registration, default role |
-| Memory | Memory system (native) |
-| Scheduler | Dynamic scheduled tasks and runtime registration |
-| Task Runtime | Local execution or arq queue settings |
+</details>
 
-## 🚀 Quick Start
+<details open>
+<summary><b>Infrastructure and Realtime</b></summary>
+
+- **Realtime sync** with Redis, MongoDB dual-write, WebSocket, auto-reconnect, and shared-session updates.
+- **Task runtime** with local execution or Redis-backed arq queues.
+- **Security** with JWT, RBAC, bcrypt, OAuth, email verification, CAPTCHA, and sandbox controls.
+- **Observability** with LangSmith tracing, structured logging, health checks, and distributed memory diagnostics.
+- **Channels** with native Feishu integration and an extensible multi-channel architecture.
+- **Internationalization** for English, Chinese, Japanese, Korean, and Russian.
+
+</details>
+
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.12+
-- uv
+- [uv](https://docs.astral.sh/uv/) (Python package manager)
 - Node.js 18+
-- pnpm 10+
+- [pnpm](https://pnpm.io/) 10+
 - MongoDB
 - Redis
 
-### Docker
+### Docker (Recommended)
 
 ```bash
 git clone https://github.com/Yanyutin753/LambChat.git
 cd LambChat
 
 cd deploy
-cp .env.example .env   # Edit with your config
+cp .env.example .env
 docker compose up -d
 ```
 
@@ -188,7 +198,7 @@ Open **http://localhost:8000**.
 Install dependencies:
 
 ```bash
-cp .env.example .env   # Edit with your config
+cp .env.example .env
 make install-all
 ```
 
@@ -208,49 +218,64 @@ make dev            # FastAPI backend: uv run python main.py
 make frontend-dev   # Vite frontend
 ```
 
-<details>
-<summary><b>📝 Required Configuration</b></summary>
+> LLM models are configured through the **Model Config UI** after deployment. You do not need to put model keys in environment variables for the basic boot path.
 
-Edit the `.env` file with the following recommended settings:
+## Configuration
+
+LambChat can be configured through the UI and environment variables. Start with `.env.example`, then set stable secrets before using it with real users.
 
 ```bash
-# Recommended: Set a stable JWT secret (auto-generated on each restart if unset, invalidating existing sessions)
+# Recommended: keep sessions valid across restarts
 JWT_SECRET_KEY=your-stable-secret-key
 
-# Recommended: Set MCP encryption salt (auto-generated on each restart if unset, invalidating saved MCP configs)
+# Recommended: keep saved MCP configs decryptable across restarts
 MCP_ENCRYPTION_SALT=your-stable-encryption-salt
 
-# Optional: Configure MongoDB connection
+# Optional: MongoDB
 MONGODB_URL=mongodb://localhost:27017
 MONGODB_DB=agent_state
 MONGODB_USERNAME=admin
 MONGODB_PASSWORD=your-mongo-password
 
-# Optional: Configure Redis connection
+# Optional: Redis
 REDIS_URL=redis://localhost:6379/0
 REDIS_PASSWORD=your-redis-password
 
-# Optional: enable scheduled tasks
+# Optional: scheduled tasks
 ENABLE_SCHEDULED_TASK=true
 
-# Optional: choose task execution backend
+# Optional: task execution backend
 TASK_BACKEND=arq  # local or arq
 ```
 
-::: tip
-LLM models are configured through the **Model Config UI** after deployment — no environment variables needed.
-:::
+| Category | What it controls |
+|---|---|
+| Frontend | Default agent, welcome suggestions, UI preferences |
+| Agent | Debug mode, logging level |
+| Model | Multi-provider model management, per-model config, channel routing |
+| Session | Session management, message history, SSE cache |
+| Database | MongoDB connection, optional PostgreSQL |
+| Storage | Persistent storage, S3/OSS/MinIO/COS |
+| Security | Encryption and security policies |
+| Sandbox | Code sandbox settings for Daytona and E2B |
+| Skills | Skill system configuration |
+| Tools | Tool system settings |
+| Tracing | LangSmith and tracing |
+| User | User management, registration, default role |
+| Memory | Native memory system |
+| Scheduler | Dynamic scheduled tasks and runtime registration |
+| Task Runtime | Local execution or arq queue settings |
 
-</details>
+## Development
 
 ### Code Quality
 
 ```bash
-make format       # Format (ruff format)
-make lint         # Lint (ruff check)
-make typecheck    # Type check (mypy)
-make test         # Backend tests (pytest)
-make check-all    # Run all checks (lint + typecheck + test)
+make format       # Format with ruff
+make lint         # Lint with ruff
+make typecheck    # Type check with mypy
+make test         # Backend tests with pytest
+make check-all    # Run lint + typecheck + tests
 ```
 
 ### Frontend, Mobile, and Docs
@@ -297,7 +322,7 @@ pnpm run docs:build
 └── tests/                   # Backend, API, infra, agent, and unit tests
 ```
 
-## ⭐ Star History
+## Star History
 
 <a href="https://star-history.com/#Yanyutin753/LambChat&Date">
  <picture>
@@ -307,7 +332,7 @@ pnpm run docs:build
  </picture>
 </a>
 
-## 📄 License
+## License
 
 [MIT](LICENSE) — Project name "LambChat" and its logo may not be changed or removed.
 
