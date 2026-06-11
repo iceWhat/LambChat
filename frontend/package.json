@@ -1,7 +1,7 @@
 {
   "name": "lamb-agent-frontend",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,7 +25,9 @@
   },
   "dependencies": {
     "@capacitor/core": "7.6.5",
+    "@capacitor/filesystem": "^7.1.8",
     "@capacitor/local-notifications": "^7.0.6",
+    "@capacitor/share": "^7.0.4",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
     "@codemirror/lang-javascript": "^6.2.5",
@@ -47,6 +49,8 @@
     "@microsoft/fetch-event-source": "^2.0.1",
     "@stackblitz/sdk": "^1.11.0",
     "@tauri-apps/plugin-notification": "^2.3.3",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@types/dompurify": "^3.0.5",
     "@types/turndown": "^5.0.6",
     "@uiw/react-codemirror": "^4.25.8",

@@ -122,6 +122,8 @@ jobs:
         env:
           TAURI_BUNDLES: ${{ matrix.bundles }}
           TAURI_TARGET: ${{ matrix.target || '' }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           CARGO_BUILD_JOBS: 1
         run: pnpm package:desktop
         working-directory: frontend
@@ -209,6 +211,14 @@ jobs:
             echo "No macOS .app bundle found; uploading DMG only."
           fi
           cp "$dmg_path" "release-assets/LambChat-${RELEASE_TAG}-macOS.dmg"
+
+      - name: Collect updater manifest artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          find frontend/src-tauri/target -name "latest*.json" -exec cp {} release-assets/ \; 2>/dev/null || true
+          find frontend/src-tauri/target -name "*.sig" -exec cp {} release-assets/ \; 2>/dev/null || true
+          ls -la release-assets/ 2>/dev/null || true
 
       - name: Upload desktop artifacts
         uses: actions/upload-artifact@v4
@@ -409,6 +419,32 @@ jobs:
           fi
           find release-assets -type f -print
           test "$(find release-assets -type f | wc -l)" -gt 0
+
+      - name: Merge updater manifests into latest.json
+        run: |
+          python3 -c "
+          import json, glob, os
+          platform_files = glob.glob('release-assets/latest*.json') or glob.glob('release-assets/*-latest.json')
+          if not platform_files:
+              print('No updater manifests found')
+              exit(0)
+          merged = {}
+          for f in sorted(platform_files):
+              data = json.load(open(f))
+              if 'platforms' in data:
+                  merged['platforms'] = merged.get('platforms', {})
+                  merged['platforms'].update(data['platforms'])
+              if 'version' not in merged and 'version' in data:
+                  merged['version'] = data['version']
+              if 'notes' not in merged and 'notes' in data:
+                  merged['notes'] = data['notes']
+              if 'pub_date' not in merged and 'pub_date' in data:
+                  merged['pub_date'] = data['pub_date']
+          if merged:
+              with open('release-assets/latest.json', 'w') as out:
+                  json.dump(merged, out, indent=2)
+              print(f'Merged {len(platform_files)} manifests into latest.json')
+          "
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

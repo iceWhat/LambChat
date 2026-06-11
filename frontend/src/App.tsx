@@ -24,6 +24,8 @@ import {
 import { APP_TOASTER_CLASS_NAME } from "./components/layout/AppContent/appToastLayout";
 import { PwaStatusToasts } from "./components/pwa/PwaStatusToasts";
 import { appNotificationService } from "./services/notifications/appNotificationService";
+import { UpdateDialog } from "./components/update/UpdateDialog";
+import { useAutoUpdate } from "./hooks/useAutoUpdate";
 
 const SharedPage = lazy(() =>
   import("./components/share/SharedPage").then((m) => ({
@@ -322,6 +324,27 @@ function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  // Auto-update for desktop and mobile
+  const {
+    state: updateState,
+    showDialog: showUpdateDialog,
+    setShowDialog: setShowUpdateDialog,
+    startUpdate,
+    skipUpdate,
+  } = useAutoUpdate();
+  const updatePlatform = (() => {
+    if (typeof window === "undefined") return "web";
+    const win = window as unknown as Record<string, unknown>;
+    if (win.__TAURI__ || win.__TAURI_INTERNALS__) return "tauri";
+    if (typeof win.Capacitor !== "undefined") {
+      const cap = win.Capacitor as Record<string, unknown>;
+      const p = typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
+      if (p === "ios") return "ios";
+      if (p === "android") return "android";
+    }
+    return "web";
+  })();
+
   useEffect(() => {
     appNotificationService.setNavigator((route) => {
       navigate(route, { replace: false });
@@ -393,6 +416,16 @@ function App() {
           }}
         </Toaster>
         <PwaStatusToasts />
+        {showUpdateDialog && updateState.available && (
+          <UpdateDialog
+            state={updateState}
+            isOpen={showUpdateDialog}
+            onUpgrade={startUpdate}
+            onSkip={skipUpdate}
+            onDismiss={() => setShowUpdateDialog(false)}
+            platform={updatePlatform as "tauri" | "android" | "ios"}
+          />
+        )}
         <SelectionActionPopover />
         <Suspense fallback={<ChatPageSkeleton />}>
           <Routes>

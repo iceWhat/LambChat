@@ -1,6 +1,6 @@
 """GitHub client for fetching release information."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Optional
 
@@ -18,6 +18,8 @@ class GitHubRelease:
     tag_name: str
     html_url: str
     published_at: str
+    body: str = ""
+    assets: list[dict] = field(default_factory=list)
 
 
 class GitHubClient:
@@ -61,10 +63,22 @@ class GitHubClient:
 
     def _parse_release(self, data: dict) -> GitHubRelease:
         """Parse GitHub API response"""
+        assets = []
+        for asset in data.get("assets", []):
+            assets.append(
+                {
+                    "name": asset.get("name", ""),
+                    "url": asset.get("browser_download_url", ""),
+                    "size": asset.get("size"),
+                    "content_type": asset.get("content_type", "application/octet-stream"),
+                }
+            )
         return GitHubRelease(
             tag_name=data.get("tag_name", ""),
             html_url=data.get("html_url", ""),
             published_at=data.get("published_at", ""),
+            body=data.get("body", ""),
+            assets=assets,
         )
 
 

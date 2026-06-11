@@ -13,4 +13,27 @@ export interface VersionInfo {
   has_update?: boolean;
   published_at?: string;
   last_checked?: string;
+  release_notes?: string;
+  release_assets?: ReleaseAsset[];
+}
+
+export interface ReleaseAsset {
+  name: string;
+  url: string;
+  size?: number;
+  content_type: string;
+}
+
+export interface UpdateState {
+  available: boolean;
+  version: string | null;
+  releaseNotes: string | null;
+  releaseUrl: string | null;
+  releaseAssets: ReleaseAsset[];
+  publishedAt: string | null;
+  downloading: boolean;
+  progress: number;
+  contentLength: number;
+  downloaded: number;
+  error: string | null;
 }

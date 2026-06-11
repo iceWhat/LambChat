@@ -13,7 +13,20 @@
     "upToDate": "已是最新版本！",
     "updateAvailable": "发现新版本！",
     "viewOnGitHub": "在 GitHub 上查看",
-    "viewUpdate": "更新"
+    "viewUpdate": "更新",
+    "updateChecking": "正在检查更新...",
+    "updateDownload": "立即升级",
+    "updateDownloading": "正在下载...",
+    "updateDownloadProgress": "已下载 {{percent}}%",
+    "updateSkip": "稍后提醒",
+    "updateError": "更新失败",
+    "updateRetry": "重试",
+    "updateSuccess": "更新就绪！正在重启...",
+    "updateInstall": "立即安装",
+    "updateGoToDownload": "前往下载",
+    "updateNewVersion": "发现新版本 {{version}}",
+    "updateReleaseNotes": "更新内容",
+    "updatePublishedAt": "发布于 {{date}}"
   },
   "adminMarketplace": {
     "confirmDelete": "删除技能「{{name}}」？",

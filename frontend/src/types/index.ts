@@ -221,7 +221,7 @@ export type {
 // ============================================
 // Version Types
 // ============================================
-export type { VersionInfo } from "./common";
+export type { VersionInfo, ReleaseAsset, UpdateState } from "./common";
 
 // ============================================
 // Team Types

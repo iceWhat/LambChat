@@ -161,6 +161,15 @@ class ToolsListResponse(BaseModel):
     count: int
 
 
+class ReleaseAsset(BaseModel):
+    """GitHub release asset for mobile download."""
+
+    name: str = Field(..., description="Asset filename")
+    url: str = Field(..., description="Asset download URL")
+    size: Optional[int] = Field(None, description="File size in bytes")
+    content_type: str = Field("application/octet-stream", description="MIME type")
+
+
 class VersionResponse(BaseModel):
     """Version information response."""
 
@@ -173,6 +182,10 @@ class VersionResponse(BaseModel):
     github_url: Optional[str] = Field(None, description="GitHub repository URL")
     has_update: Optional[bool] = Field(None, description="Whether a newer version is available")
     published_at: Optional[str] = Field(None, description="Latest release publish date")
+    release_notes: Optional[str] = Field(None, description="Release body/notes")
+    release_assets: Optional[list[ReleaseAsset]] = Field(
+        None, description="Release assets for mobile"
+    )
 
 
 # ============================================

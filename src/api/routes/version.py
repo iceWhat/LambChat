@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query
 
 from src.infra.github_client import github_client
 from src.kernel.config import settings
-from src.kernel.schemas.agent import VersionResponse
+from src.kernel.schemas.agent import ReleaseAsset, VersionResponse
 from src.kernel.version_utils import has_new_version, normalize_version
 
 router = APIRouter()
@@ -23,6 +23,10 @@ async def get_version(
     if latest_release:
         has_update = has_new_version(settings.APP_VERSION, latest_release.tag_name)
 
+    release_assets = None
+    if latest_release:
+        release_assets = [ReleaseAsset(**asset) for asset in latest_release.assets]
+
     return VersionResponse(
         app_version=settings.APP_VERSION,
         git_tag=settings.GIT_TAG,
@@ -33,4 +37,6 @@ async def get_version(
         github_url=settings.GITHUB_URL,
         has_update=has_update,
         published_at=latest_release.published_at if latest_release else None,
+        release_notes=latest_release.body if latest_release else None,
+        release_assets=release_assets,
     )

@@ -13,7 +13,20 @@
     "upToDate": "You're up to date!",
     "updateAvailable": "New version available!",
     "viewOnGitHub": "View on GitHub",
-    "viewUpdate": "Update"
+    "viewUpdate": "Update",
+    "updateChecking": "Checking for updates...",
+    "updateDownload": "Update Now",
+    "updateDownloading": "Downloading...",
+    "updateDownloadProgress": "{{percent}}% downloaded",
+    "updateSkip": "Later",
+    "updateError": "Update failed",
+    "updateRetry": "Retry",
+    "updateSuccess": "Update ready! Restarting...",
+    "updateInstall": "Install Now",
+    "updateGoToDownload": "Go to Download",
+    "updateNewVersion": "New version {{version}} available",
+    "updateReleaseNotes": "Release Notes",
+    "updatePublishedAt": "Published {{date}}"
   },
   "adminMarketplace": {
     "confirmDelete": "Delete Skill \"{{name}}\"?",

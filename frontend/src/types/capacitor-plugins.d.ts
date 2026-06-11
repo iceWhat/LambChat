@@ -1,0 +1,43 @@
+/**
+ * Type declarations for Capacitor plugins used at runtime on mobile devices.
+ * These are dynamically imported and will not be available in the web/dev bundle.
+ */
+
+declare module "@capacitor/filesystem" {
+  export enum Directory {
+    Cache = "CACHE",
+    Data = "DATA",
+    Documents = "DOCUMENTS",
+    External = "EXTERNAL",
+    ExternalStorage = "EXTERNAL_STORAGE",
+    Library = "LIBRARY",
+  }
+
+  export interface WriteFileOptions {
+    path: string;
+    data: string;
+    directory?: Directory;
+    recursive?: boolean;
+  }
+
+  export interface WriteFileResult {
+    uri: string;
+  }
+
+  export const Filesystem: {
+    writeFile: (options: WriteFileOptions) => Promise<WriteFileResult>;
+  };
+}
+
+declare module "@capacitor/share" {
+  export interface ShareOptions {
+    title?: string;
+    text?: string;
+    url?: string;
+    path?: string;
+  }
+
+  export const Share: {
+    share: (options: ShareOptions) => Promise<void>;
+  };
+}
