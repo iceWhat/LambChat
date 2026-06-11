@@ -1,4 +1,4 @@
-# Frontend Component Reuse and Structure Design
+# <img src="/icons/icon.svg" width="24" style="vertical-align: -6px;" /> Frontend Component Reuse and Structure Design
 
 ## Goal
 
