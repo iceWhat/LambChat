@@ -165,7 +165,14 @@ export function PersonaEditorModal({
             disabled={isMutating || !isFormValid}
             className="btn-primary disabled:opacity-50"
           >
-            {isMutating ? <LoadingSpinner size="sm" /> : <Save size={16} />}
+            {isMutating ? (
+              <LoadingSpinner
+                size="sm"
+                color="text-white dark:text-stone-900"
+              />
+            ) : (
+              <Save size={16} />
+            )}
             {t("common.save", "保存")}
           </button>
         </div>

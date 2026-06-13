@@ -145,7 +145,14 @@ export function UserAgentPreferencePanel() {
             className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 dark:disabled:bg-amber-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2 text-sm"
           >
             <span className="inline-flex h-4 w-4 items-center justify-center">
-              {isSaving ? <LoadingSpinner size="sm" /> : <Save size={15} />}
+              {isSaving ? (
+                <LoadingSpinner
+                  size="sm"
+                  color="text-white dark:text-stone-800"
+                />
+              ) : (
+                <Save size={15} />
+              )}
             </span>
             <span>{t("common.save")}</span>
           </button>

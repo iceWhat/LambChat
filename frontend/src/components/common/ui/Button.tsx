@@ -41,7 +41,20 @@ export function Button({
       )}
       {...props}
     >
-      {loading ? <LoadingSpinner size="sm" /> : leftIcon}
+      {loading ? (
+        <LoadingSpinner
+          size="sm"
+          color={
+            variant === "primary"
+              ? "text-white dark:text-stone-900"
+              : variant === "danger"
+                ? "text-red-600 dark:text-red-400"
+                : ""
+          }
+        />
+      ) : (
+        leftIcon
+      )}
       {children && <span className="ui-button__label">{children}</span>}
       {rightIcon}
     </button>

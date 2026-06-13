@@ -230,7 +230,10 @@ export function ProfileEnvVarsTab() {
                       className="shrink-0 p-1 rounded hover:bg-stone-100 dark:hover:bg-stone-700 text-green-600 transition-colors disabled:opacity-40"
                     >
                       {saving ? (
-                        <LoadingSpinner size="xs" />
+                        <LoadingSpinner
+                          size="xs"
+                          color="text-green-600 dark:text-green-400"
+                        />
                       ) : (
                         <Check size={12} />
                       )}
