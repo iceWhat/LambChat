@@ -618,13 +618,23 @@ export function ThinkingBlock({
     );
   }, [content, isStreaming, panelKey, status]);
 
+  // Show a brief preview of the reasoning content in the pill label
+  const preview = useMemo(() => {
+    if (isStreaming || !content) return "";
+    const text = content.replace(/\n+/g, " ").trim();
+    return text.length > 80 ? text.slice(0, 80) + "…" : text;
+  }, [content, isStreaming]);
+
+  const label = isStreaming
+    ? t("chat.message.thinking")
+    : preview || t("chat.message.thought");
+
   return (
     <CollapsiblePill
       status={status}
       icon={<Brain size={12} className="shrink-0 opacity-50" />}
-      label={
-        isStreaming ? t("chat.message.thinking") : t("chat.message.thought")
-      }
+      label={label}
+      formatLabel={false}
       variant="thinking"
       animatedDots={isStreaming}
       expandable={!!content}

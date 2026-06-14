@@ -64,5 +64,5 @@ class PresenterConfig:
     run_id: Optional[str] = None  # 运行 ID
     trace_id: Optional[str] = None  # Trace ID (自动生成或手动指定)
     chunk_delay: float = 0.0  # 流式输出延迟 (秒)
-    max_result_length: int = 2000  # 结果最大长度
+    max_result_length: int = 100000  # 结果最大长度
     enable_storage: bool = True  # 是否启用事件存储

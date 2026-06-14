@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, ChevronDown, ChevronRight, Cpu, Star, Trash2 } from "lucide-react";
+import { Bot, ChevronDown, Cpu, Star, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TeamMember } from "../../types/team";
 import type { ModelOption } from "../../services/api/model";
@@ -13,6 +13,9 @@ import {
   isEmojiAvatar,
   isPersonaImageAvatar,
 } from "../persona/personaAvatar";
+import { Select, Textarea, IconButton } from "../common/ui";
+import type { SelectOption } from "../common/ui";
+import { Tooltip } from "../common/Tooltip";
 
 interface TeamMemberCardProps {
   member: TeamMember;
@@ -41,6 +44,7 @@ export function TeamMemberCard({
 }: TeamMemberCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(!!member.role_instructions);
+
   const selectedModel = member.model_id
     ? availableModels.find((model) => model.id === member.model_id)
     : null;
@@ -51,14 +55,30 @@ export function TeamMemberCard({
     ? availableAgents.find((agent) => agent.id === member.agent_id)
     : null;
   const agentLabel = member.agent_id
-    ? selectedAgent?.name || member.agent_id
+    ? t(selectedAgent?.name || member.agent_id)
     : t("team.followTeamMode", "跟随团队模式");
+
+  const agentOptions: SelectOption[] = [
+    { value: "", label: t("team.followTeamMode", "跟随团队模式") },
+    ...availableAgents.map((agent) => ({
+      value: agent.id,
+      label: t(agent.name || agent.id),
+    })),
+  ];
+
+  const modelOptions: SelectOption[] = [
+    { value: "", label: t("team.followSessionModel", "跟随会话模型") },
+    ...availableModels.map((model) => ({
+      value: model.id,
+      label: model.label || model.value,
+    })),
+  ];
 
   return (
     <div
       className={`list-item-card ${
-        member.enabled ? "" : "list-item-card--disabled"
-      }`}
+        expanded ? "list-item-card--expanded" : ""
+      } ${member.enabled ? "" : "list-item-card--disabled"}`}
     >
       <div className="list-item-card__body">
         {/* Main row: avatar + name + tags + actions */}
@@ -90,54 +110,61 @@ export function TeamMemberCard({
           </div>
 
           <div className="list-item-card__identity">
-            <span className="list-item-card__name">
-              {member.role_name || t("team.unnamedRole")}
-            </span>
-            {member.role_tags.length > 0 && (
-              <span className="team-member-card__tags">
-                {member.role_tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="team-member-card__tag">
-                    {tag}
-                  </span>
-                ))}
+            <div className="team-member-card__identity-header">
+              <span className="list-item-card__name">
+                {member.role_name || t("team.unnamedRole")}
               </span>
-            )}
-            <span
-              className="team-member-card__model"
-              title={agentLabel}
-            >
-              <Bot size={11} />
-              <span>{agentLabel}</span>
-            </span>
-            <span
-              className="team-member-card__model"
-              title={modelLabel}
-            >
-              <Cpu size={11} />
-              <span>{modelLabel}</span>
+              {member.role_tags.length > 0 && (
+                <span className="team-member-card__tags">
+                  {member.role_tags.slice(0, 3).map((tag) => (
+                    <span key={tag} className="team-member-card__tag">
+                      {tag}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+            <span className="team-member-card__meta-row">
+              <span className="team-member-card__model" title={agentLabel}>
+                <Bot size={11} />
+                <span>{agentLabel}</span>
+              </span>
+              <span className="team-member-card__model-sep" />
+              <span className="team-member-card__model" title={modelLabel}>
+                <Cpu size={11} />
+                <span>{modelLabel}</span>
+              </span>
             </span>
           </div>
 
           {/* Inline actions */}
           <div className="list-item-card__actions">
-            <button
-              onClick={onSetDefault}
-              className={`team-member-card__action-btn ${
-                isDefault ? "team-member-card__action-btn--active" : ""
-              }`}
-              title={isDefault ? t("team.defaultRole") : t("team.setDefault")}
-              type="button"
+            <Tooltip
+              content={isDefault ? t("team.defaultRole") : t("team.setDefault")}
             >
-              <Star size={14} fill={isDefault ? "currentColor" : "none"} />
-            </button>
-            <button
-              onClick={onRemove}
-              className="team-member-card__action-btn team-member-card__action-btn--danger"
-              title={t("team.remove")}
-              type="button"
-            >
-              <Trash2 size={14} />
-            </button>
+              <IconButton
+                onClick={onSetDefault}
+                icon={
+                  <Star size={14} fill={isDefault ? "currentColor" : "none"} />
+                }
+                variant={isDefault ? "primary" : "ghost"}
+                size="sm"
+                className={
+                  isDefault
+                    ? "team-member-card__action-btn team-member-card__action-btn--active"
+                    : "team-member-card__action-btn"
+                }
+              />
+            </Tooltip>
+            <Tooltip content={t("team.remove")}>
+              <IconButton
+                onClick={onRemove}
+                icon={<Trash2 size={14} />}
+                variant="ghost"
+                size="sm"
+                className="team-member-card__action-btn team-member-card__action-btn--danger"
+              />
+            </Tooltip>
           </div>
 
           {/* Toggle */}
@@ -158,60 +185,80 @@ export function TeamMemberCard({
             className="team-member-card__expand-btn"
             type="button"
           >
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            <ChevronDown
+              size={13}
+              className={`team-member-card__expand-icon ${
+                expanded ? "team-member-card__expand-icon--open" : ""
+              }`}
+            />
           </button>
         </div>
 
-        {/* Collapsible instructions */}
-        {expanded && (
+        {/* Collapsible instructions with smooth animation */}
+        <div
+          className={`team-member-card__collapse ${
+            expanded ? "team-member-card__collapse--open" : ""
+          }`}
+        >
           <div className="list-item-card__instructions">
-            <label className="ppe-label">
-              <Bot size={13} className="ppe-label-icon" />
-              {t("team.memberMode", "成员模式")}
-            </label>
-            <select
-              value={member.agent_id ?? ""}
-              onChange={(e) => onAgentChange?.(e.target.value || null)}
-              className="ppe-input"
-              disabled={!onAgentChange}
-            >
-              <option value="">
-                {t("team.followTeamMode", "跟随团队模式")}
-              </option>
-              {availableAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name || agent.id}
-                </option>
-              ))}
-            </select>
-            <label className="ppe-label">
-              <Cpu size={13} className="ppe-label-icon" />
-              {t("team.memberModel", "成员模型")}
-            </label>
-            <select
-              value={member.model_id ?? ""}
-              onChange={(e) => onModelChange?.(e.target.value || null)}
-              className="ppe-input"
-              disabled={!onModelChange}
-            >
-              <option value="">
-                {t("team.followSessionModel", "跟随会话模型")}
-              </option>
-              {availableModels.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label || model.value}
-                </option>
-              ))}
-            </select>
-            <textarea
-              value={member.role_instructions}
-              onChange={(e) => onInstructionsChange(e.target.value)}
-              placeholder={t("team.roleInstructionsPlaceholder")}
-              className="ppe-textarea"
-              rows={3}
-            />
+            <div className="team-member-card__instructions-divider" />
+            <div className="team-member-card__field">
+              <label className="ppe-label">
+                <Bot size={13} className="ppe-label-icon" />
+                {t("team.memberMode", "成员模式")}
+              </label>
+              <Select
+                value={member.agent_id ?? ""}
+                onChange={(v) => onAgentChange?.(v || null)}
+                options={agentOptions}
+                disabled={!onAgentChange}
+                placeholder={t("team.followTeamMode", "跟随团队模式")}
+                triggerClassName="team-member-card__select-trigger"
+              />
+            </div>
+            <div className="team-member-card__field">
+              <label className="ppe-label">
+                <Cpu size={13} className="ppe-label-icon" />
+                {t("team.memberModel", "成员模型")}
+              </label>
+              <Select
+                value={member.model_id ?? ""}
+                onChange={(v) => onModelChange?.(v || null)}
+                options={modelOptions}
+                disabled={!onModelChange}
+                placeholder={t("team.followSessionModel", "跟随会话模型")}
+                triggerClassName="team-member-card__select-trigger"
+              />
+            </div>
+            <div className="team-member-card__field">
+              <label className="ppe-label">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="ppe-label-icon"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+                </svg>
+                {t("team.roleInstructions", "角色专属指令")}
+              </label>
+              <Textarea
+                value={member.role_instructions}
+                onChange={(e) => onInstructionsChange(e.target.value)}
+                placeholder={t("team.roleInstructionsPlaceholder")}
+                rows={3}
+                className="team-member-card__textarea"
+              />
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

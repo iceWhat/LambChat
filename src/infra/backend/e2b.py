@@ -21,7 +21,6 @@ from deepagents.backends.sandbox import BaseSandbox
 from deepagents.backends.utils import (
     create_file_data,
     format_content_with_line_numbers,
-    slice_read_response,
 )
 
 from src.infra.async_utils import run_blocking_io
@@ -60,12 +59,27 @@ SANDBOX_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024
 SANDBOX_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 SANDBOX_BATCH_FILES_LIMIT = 100
 SANDBOX_GLOB_MAX_MATCHES = 1000
+SANDBOX_GLOB_TIMEOUT_SECONDS = 15
+
+
+def _slice_file_data(content: str, offset: int, limit: int):
+    try:
+        from deepagents.backends.utils import slice_read_response
+
+        return slice_read_response(create_file_data(content), offset, limit)
+    except ImportError:
+        lines = content.splitlines(keepends=True)
+        if offset >= len(lines):
+            return ReadResult(
+                error=f"Line offset {offset} exceeds file length ({len(lines)} lines)"
+            )
+        return "".join(lines[offset : offset + limit]) if limit >= 0 else "".join(lines[offset:])
 
 
 def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
     if not content:
         return ""
-    sliced = slice_read_response(create_file_data(content), offset, limit)
+    sliced = _slice_file_data(content, offset, limit)
     if is_read_result(sliced):
         error = getattr(sliced, "error", None)
         return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
@@ -75,7 +89,7 @@ def _slice_text_read(content: str, offset: int, limit: int) -> str | ReadResult:
 def _slice_text_content(content: str, offset: int, limit: int) -> str | ReadResult:
     if not content:
         return ""
-    sliced = slice_read_response(create_file_data(content), offset, limit)
+    sliced = _slice_file_data(content, offset, limit)
     if is_read_result(sliced):
         error = getattr(sliced, "error", None)
         return ReadResult(error=str(error) if error is not None else read_result_to_string(sliced))
@@ -400,16 +414,85 @@ class E2BBackend(BaseSandbox):
             logger.error(f"E2B files.write({file_path}) failed: {e}")
             return WriteResult(path=file_path, error=error)
 
-    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
-        """使用 E2B 原生 files.list() 递归搜索匹配 glob 模式的文件
+    def _glob_info_via_command(self, pattern: str, search_path: str) -> list[FileInfo] | None:
+        """Prefer shell tools for glob search; return None when command search is unavailable."""
+        quoted_path = shlex.quote(search_path)
+        quoted_pattern = shlex.quote(pattern)
+        max_matches = SANDBOX_GLOB_MAX_MATCHES
+        command = (
+            f"if command -v rg >/dev/null 2>&1; then "
+            f"printf '__LAMBCHAT_GLOB_MODE__:rg\\n'; "
+            f"rg --files --hidden --glob {quoted_pattern} {quoted_path} | head -n {max_matches}; "
+            f"else "
+            f"printf '__LAMBCHAT_GLOB_MODE__:find\\n'; "
+            f"find {quoted_path} -xdev "
+            f"\\( -path /proc -o -path /sys -o -path /dev \\) -prune -o "
+            f"-print | head -n {max_matches * 5}; "
+            f"fi"
+        )
+        response = self.execute(command, timeout=SANDBOX_GLOB_TIMEOUT_SECONDS)
+        if response.exit_code != 0:
+            return None
 
-        E2B 没有 glob API，所以用 list 递归列出后在 Python 端过滤。
+        import re
+
+        # glob.translate() is Python 3.13+; this is the 3.12-compatible equivalent.
+        parts = pattern.split("**")
+        segments: list[str] = []
+        for idx, part in enumerate(parts):
+            if idx > 0:
+                if part.startswith("/"):
+                    segments.append("(?:|.*/)")
+                    part = part[1:]
+                else:
+                    segments.append(".*")
+            segments.append(re.escape(part).replace(r"\*", "[^/]*").replace(r"\?", "[^/]"))
+        glob_regex = re.compile("^" + "".join(segments) + "$")
+
+        def _matches_find_result(full_path: str) -> bool:
+            relative_path = os.path.relpath(full_path, search_path)
+            return glob_regex.match(relative_path) is not None
+
+        matches: list[FileInfo] = []
+        seen: set[str] = set()
+        mode = "find"
+        for raw_line in (response.output or "").splitlines():
+            full_path = raw_line.strip()
+            if full_path.startswith("__LAMBCHAT_GLOB_MODE__:"):
+                mode = full_path.rsplit(":", 1)[-1]
+                continue
+            if not full_path or full_path in seen:
+                continue
+            if any(full_path.startswith(prefix) for prefix in ("/proc", "/sys", "/dev")):
+                continue
+
+            if mode != "rg":
+                if not _matches_find_result(full_path):
+                    continue
+
+            seen.add(full_path)
+            info: FileInfo = {"path": full_path}
+            if full_path.endswith("/"):
+                info["is_dir"] = True
+            matches.append(info)
+            if len(matches) >= SANDBOX_GLOB_MAX_MATCHES:
+                break
+        return matches
+
+    def glob_info(self, pattern: str, path: str = "/", *, _max_depth: int = 10) -> list[FileInfo]:
+        """优先使用 rg/find 搜索匹配 glob 模式的文件
+
+        命令搜索通常比逐级调用 E2B files.list() 更快；命令不可用时 fallback 到原生 API。
         使用 _max_depth 和结果数限制，防止大目录导致长时间阻塞和内存增长。
         """
         try:
             import fnmatch
 
             search_path = self.work_dir if path == "/" else path
+            command_matches = self._glob_info_via_command(pattern, search_path)
+            if command_matches is not None:
+                return command_matches
+
             entries = self._sandbox.files.list(path=search_path)
             result: list[FileInfo] = []
 

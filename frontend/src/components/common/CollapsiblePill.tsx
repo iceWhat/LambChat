@@ -153,7 +153,7 @@ export function CollapsiblePill({
           !canExpand && "cursor-default",
         )}
       >
-        <StatusIndicator status={status} />
+        {status === "loading" && <StatusIndicator status={status} />}
         {icon}
         <span
           className={clsx(

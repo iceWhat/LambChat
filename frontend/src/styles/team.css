@@ -63,6 +63,10 @@
 .dark .team-toggle {
   background: #57534e;
 }
+.dark .team-toggle--on {
+  background: #f59e0b;
+  box-shadow: 0 1px 3px rgba(245, 158, 11, 0.25);
+}
 .dark .team-toggle::after {
   background: white;
 }
@@ -1304,11 +1308,44 @@
   opacity: 1;
   color: var(--theme-text);
 }
-.team-member-card__tags {
+/* --- Identity header: name + tags on one line --- */
+.team-member-card__identity-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
 }
+.team-member-card__identity-header .list-item-card__name {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* --- Meta row: model badges inline with dot separator --- */
+.team-member-card__meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.team-member-card__meta-row .team-member-card__model {
+  min-width: 0;
+}
+.team-member-card__model-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--theme-text-tertiary, var(--theme-text-secondary));
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.team-member-card__tags {
+  display: inline-flex;
+  flex-shrink: 1;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .team-member-card__tag {
   font-size: 0.625rem;
   font-weight: 600;
@@ -1387,15 +1424,71 @@
   color: #f87171;
   background: color-mix(in srgb, #7f1d1d 20%, var(--theme-bg-card));
 }
-.list-item-card:has(.team-member-card__avatar-btn) .list-item-card__instructions {
+.list-item-card:has(.team-member-card__avatar-btn)
+  .list-item-card__instructions {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* --- Collapse animation (grid trick) --- */
+.team-member-card__collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.team-member-card__collapse--open {
+  grid-template-rows: 1fr;
+}
+.team-member-card__collapse > .list-item-card__instructions {
+  overflow: hidden;
+}
+
 /* Team instructions fill card width */
 .list-item-card:has(.team-member-card__avatar-btn)
   .list-item-card__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   /* no offset — textarea fills the full card width */
+}
+
+/* --- Divider between header and instructions --- */
+.team-member-card__instructions-divider {
+  height: 1px;
+  margin-bottom: 0.25rem;
+  background: color-mix(in srgb, var(--theme-border) 80%, transparent);
+}
+
+/* --- Field wrapper (label + input pair) --- */
+.team-member-card__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* --- Select trigger sizing for card context --- */
+.team-member-card__select-trigger {
+  height: 2.125rem;
+  font-size: 0.8125rem;
+  border-radius: 0.375rem;
+  background: var(--theme-bg);
+}
+
+/* --- Textarea sizing for card context --- */
+.team-member-card__textarea {
+  min-height: 4.5rem;
+  font-size: 0.8125rem;
+  border-radius: 0.375rem;
+  background: var(--theme-bg);
+}
+
+/* --- Expand icon rotation --- */
+.team-member-card__expand-icon {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.team-member-card__expand-icon--open {
+  transform: rotate(180deg);
 }
 
 /* --- Panel search (compact) --- */

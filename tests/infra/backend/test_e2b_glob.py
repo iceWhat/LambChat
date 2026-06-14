@@ -36,10 +36,85 @@ class _FakeFilesAPI:
         return self.responses.get(path, [])
 
 
+class _FakeCommandsAPI:
+    def __init__(self, responses: list[SimpleNamespace]) -> None:
+        self.responses = responses
+        self.calls: list[dict] = []
+
+    def run(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.responses:
+            return self.responses.pop(0)
+        return SimpleNamespace(stdout="", stderr="", exit_code=1)
+
+
 class _FakeE2BSandbox:
-    def __init__(self, files_api: _FakeFilesAPI) -> None:
+    def __init__(
+        self,
+        files_api: _FakeFilesAPI,
+        commands_api: _FakeCommandsAPI | None = None,
+    ) -> None:
         self.sandbox_id = "e2b-test"
         self.files = files_api
+        self.commands = commands_api or _FakeCommandsAPI([])
+
+
+def test_e2b_glob_prefers_rg_or_find_command_search() -> None:
+    files_api = _FakeFilesAPI({})
+    commands_api = _FakeCommandsAPI(
+        [
+            SimpleNamespace(
+                stdout=(
+                    "__LAMBCHAT_GLOB_MODE__:rg\n"
+                    "/home/user/hello.py\n"
+                    "/home/user/project/hello.py\n"
+                    "/home/user/project/lib/hello.py\n"
+                ),
+                stderr="",
+                exit_code=0,
+            )
+        ]
+    )
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api, commands_api))
+
+    result = backend.glob("**/hello.py", path="/")
+
+    assert files_api.calls == []
+    assert "rg --files" in commands_api.calls[0]["cmd"]
+    assert result["matches"] == [
+        {"path": "/home/user/hello.py"},
+        {"path": "/home/user/project/hello.py"},
+        {"path": "/home/user/project/lib/hello.py"},
+    ]
+
+
+def test_e2b_glob_find_fallback_matches_recursive_glob_segments() -> None:
+    files_api = _FakeFilesAPI({})
+    commands_api = _FakeCommandsAPI(
+        [
+            SimpleNamespace(
+                stdout=(
+                    "__LAMBCHAT_GLOB_MODE__:find\n"
+                    "/home/user/src/tests/root.py\n"
+                    "/home/user/src/pkg/tests/nested.py\n"
+                    "/home/user/src/pkg/deep/tests/deep.py\n"
+                    "/home/user/src/pkg/not-tests/deep.py\n"
+                    "/home/user/tests/outside.py\n"
+                ),
+                stderr="",
+                exit_code=0,
+            )
+        ]
+    )
+    backend = E2BBackend(sandbox=_FakeE2BSandbox(files_api, commands_api))
+
+    result = backend.glob("src/**/tests/*.py", path="/")
+
+    assert result["matches"] == [
+        {"path": "/home/user/src/tests/root.py"},
+        {"path": "/home/user/src/pkg/tests/nested.py"},
+        {"path": "/home/user/src/pkg/deep/tests/deep.py"},
+    ]
 
 
 def test_e2b_glob_scopes_root_search_to_work_dir() -> None:

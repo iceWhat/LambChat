@@ -1,12 +1,20 @@
 import { Wrench, Globe } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CollapsiblePill, CopyButton, LoadingSpinner } from "../../common";
 import type { CollapsibleStatus } from "../../common";
 import { ToolResultContent } from "./items/McpBlockPreview";
 import { ToolDurationFooter } from "./items/ToolDurationFooter";
 import { CollapsibleSection } from "./SubagentBlocks";
-import { openPersistentToolPanel } from "./items/persistentToolPanelState";
+import {
+  openPersistentToolPanel,
+  updatePersistentToolPanel,
+  isPersistentToolPanelOpen,
+} from "./items/persistentToolPanelState";
+import {
+  toolCallPanelStore,
+  type ToolCallPanelData,
+} from "./toolCallPanelStore";
 
 /** Returns the number of seconds elapsed since the tool started, or 0 when not pending. */
 function useElapsedSeconds(isPending?: boolean, startedAt?: string): number {
@@ -66,9 +74,124 @@ export { SandboxMcpItem } from "./items/SandboxMcpItem";
 export { MemoryRecallItem } from "./items/MemoryRecallItem";
 export { MemoryStoreItem } from "./items/MemoryStoreItem";
 export { AskHumanItem } from "./items/AskHumanItem";
+export { ToolSearchItem } from "./items/ToolSearchItem";
+
+/** Derive status from tool props */
+function deriveStatus(props: {
+  isPending?: boolean;
+  cancelled?: boolean;
+  success?: boolean;
+  hasResult: boolean;
+}): CollapsibleStatus {
+  if (props.isPending) return "loading";
+  if (props.cancelled) return "cancelled";
+  if (props.success) return "success";
+  if (props.hasResult) return "error";
+  return "idle";
+}
+
+// ==========================================
+// Tool call panel content (reactive)
+// ==========================================
+
+function ToolCallPanelContent({ toolCallId }: { toolCallId: string }) {
+  const { t } = useTranslation();
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    const listener = () => forceRender((n) => n + 1);
+    return toolCallPanelStore.subscribe(toolCallId, listener);
+  }, [toolCallId]);
+
+  const data = toolCallPanelStore.get(toolCallId);
+  if (!data) return null;
+
+  const elapsedSeconds = useElapsedSecondsForPanel(
+    data.isPending,
+    data.startedAt,
+  );
+  const hasArgs = Object.keys(data.args).length > 0;
+  const argsJson = JSON.stringify(data.args, null, 2);
+
+  return (
+    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
+      {hasArgs && (
+        <CollapsibleSection title={t("chat.message.args")}>
+          <pre className="text-sm text-stone-600 dark:text-stone-300 overflow-x-auto overflow-y-auto min-w-0 font-mono">
+            {argsJson}
+          </pre>
+        </CollapsibleSection>
+      )}
+
+      {data.result !== undefined && (
+        <CollapsibleSection
+          title={t("chat.message.result")}
+          action={
+            <CopyButton
+              text={
+                typeof data.result === "string"
+                  ? data.result
+                  : JSON.stringify(data.result, null, 2)
+              }
+              size={12}
+            />
+          }
+        >
+          <ToolResultContent result={data.result} hideCopyButton />
+        </CollapsibleSection>
+      )}
+
+      {data.isPending && (
+        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+          <LoadingSpinner size="xs" />
+          <span>{t("chat.message.running")}</span>
+          <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Standalone elapsed timer for the reactive panel content */
+function useElapsedSecondsForPanel(
+  isPending: boolean | undefined,
+  startedAt: string | undefined,
+): number {
+  const [elapsed, setElapsed] = useState(0);
+  const startTimeMs = useRef<number | null>(null);
+  const raf = useRef<number>(0);
+
+  useEffect(() => {
+    if (isPending) {
+      startTimeMs.current = startedAt
+        ? new Date(startedAt).getTime()
+        : Date.now();
+      setElapsed(0);
+      const tick = () => {
+        if (startTimeMs.current !== null) {
+          setElapsed(Math.floor((Date.now() - startTimeMs.current) / 1000));
+          raf.current = requestAnimationFrame(tick);
+        }
+      };
+      raf.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf.current);
+    } else {
+      startTimeMs.current = null;
+      setElapsed(0);
+      return () => cancelAnimationFrame(raf.current);
+    }
+  }, [isPending, startedAt]);
+
+  return elapsed;
+}
+
+// ==========================================
+// Collapsible Tool Call Item
+// ==========================================
 
 // Collapsible Tool Call Item (compact design)
 export function ToolCallItem({
+  id,
   name,
   args,
   result,
@@ -78,6 +201,7 @@ export function ToolCallItem({
   startedAt,
   completedAt,
 }: {
+  id?: string;
   name: string;
   args: Record<string, unknown>;
   result?: string | Record<string, unknown>;
@@ -118,24 +242,73 @@ export function ToolCallItem({
   const hasArgs = Object.keys(displayArgs).length > 0;
   const argsJson = JSON.stringify(displayArgs, null, 2);
 
-  let status: CollapsibleStatus = "idle";
-  if (isPending) {
-    status = "loading";
-  } else if (cancelled) {
-    status = "cancelled";
-  } else if (success) {
-    status = "success";
-  } else if (hasResult) {
-    status = "error";
-  }
+  const status = deriveStatus({ isPending, cancelled, success, hasResult });
 
   const canExpand = hasArgs || hasResult;
 
-  const panelContent = canExpand && (
-    <div className="space-y-3 max-h-full overflow-y-auto p-2 sm:p-4 [&_pre]:!text-sm">
+  // Build a panelKey from the tool call ID (used for persistent panel identity)
+  const panelKey = useMemo(() => (id ? `tool:${id}` : undefined), [id]);
+
+  // Sync live data to the reactive store so the persistent panel can read it
+  const storeData = useMemo<ToolCallPanelData | null>(
+    () =>
+      id
+        ? {
+            toolCallId: id,
+            toolName,
+            formattedToolName,
+            args: displayArgs,
+            result,
+            success,
+            isPending,
+            cancelled,
+            startedAt,
+            completedAt,
+            status,
+          }
+        : null,
+    [
+      id,
+      toolName,
+      formattedToolName,
+      displayArgs,
+      result,
+      success,
+      isPending,
+      cancelled,
+      startedAt,
+      completedAt,
+      status,
+    ],
+  );
+
+  useEffect(() => {
+    if (!storeData) return;
+    toolCallPanelStore.set(storeData);
+    return () => {
+      toolCallPanelStore.delete(storeData.toolCallId);
+    };
+  }, [storeData]);
+
+  // If a panel is already open for this tool, update its status + footer reactively
+  useEffect(() => {
+    if (!panelKey || !isPersistentToolPanelOpen(panelKey)) return;
+    updatePersistentToolPanel(
+      (prev) => ({
+        ...prev,
+        status,
+        footer: durationFooter,
+      }),
+      panelKey,
+    );
+  }, [panelKey, status, durationFooter]);
+
+  // Inline content for desktop expand
+  const inlineContent = canExpand && (
+    <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-96 overflow-y-auto min-w-0">
       {hasArgs && (
         <CollapsibleSection title={t("chat.message.args")}>
-          <pre className="text-sm text-stone-600 dark:text-stone-300 overflow-x-auto overflow-y-auto min-w-0 font-mono">
+          <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto min-w-0">
             {argsJson}
           </pre>
         </CollapsibleSection>
@@ -151,7 +324,7 @@ export function ToolCallItem({
                   ? result
                   : JSON.stringify(result, null, 2)
               }
-              size={12}
+              size={10}
             />
           }
         >
@@ -168,6 +341,19 @@ export function ToolCallItem({
       )}
     </div>
   );
+
+  const handlePanelOpen = () => {
+    if (!canExpand || !id) return;
+    openPersistentToolPanel({
+      title: formattedToolName,
+      icon: isMcpTool ? <Globe size={16} /> : <Wrench size={16} />,
+      status,
+      panelKey,
+      subtitle: serverName || undefined,
+      children: <ToolCallPanelContent toolCallId={id} />,
+      footer: durationFooter,
+    });
+  };
 
   return (
     <>
@@ -190,57 +376,9 @@ export function ToolCallItem({
         }
         variant="tool"
         expandable={canExpand}
-        onPanelOpen={() => {
-          if (!canExpand) return;
-          openPersistentToolPanel({
-            title: formattedToolName,
-            icon: isMcpTool ? <Globe size={16} /> : <Wrench size={16} />,
-            status,
-            subtitle: serverName || undefined,
-            children: panelContent,
-            footer: durationFooter,
-          });
-        }}
+        onPanelOpen={handlePanelOpen}
       >
-        {canExpand && (
-          <div className="mt-2 ml-4 pl-3 border-l-2 border-stone-200/60 dark:border-stone-700/50 space-y-2 max-h-96 overflow-y-auto min-w-0">
-            {hasArgs && (
-              <CollapsibleSection title={t("chat.message.args")}>
-                <pre className="text-xs text-stone-600 dark:text-stone-300 overflow-x-auto max-h-40 overflow-y-auto min-w-0">
-                  {argsJson}
-                </pre>
-              </CollapsibleSection>
-            )}
-
-            {hasResult && (
-              <CollapsibleSection
-                title={t("chat.message.result")}
-                action={
-                  <CopyButton
-                    text={
-                      typeof result === "string"
-                        ? result
-                        : JSON.stringify(result, null, 2)
-                    }
-                    size={10}
-                  />
-                }
-              >
-                <ToolResultContent result={result} hideCopyButton />
-              </CollapsibleSection>
-            )}
-
-            {isPending && (
-              <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <LoadingSpinner size="xs" />
-                <span>{t("chat.message.running")}</span>
-                <span className="tabular-nums">
-                  {formatElapsed(elapsedSeconds)}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+        {inlineContent}
       </CollapsiblePill>
     </>
   );

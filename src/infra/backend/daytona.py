@@ -29,7 +29,12 @@ from deepagents.backends.protocol import (
 from deepagents.backends.sandbox import BaseSandbox
 
 from src.infra.async_utils import run_blocking_io
-from src.infra.backend.protocol_compat import file_download_response, file_upload_response
+from src.infra.backend.protocol_compat import (
+    FileInfo,
+    GlobResult,
+    file_download_response,
+    file_upload_response,
+)
 from src.infra.logging import get_logger
 from src.infra.sandbox_grep import (
     build_grep_command,
@@ -48,6 +53,8 @@ _TEMP_DIR = "/tmp/__daytona_transfer__"
 SANDBOX_DOWNLOAD_MAX_BYTES = 50 * 1024 * 1024
 SANDBOX_UPLOAD_MAX_BYTES = 50 * 1024 * 1024
 SANDBOX_BATCH_FILES_LIMIT = 100
+SANDBOX_GLOB_MAX_MATCHES = 1000
+SANDBOX_GLOB_TIMEOUT_SECONDS = 15
 
 
 def _needs_ascii_bridge(path: str) -> bool:
@@ -176,6 +183,86 @@ class DaytonaBackend(BaseSandbox):
         timeout = get_sandbox_grep_timeout(settings)
         result = await self.aexecute(build_grep_command(pattern, path, glob), timeout=timeout)
         return parse_grep_response(result, timeout)
+
+    def _glob_info_via_command(self, pattern: str, search_path: str) -> list[FileInfo] | None:
+        quoted_path = shlex.quote(search_path)
+        quoted_pattern = shlex.quote(pattern)
+        max_matches = SANDBOX_GLOB_MAX_MATCHES
+        command = (
+            f"if command -v rg >/dev/null 2>&1; then "
+            f"printf '__LAMBCHAT_GLOB_MODE__:rg\\n'; "
+            f"rg --files --hidden --glob {quoted_pattern} {quoted_path} | head -n {max_matches}; "
+            f"else "
+            f"printf '__LAMBCHAT_GLOB_MODE__:find\\n'; "
+            f"find {quoted_path} -xdev "
+            f"\\( -path /proc -o -path /sys -o -path /dev \\) -prune -o "
+            f"-print | head -n {max_matches * 5}; "
+            f"fi"
+        )
+        response = self.execute(command, timeout=SANDBOX_GLOB_TIMEOUT_SECONDS)
+        if response.exit_code != 0:
+            return None
+
+        import re
+
+        # glob.translate() is Python 3.13+; this is the 3.12-compatible equivalent.
+        parts = pattern.split("**")
+        segments: list[str] = []
+        for idx, part in enumerate(parts):
+            if idx > 0:
+                if part.startswith("/"):
+                    segments.append("(?:|.*/)")
+                    part = part[1:]
+                else:
+                    segments.append(".*")
+            segments.append(re.escape(part).replace(r"\*", "[^/]*").replace(r"\?", "[^/]"))
+        glob_regex = re.compile("^" + "".join(segments) + "$")
+
+        def _matches_find_result(full_path: str) -> bool:
+            relative_path = os.path.relpath(full_path, search_path)
+            return glob_regex.match(relative_path) is not None
+
+        matches: list[FileInfo] = []
+        seen: set[str] = set()
+        mode = "find"
+        for raw_line in (response.output or "").splitlines():
+            full_path = raw_line.strip()
+            if full_path.startswith("__LAMBCHAT_GLOB_MODE__:"):
+                mode = full_path.rsplit(":", 1)[-1]
+                continue
+            if not full_path or full_path in seen:
+                continue
+            if any(full_path.startswith(prefix) for prefix in ("/proc", "/sys", "/dev")):
+                continue
+
+            if mode != "rg":
+                if not _matches_find_result(full_path):
+                    continue
+
+            seen.add(full_path)
+            info: FileInfo = {"path": full_path}
+            if full_path.endswith("/"):
+                info["is_dir"] = True
+            matches.append(info)
+            if len(matches) >= SANDBOX_GLOB_MAX_MATCHES:
+                break
+        return matches
+
+    def glob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+        search_path = self.work_dir if path == "/" else path
+        command_matches = self._glob_info_via_command(pattern, search_path)
+        if command_matches is not None:
+            return command_matches
+        return super().glob_info(pattern, path)
+
+    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+        return await run_blocking_io(self.glob_info, pattern, path)
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return GlobResult(matches=self.glob_info(pattern, path or "/"))
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return GlobResult(matches=await self.aglob_info(pattern, path or "/"))
 
     def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         """Download files from the sandbox.

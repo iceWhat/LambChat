@@ -91,7 +91,7 @@ function UserMessageSkeleton({
 function AssistantMessageSkeleton() {
   return (
     <div className="group w-full animate-[fade-in_0.3s_ease-out] scroll-mt-6 rounded-2xl">
-      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6">
         {/* Avatar + name */}
         <div className="mb-3 flex items-center gap-2">
           <div className="skeleton-line size-6 rounded-full shrink-0" />

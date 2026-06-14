@@ -5,7 +5,9 @@ import pytest
 
 from src.infra.agent import AgentEventProcessor
 from src.infra.agent.events.buffers import TextChunkBuffer
+from src.infra.agent.events.tool_events import _TOOL_RESULT_DISPLAY_MAX_CHARS
 from src.infra.agent.events.tool_outputs import (
+    TOOL_OUTPUT_SERIALIZE_MAX_STRING_CHARS,
     _compact_serializable_value,
     detect_tool_error,
     process_messages,
@@ -545,7 +547,7 @@ def test_detect_tool_error_detects_string_error_prefix() -> None:
 
 
 def test_process_messages_compacts_large_artifact_before_serializing() -> None:
-    large_value = "x" * 20_000
+    large_value = "x" * 120_000
     result = process_messages(
         [
             SimpleNamespace(
@@ -561,20 +563,26 @@ def test_process_messages_compacts_large_artifact_before_serializing() -> None:
     )
 
     assert isinstance(result, str)
-    assert len(result) < 10_000
+    assert len(result) < 210_000
     assert large_value not in result
-    assert "truncated from 20000 chars" in result
+    assert "truncated from 120000 chars" in result
 
 
 def test_process_messages_compacts_large_text_content_before_joining() -> None:
-    large_value = "x" * 20_000
+    large_value = "x" * 120_000
 
     result = process_messages([SimpleNamespace(content=large_value)])
 
     assert isinstance(result, str)
-    assert len(result) < 10_000
+    assert len(result) > 95_000
+    assert len(result) < 102_000
     assert large_value not in result
-    assert "truncated from 20000 chars" in result
+    assert "truncated from 120000 chars" in result
+
+
+def test_tool_output_string_limits_are_large_enough_for_rich_results() -> None:
+    assert TOOL_OUTPUT_SERIALIZE_MAX_STRING_CHARS == 100_000
+    assert _TOOL_RESULT_DISPLAY_MAX_CHARS == 100_000
 
 
 def test_compact_serializable_value_does_not_materialize_large_dict_items() -> None:
@@ -678,7 +686,7 @@ async def test_tool_error_does_not_emit_duplicate_start_after_start_event() -> N
 async def test_tool_result_large_json_string_is_not_parsed_and_is_clipped() -> None:
     presenter = FakePresenter()
     processor = AgentEventProcessor(presenter)
-    large_json = '{"rows": ["' + ("x" * 12_000) + '"]}'
+    large_json = '{"rows": ["' + ("x" * 120_000) + '"]}'
 
     await processor.process_event(
         {

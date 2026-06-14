@@ -72,10 +72,12 @@ export function ProtectedRoute({
   fallbackComponent,
   redirectTo,
   showToast = false,
-  toastMessage = "您没有权限访问此页面",
+  toastMessage = undefined,
 }: ProtectedRouteProps) {
+  const { t } = useTranslation();
   const { isAuthenticated, isLoading, hasAnyPermission, hasAllPermissions } =
     useAuth();
+  const resolvedToastMessage = toastMessage ?? t("errors.noPermissionToast");
 
   // 检查是否有访问权限
   const checkAccess = (): boolean => {
@@ -114,9 +116,9 @@ export function ProtectedRoute({
   // 无权限时的处理：显示 Toast
   useEffect(() => {
     if (!isLoading && isAuthenticated && !hasAccess && showToast) {
-      toast.error(toastMessage);
+      toast.error(resolvedToastMessage);
     }
-  }, [isLoading, isAuthenticated, hasAccess, showToast, toastMessage]);
+  }, [isLoading, isAuthenticated, hasAccess, showToast, resolvedToastMessage]);
 
   // 加载中
   if (isLoading) {

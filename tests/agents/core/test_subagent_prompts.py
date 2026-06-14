@@ -7,6 +7,7 @@ from src.agents.core.subagent_prompts import (
     MAIN_AGENT_PROMPT_SECTIONS,
     SUBAGENT_PROMPT,
     SUBAGENT_TASK_GUIDE,
+    TOOL_PROGRESS_GUIDE,
     WORKFLOW_SECTION,
 )
 
@@ -255,6 +256,32 @@ def test_main_agent_prompts_include_timestamp_guidance() -> None:
         _effective_main_prompt(DEFAULT_SYSTEM_PROMPT),
         _effective_main_prompt(SANDBOX_SYSTEM_PROMPT),
     ):
+        lower_prompt = prompt.lower()
+        for phrase in required_guidance:
+            assert phrase in lower_prompt
+
+
+def test_all_agent_prompts_include_tool_progress_guidance() -> None:
+    required_guidance = [
+        "tool progress",
+        "before the first tool call",
+        "briefly tell the user",
+        "content may interleave text and tool calls",
+        "do not invent tool results",
+        "if the tool call is obvious and quick",
+    ]
+
+    prompts = [
+        TOOL_PROGRESS_GUIDE,
+        _effective_main_prompt(FAST_SYSTEM_PROMPT),
+        _effective_main_prompt(DEFAULT_SYSTEM_PROMPT),
+        _effective_main_prompt(SANDBOX_SYSTEM_PROMPT),
+        DEFAULT_SUBAGENT_PROMPT,
+        DETAILED_SUBAGENT_PROMPT,
+        SUBAGENT_PROMPT,
+    ]
+
+    for prompt in prompts:
         lower_prompt = prompt.lower()
         for phrase in required_guidance:
             assert phrase in lower_prompt

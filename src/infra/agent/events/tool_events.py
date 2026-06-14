@@ -17,7 +17,7 @@ from src.infra.agent.events.tool_outputs import (
 from src.infra.agent.events.types import StreamEvent
 from src.infra.async_utils import run_blocking_io
 
-_TOOL_RESULT_DISPLAY_MAX_CHARS = 8_000
+_TOOL_RESULT_DISPLAY_MAX_CHARS = 100_000
 _TOOL_RESULT_JSON_PARSE_MAX_CHARS = _TOOL_RESULT_DISPLAY_MAX_CHARS
 
 

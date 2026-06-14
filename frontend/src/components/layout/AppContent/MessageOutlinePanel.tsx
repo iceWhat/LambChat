@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ImageWithSkeleton } from "../../chat/ChatMessage/ImageWithSkeleton";
 import {
@@ -47,8 +47,8 @@ function UserAvatar({
   username: string;
 }) {
   const fallback = (
-    <div className="flex size-[22px] items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.15)]">
-      <span className="text-[10px] font-bold text-white leading-none">
+    <div className="flex size-[26px] items-center justify-center bg-gradient-to-br from-amber-400 to-orange-500 rounded-full shadow-[0_2px_6px_rgba(0,0,0,0.18)]">
+      <span className="text-[11px] font-bold text-white leading-none tracking-wide">
         {username.charAt(0).toUpperCase() || "U"}
       </span>
     </div>
@@ -62,7 +62,7 @@ function UserAvatar({
       alt={username}
       skipUrlResolve
       inline
-      className="size-[22px] rounded-full ring-1 ring-white/20"
+      className="size-[26px] rounded-full ring-1 ring-white/30 shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
       errorFallback={fallback}
     />
   );
@@ -75,13 +75,17 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
   return (
     <div
       className={clsx(
-        "px-3 py-[10px] rounded-2xl w-[220px] cursor-pointer transition-all duration-200",
-        "bg-stone-100/80 dark:bg-stone-700/40 border",
-        "border-stone-200/80 dark:border-stone-600/50",
-        "hover:-translate-y-[1px] hover:shadow-lg hover:border-stone-300 dark:hover:border-stone-500",
+        "outline-flow-node",
+        "px-3.5 py-3 rounded-xl w-[232px] cursor-pointer",
+        "transition-all duration-200 ease-out",
+        "border backdrop-blur-sm",
+        isUser
+          ? "bg-white/70 dark:bg-stone-800/50 border-stone-200/60 dark:border-stone-600/40"
+          : "bg-stone-50/80 dark:bg-stone-800/60 border-stone-200/50 dark:border-stone-600/30",
+        !data.isActive && "shadow-sm hover:shadow-md",
+        "hover:-translate-y-[1.5px] hover:border-stone-300/70 dark:hover:border-stone-500/60",
         data.isActive &&
-          "border-[var(--theme-primary)] shadow-lg shadow-[color-mix(in_srgb,var(--theme-primary)_10%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_15%,transparent)] -translate-y-[1px]",
-        !data.isActive && "shadow-sm",
+          "!border-[var(--theme-primary)] shadow-lg shadow-[color-mix(in_srgb,var(--theme-primary)_12%,transparent)] ring-1 ring-[color-mix(in_srgb,var(--theme-primary)_18%,transparent)] -translate-y-[1.5px]",
       )}
     >
       <Handle
@@ -94,24 +98,36 @@ function OutlineFlowNode({ data }: { data: OutlineNodeData }) {
             : "!bg-stone-300 dark:!bg-stone-500",
         )}
       />
-      <div className="flex items-start gap-2">
-        <div className="shrink-0 pt-[1px]">
+      <div className="flex items-start gap-2.5">
+        <div className="shrink-0 pt-[0.5px]">
           {isUser ? (
             <UserAvatar avatarUrl={data.avatarUrl} username={data.username} />
           ) : (
             <AssistantAvatar
-              className="size-[22px] rounded-full ring-1 ring-white/20"
+              className="size-[26px] rounded-full ring-1 ring-white/25 shadow-[0_2px_6px_rgba(0,0,0,0.12)]"
               personaAvatar={data.personaAvatar}
-              personaSize={16}
+              personaSize={18}
             />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <span className="text-[10px] font-medium text-[var(--theme-text-secondary)] leading-none">
-            {isUser ? data.username : t("common.assistant")}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={clsx(
+                "text-[10.5px] font-semibold leading-none tracking-wide",
+                isUser
+                  ? "text-stone-500 dark:text-stone-400"
+                  : "text-[var(--theme-primary)]",
+              )}
+            >
+              {isUser ? data.username : t("common.assistant")}
+            </span>
+            {data.isActive && (
+              <span className="inline-block size-[4px] rounded-full bg-[var(--theme-primary)] animate-pulse" />
+            )}
+          </div>
           <div
-            className="text-[12px] text-[var(--theme-text)] line-clamp-2 mt-1 leading-[1.45] [&_strong]:font-semibold [&_strong]:text-[var(--theme-primary)] [&_em]:italic [&_code]:text-[11px] [&_code]:rounded [&_code]:bg-[var(--theme-primary-light)] [&_code]:px-0.5 [&_code]:text-[var(--theme-primary)]"
+            className="text-[12.5px] text-[var(--theme-text)] line-clamp-2 mt-[5px] leading-[1.5] [&_strong]:font-semibold [&_strong]:text-[var(--theme-primary)] [&_em]:italic [&_code]:text-[11px] [&_code]:rounded [&_code]:bg-[var(--theme-primary-light)] [&_code]:px-0.5 [&_code]:text-[var(--theme-primary)]"
             dangerouslySetInnerHTML={{
               __html: renderInlineMarkdown(data.label),
             }}
@@ -209,6 +225,7 @@ function OutlineFlowInner({
   const { t } = useTranslation();
   const { fitView, setViewport } = useReactFlow();
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(400);
 
   const avatarUrl = user?.avatar_url
     ? getFullUrl(user.avatar_url) ?? user.avatar_url
@@ -225,15 +242,30 @@ function OutlineFlowInner({
     [items, flowActiveId, avatarUrl, username, personaAvatar],
   );
 
-  // zoom into the target node and position it at the top of the viewport
+  // track container size for responsive zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 0) setContainerWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // dynamically scale nodes to fill ~60% of container width
   useEffect(() => {
     if (nodes.length === 0) return;
     const target = flowActiveId ? nodes.find((n) => n.data.isActive) : nodes[0];
     if (target) {
-      const zoom = 1.2;
+      const nodeWidth = 232;
+      const fillRatio = 0.75;
+      const zoom = Math.min(
+        Math.max((containerWidth * fillRatio) / nodeWidth, 0.7),
+        2.0,
+      );
       const padding = 48;
-      const nodeWidth = 220;
-      const containerWidth = containerRef.current?.clientWidth ?? 400;
       setViewport(
         {
           x: containerWidth / 2 - (target.position.x + nodeWidth / 2) * zoom,
@@ -245,7 +277,7 @@ function OutlineFlowInner({
     } else {
       fitView({ padding: 0.2, duration: 200 });
     }
-  }, [nodes, flowActiveId, fitView, setViewport]);
+  }, [nodes, flowActiveId, containerWidth, fitView, setViewport]);
 
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {

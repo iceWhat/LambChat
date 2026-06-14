@@ -504,7 +504,7 @@ export const ChatMessage = memo(function ChatMessage({
         !isFirst && "pt-2",
       )}
     >
-      <div className="mx-auto flex flex-col max-w-3xl lg:max-w-4xl xl:max-w-5xl px-4 sm:px-6">
+      <div className="mx-auto flex flex-col max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6">
         {/* Content */}
         <div className="min-w-0 min-h-0 py-1 sm:py-2">
           {/* Header: Avatar + Role label + Stop button */}

@@ -111,6 +111,33 @@ def test_team_router_prompt_forbids_coordination_notification_tasks():
     assert "The `task` tool is for work assignments only" in prompt
 
 
+def test_team_router_prompt_includes_tool_progress_guidance():
+    team = TeamResponse(
+        id="t1",
+        owner_user_id="u1",
+        name="Dev Team",
+        members=[
+            TeamMemberResponse(
+                member_id="m1",
+                persona_preset_id="p1",
+                role_name="Writer",
+                enabled=True,
+            ),
+        ],
+    )
+
+    prompt = build_team_router_system_prompt(
+        team,
+        default_role="team-m1-writer",
+    )
+    lower_prompt = prompt.lower()
+
+    assert "tool progress" in lower_prompt
+    assert "before the first tool call" in lower_prompt
+    assert "content may interleave text and tool calls" in lower_prompt
+    assert "do not invent tool results" in lower_prompt
+
+
 def test_build_team_members_description_skips_disabled():
     team = TeamResponse(
         id="t1",

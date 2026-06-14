@@ -2,6 +2,8 @@
 
 import re
 
+from src.agents.core.subagent_prompts import TOOL_PROGRESS_GUIDE
+
 TEAM_ROUTER_SYSTEM_PROMPT = """\
 You are a team router agent. Your job is to:
 
@@ -32,6 +34,8 @@ When a task does not clearly map to a specific role, dispatch it to the default 
 
 ## Output
 Your final answer should be a clean synthesis of all role-specific findings, not a list of subagent outputs.
+
+{tool_progress_guide}
 """
 
 SANDBOX_SYSTEM_PROMPT = """## Storage Architecture (CRITICAL)
@@ -97,6 +101,7 @@ def build_team_router_system_prompt(
         ),
         team_instructions_section=team_instructions_section,
         default_role=default_role,
+        tool_progress_guide=TOOL_PROGRESS_GUIDE.strip(),
     )
 
 

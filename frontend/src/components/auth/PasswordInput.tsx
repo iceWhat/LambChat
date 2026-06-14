@@ -3,6 +3,7 @@ import { Lock, Eye, EyeOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface PasswordInputProps {
+  id?: string;
   value: string;
   onChange: (e: ChangeEvent<HTMLInputElement>) => void;
   placeholder?: string;
@@ -13,6 +14,7 @@ interface PasswordInputProps {
 }
 
 export function PasswordInput({
+  id,
   value,
   onChange,
   placeholder,
@@ -32,17 +34,18 @@ export function PasswordInput({
         <Lock size={15} />
       </div>
       <input
+        id={id}
         type={visible ? "text" : "password"}
         value={value}
         onChange={onChange}
-        className={`auth-input w-full rounded-xl py-2.5 pl-10 pr-10 text-sm transition-all sm:py-2.5 sm:pl-10 sm:pr-10 md:py-3 md:pl-11 md:pr-4 ${className}`}
+        className={`auth-input w-full py-2.5 pl-10 pr-10 text-sm transition-all sm:py-2.5 sm:pl-10 sm:pr-10 md:py-3 md:pl-11 md:pr-4 ${className}`}
         placeholder={placeholder}
         autoComplete={autoComplete}
       />
       <button
         type="button"
         onClick={() => setVisible(!visible)}
-        className="absolute inset-y-0 right-0 flex items-center rounded-r-xl pr-3 text-stone-400 transition-colors hover:text-stone-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-stone-500 dark:hover:text-stone-300 dark:focus-visible:ring-stone-500/70 dark:focus-visible:ring-offset-stone-950"
+        className="absolute inset-y-0 right-0 flex items-center pr-3 text-stone-400 transition-colors hover:text-stone-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:text-stone-500 dark:hover:text-stone-300 dark:focus-visible:ring-stone-500/70 dark:focus-visible:ring-offset-stone-950"
         aria-label={visible ? hideLabel : showLabel}
       >
         {visible ? <EyeOff size={15} /> : <Eye size={15} />}

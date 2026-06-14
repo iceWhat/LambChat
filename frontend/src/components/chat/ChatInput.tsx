@@ -581,7 +581,7 @@ export const ChatInput = memo(function ChatInput({
       <form
         onSubmit={handleSubmit}
         className={
-          className ?? "mx-auto max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2"
+          className ?? "mx-auto max-w-4xl lg:max-w-5xl xl:max-w-6xl px-2"
         }
       >
         <div

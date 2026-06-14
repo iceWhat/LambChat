@@ -24,6 +24,7 @@ import {
   MemoryRecallItem,
   MemoryStoreItem,
   AskHumanItem,
+  ToolSearchItem,
 } from "./ToolCallItem";
 import { ThinkingBlock, SubagentBlock, SandboxItem } from "./SubagentBlocks";
 import { TodoBlock } from "./TodoBlock";
@@ -378,8 +379,23 @@ export function MessagePartRenderer({
         />
       );
     }
+    // Detect search_tools, use dedicated component (shows tool discovery results as cards)
+    if (part.name === "search_tools") {
+      return (
+        <ToolSearchItem
+          args={part.args}
+          result={part.result}
+          success={part.success}
+          isPending={part.isPending}
+          cancelled={part.cancelled}
+          startedAt={part.startedAt}
+          completedAt={part.completedAt}
+        />
+      );
+    }
     return (
       <ToolCallItem
+        id={part.id}
         name={part.name}
         args={part.args}
         result={part.result}
