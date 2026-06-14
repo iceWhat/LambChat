@@ -33,6 +33,9 @@ from src.agents.core.subagent_prompts import (
 from src.agents.core.thinking import build_thinking_config
 from src.agents.fast_agent.prompt import FAST_SYSTEM_PROMPT
 from src.agents.search_agent.prompt import (
+    DEFAULT_SYSTEM_PROMPT as SEARCH_DEFAULT_SYSTEM_PROMPT,
+)
+from src.agents.search_agent.prompt import (
     SANDBOX_RUNTIME_SECTION as SEARCH_SANDBOX_RUNTIME_SECTION,
 )
 from src.agents.search_agent.prompt import (
@@ -73,6 +76,7 @@ from src.infra.skill.loader import build_skills_prompt
 from src.infra.storage.checkpoint import get_async_checkpointer
 from src.infra.storage.mongodb_store import acreate_store
 from src.kernel.config import settings
+from src.kernel.schemas.model import ModelConfig
 
 logger = get_logger(__name__)
 
@@ -121,6 +125,137 @@ async def resolve_runtime_team(
             raise ValueError("team_not_found_or_unavailable") from e
 
     return None
+
+
+async def resolve_team_member_model_config(
+    member_model_id: str | None,
+    *,
+    user_id: str | None = None,
+) -> ModelConfig | None:
+    """Resolve and validate a team member model override for runtime use."""
+    if not member_model_id:
+        return None
+
+    from src.infra.agent.model_storage import get_model_storage
+
+    try:
+        model = await get_model_storage().get(member_model_id)
+    except Exception as e:
+        logger.warning("[TeamAgent] Failed to resolve member model %s: %s", member_model_id, e)
+        raise ValueError("team_member_model_unavailable") from e
+
+    if not model or not model.enabled:
+        raise ValueError("team_member_model_unavailable")
+
+    if user_id:
+        try:
+            from src.infra.agent.model_access import resolve_user_allowed_model_ids
+            from src.infra.user.storage import UserStorage
+            from src.kernel.schemas.user import TokenPayload
+
+            user = await UserStorage().get_by_id(user_id)
+            if not user:
+                raise ValueError("team_member_model_not_allowed")
+            allowed_model_ids = await resolve_user_allowed_model_ids(
+                TokenPayload(
+                    sub=user.id,
+                    username=user.username,
+                    roles=user.roles,
+                    permissions=user.permissions,
+                )
+            )
+            if allowed_model_ids is not None:
+                allowed = set(allowed_model_ids)
+                if model.id not in allowed and model.value not in allowed:
+                    raise ValueError("team_member_model_not_allowed")
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.warning(
+                "[TeamAgent] Failed to validate member model access %s: %s",
+                member_model_id,
+                e,
+            )
+            raise ValueError("team_member_model_unavailable") from e
+    return model
+
+
+def _safe_member_model_config_dict(model: ModelConfig) -> dict[str, Any]:
+    return model.model_copy(update={"api_key": None}).model_dump(mode="json")
+
+
+async def resolve_team_member_agent_id(
+    member_agent_id: str | None,
+    *,
+    user_id: str | None = None,
+) -> str | None:
+    """Resolve and validate a team member agent mode override for runtime use."""
+    if not member_agent_id:
+        return None
+
+    if member_agent_id == "team":
+        raise ValueError("team_member_agent_unavailable")
+
+    from src.agents.core.base import AgentFactory
+
+    registered_agent_ids = {agent["id"] for agent in AgentFactory.list_agents()}
+    if member_agent_id not in registered_agent_ids:
+        raise ValueError("team_member_agent_unavailable")
+
+    role_ids: list[str] = []
+    role_agent_map: dict[str, list[str] | None] = {}
+    try:
+        if user_id:
+            from src.infra.agent.config_storage import get_agent_config_storage
+            from src.infra.role.manager import get_role_manager
+            from src.infra.user.storage import UserStorage
+
+            user = await UserStorage().get_by_id(user_id)
+            if not user:
+                raise ValueError("team_member_agent_not_allowed")
+
+            storage = get_agent_config_storage()
+            role_manager = get_role_manager()
+            for role_name in user.roles or []:
+                role = await role_manager.get_role_by_name(role_name)
+                if not role:
+                    continue
+                role_ids.append(role.id)
+                role_agent_map[role.id] = await storage.get_role_agents(role.id)
+
+        allowed_agents = await AgentFactory.get_filtered_agents(
+            user_roles=role_ids,
+            role_agent_map=role_agent_map,
+        )
+        allowed_agent_ids = {agent["id"] for agent in allowed_agents}
+        if member_agent_id not in allowed_agent_ids:
+            raise ValueError("team_member_agent_not_allowed")
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.warning(
+            "[TeamAgent] Failed to validate member agent access %s: %s",
+            member_agent_id,
+            e,
+        )
+        raise ValueError("team_member_agent_unavailable") from e
+
+    return member_agent_id
+
+
+def _build_member_agent_mode_sections(
+    agent_id: str | None,
+    *,
+    sandbox_active: bool,
+) -> list[str]:
+    """Return mode-specific prompt sections for a team member subagent."""
+    if not agent_id:
+        return []
+    if agent_id == "fast":
+        return [FAST_SYSTEM_PROMPT]
+    if agent_id == "search":
+        return [SEARCH_SANDBOX_SYSTEM_PROMPT if sandbox_active else SEARCH_DEFAULT_SYSTEM_PROMPT]
+    return []
 
 
 async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dict[str, Any]:
@@ -358,14 +493,16 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
     def _build_subagent_middleware(
         subagent_type: str = "general-purpose",
         prompt_sections: list[str] | None = None,
+        fallback_model: str | None = fallback_model_value,
+        should_convert_image_url_to_base64: bool = image_url_to_base64,
     ) -> list:
         """Build the middleware stack for a single subagent."""
         mw = [
-            *create_retry_middleware(fallback_model=fallback_model_value, thinking=thinking_config),
+            *create_retry_middleware(fallback_model=fallback_model, thinking=thinking_config),
             ToolResultBinaryMiddleware(base_url=subagent_base_url),
             SubagentActivityMiddleware(backend=backend),
         ]
-        if image_url_to_base64:
+        if should_convert_image_url_to_base64:
             mw.append(ImageUrlToBase64Middleware())
         if prompt_sections:
             mw.append(SectionPromptMiddleware(sections=prompt_sections))
@@ -404,6 +541,41 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
             for member in team.active_members:
                 subagent_type = build_team_member_subagent_type(member)
                 role_name = member.role_name or subagent_type
+                member_agent_id = await resolve_team_member_agent_id(
+                    member.agent_id,
+                    user_id=context.user_id,
+                )
+                member_model_config = await resolve_team_member_model_config(
+                    member.model_id,
+                    user_id=context.user_id,
+                )
+                member_model = None
+                member_fallback_model = fallback_model_value
+                member_image_url_to_base64 = image_url_to_base64
+                if member_model_config is not None:
+                    member_model = await LLMClient.get_model(
+                        model=member_model_config.value,
+                        model_id=member_model_config.id,
+                        model_config=_safe_member_model_config_dict(member_model_config),
+                        thinking=thinking_config,
+                    )
+                    member_fallback_model = await resolve_fallback_model(
+                        member_model_config.id,
+                        member_model_config.value,
+                        log_prefix=f"[TeamAgent:{subagent_type}]",
+                    )
+                    member_image_url_to_base64 = bool(
+                        getattr(member_model_config.profile, "image_url_to_base64", False)
+                        if member_model_config.profile
+                        else False
+                    )
+                    logger.info(
+                        "[TeamAgent] Role subagent model override: type=%s role=%s model_id=%s model=%s",
+                        subagent_type,
+                        role_name,
+                        member_model_config.id,
+                        member_model_config.value,
+                    )
                 role_section = build_role_subagent_section(
                     role_name=role_name,
                     role_system_prompt=role_system_prompts[member.member_id],
@@ -414,6 +586,10 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                 role_prompt_sections = [
                     s
                     for s in (
+                        *_build_member_agent_mode_sections(
+                            member_agent_id,
+                            sandbox_active=bool(sandbox_backend),
+                        ),
                         role_section,
                         role_skill_prompts.get(member.member_id, skills_prompt),
                         memory_guide,
@@ -434,27 +610,47 @@ async def team_router_node(state: Dict[str, Any], config: RunnableConfig) -> Dic
                     and (member.role_instructions or "").strip() in role_section,
                     any("## Skills System" in s for s in role_prompt_sections),
                 )
+                if member_agent_id:
+                    logger.info(
+                        "[TeamAgent] Role subagent agent mode override: type=%s role=%s agent_id=%s",
+                        subagent_type,
+                        role_name,
+                        member_agent_id,
+                    )
 
-                custom_subagents.append(
-                    {
-                        "name": subagent_type,
-                        "description": (
-                            f"Team member '{role_name}' "
-                            f"(member_id: {member.member_id}). "
-                            f"Dispatch tasks matching this role's expertise."
-                            + (f" {member.role_instructions}" if member.role_instructions else "")
-                        ),
-                        "system_prompt": SUBAGENT_PROMPT,
-                        "middleware": _build_subagent_middleware(
-                            subagent_type,
-                            prompt_sections=role_prompt_sections,
-                        ),
-                    }
-                )
+                subagent_config: SubAgent = {
+                    "name": subagent_type,
+                    "description": (
+                        f"Team member '{role_name}' "
+                        f"(member_id: {member.member_id}). "
+                        f"Dispatch tasks matching this role's expertise."
+                        + (f" {member.role_instructions}" if member.role_instructions else "")
+                    ),
+                    "system_prompt": SUBAGENT_PROMPT,
+                    "middleware": _build_subagent_middleware(
+                        subagent_type,
+                        prompt_sections=role_prompt_sections,
+                        fallback_model=member_fallback_model,
+                        should_convert_image_url_to_base64=member_image_url_to_base64,
+                    ),
+                }
+                if member_model is not None:
+                    subagent_config["model"] = member_model
+                custom_subagents.append(subagent_config)
 
             logger.info(
                 f"[TeamAgent] Built {len(custom_subagents)} role subagents for team '{team.name}'"
             )
+        except ValueError as e:
+            if str(e) in {
+                "team_member_agent_unavailable",
+                "team_member_agent_not_allowed",
+                "team_member_model_unavailable",
+                "team_member_model_not_allowed",
+            }:
+                raise
+            logger.error(f"[TeamAgent] Failed to build team subagents: {e}")
+            raise ValueError("team_subagents_unavailable") from e
         except Exception as e:
             logger.error(f"[TeamAgent] Failed to build team subagents: {e}")
             raise ValueError("team_subagents_unavailable") from e

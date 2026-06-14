@@ -7,12 +7,15 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.infra.team.manager import TeamManager
+from src.kernel.schemas.model import ModelConfig
 from src.kernel.schemas.team import (
+    TeamCreate,
     TeamMemberResponse,
     TeamPreferenceUpdate,
     TeamResponse,
     TeamVisibility,
 )
+from src.kernel.schemas.user import TokenPayload
 
 
 def _make_team(
@@ -55,8 +58,6 @@ async def test_create_team_delegates_to_storage(manager, mock_storage):
     created = _make_team(name="New Team")
     mock_storage.create_team = AsyncMock(return_value=created)
 
-    from src.kernel.schemas.team import TeamCreate
-
     data = TeamCreate(name="New Team")
     result = await manager.create_team(data, owner_user_id="user-1")
 
@@ -91,8 +92,6 @@ async def test_update_team_preference_returns_team_with_user_preference(manager,
 async def test_create_team_preserves_member_display_metadata_for_api_response(
     manager, mock_storage
 ):
-    from src.kernel.schemas.team import TeamCreate
-
     created = _make_team(name="New Team")
     mock_storage.create_team = AsyncMock(return_value=created)
 
@@ -102,6 +101,8 @@ async def test_create_team_preserves_member_display_metadata_for_api_response(
             {
                 "member_id": "m-designer",
                 "persona_preset_id": "preset-1",
+                "agent_id": None,
+                "model_id": None,
                 "role_name": "Designer",
                 "role_avatar": "icon:palette",
                 "role_tags": ["design"],
@@ -116,6 +117,8 @@ async def test_create_team_preserves_member_display_metadata_for_api_response(
         {
             "member_id": "m-designer",
             "persona_preset_id": "preset-1",
+            "agent_id": None,
+            "model_id": None,
             "role_name": "Designer",
             "role_avatar": "icon:palette",
             "role_tags": ["design"],
@@ -128,8 +131,6 @@ async def test_create_team_preserves_member_display_metadata_for_api_response(
 
 @pytest.mark.asyncio
 async def test_create_team_delegates_tags_to_storage(manager, mock_storage):
-    from src.kernel.schemas.team import TeamCreate
-
     created = _make_team(name="Tagged Team")
     mock_storage.create_team = AsyncMock(return_value=created)
 
@@ -138,6 +139,285 @@ async def test_create_team_delegates_tags_to_storage(manager, mock_storage):
 
     _, kwargs = mock_storage.create_team.await_args
     assert kwargs["tags"] == ["research", "planning"]
+
+
+@pytest.mark.asyncio
+async def test_create_team_preserves_member_model_id(manager, mock_storage, monkeypatch):
+    created = _make_team(name="Model Team")
+    mock_storage.create_team = AsyncMock(return_value=created)
+    model = ModelConfig(
+        id="model-member",
+        value="openai/member",
+        label="Member",
+        enabled=True,
+    )
+
+    class _ModelStorage:
+        async def get(self, model_id):
+            assert model_id == "model-member"
+            return model
+
+    import src.infra.agent.model_storage as model_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+
+    data = TeamCreate(
+        name="Model Team",
+        members=[
+            {
+                "member_id": "m-analyst",
+                "persona_preset_id": "preset-1",
+                "model_id": "model-member",
+            }
+        ],
+    )
+    await manager.create_team(data, owner_user_id="user-1")
+
+    _, kwargs = mock_storage.create_team.await_args
+    assert kwargs["members"][0]["model_id"] == "model-member"
+
+
+@pytest.mark.asyncio
+async def test_create_team_preserves_member_agent_id(manager, mock_storage, monkeypatch):
+    created = _make_team(name="Mode Team")
+    mock_storage.create_team = AsyncMock(return_value=created)
+
+    import src.agents.core.base as agent_base
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "list_agents",
+        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "search"}]),
+    )
+
+    async def fake_filtered_agents(**_kwargs):
+        return [{"id": "fast"}, {"id": "search"}]
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "get_filtered_agents",
+        classmethod(lambda cls, **kwargs: fake_filtered_agents(**kwargs)),
+    )
+
+    data = TeamCreate(
+        name="Mode Team",
+        members=[
+            {
+                "member_id": "m-analyst",
+                "persona_preset_id": "preset-1",
+                "agent_id": "search",
+            }
+        ],
+    )
+    await manager.create_team(data, owner_user_id="user-1")
+
+    _, kwargs = mock_storage.create_team.await_args
+    assert kwargs["members"][0]["agent_id"] == "search"
+
+
+@pytest.mark.asyncio
+async def test_validate_member_agent_access_rejects_unknown_agent(manager, monkeypatch):
+    import src.agents.core.base as agent_base
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "list_agents",
+        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}]),
+    )
+
+    with pytest.raises(ValueError, match="team_member_agent_unavailable"):
+        await manager.create_team(
+            TeamCreate(
+                name="Unknown Mode Team",
+                members=[{"persona_preset_id": "preset-1", "agent_id": "missing"}],
+            ),
+            owner_user_id="user-1",
+        )
+
+
+@pytest.mark.asyncio
+async def test_validate_member_agent_access_rejects_team_agent(manager, monkeypatch):
+    import src.agents.core.base as agent_base
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "list_agents",
+        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "team"}]),
+    )
+
+    with pytest.raises(ValueError, match="team_member_agent_unavailable"):
+        await manager.create_team(
+            TeamCreate(
+                name="Recursive Team",
+                members=[{"persona_preset_id": "preset-1", "agent_id": "team"}],
+            ),
+            owner_user_id="user-1",
+        )
+
+
+@pytest.mark.asyncio
+async def test_validate_member_agent_access_rejects_role_disallowed_agent(
+    manager, monkeypatch
+):
+    import src.agents.core.base as agent_base
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "list_agents",
+        classmethod(lambda cls, default_agent_id=None: [{"id": "fast"}, {"id": "search"}]),
+    )
+
+    async def fake_filtered_agents(**_kwargs):
+        return [{"id": "fast"}]
+
+    monkeypatch.setattr(
+        agent_base.AgentFactory,
+        "get_filtered_agents",
+        classmethod(lambda cls, **kwargs: fake_filtered_agents(**kwargs)),
+    )
+
+    class _RoleManager:
+        async def get_role_by_name(self, role_name):
+            return MagicMock(id=f"role-{role_name}")
+
+    class _AgentConfigStorage:
+        async def get_role_agents(self, role_id):
+            return ["fast"]
+
+    import src.infra.agent.config_storage as config_storage
+    import src.infra.role.manager as role_manager
+
+    monkeypatch.setattr(config_storage, "get_agent_config_storage", lambda: _AgentConfigStorage())
+    monkeypatch.setattr(role_manager, "get_role_manager", lambda: _RoleManager())
+
+    with pytest.raises(ValueError, match="team_member_agent_not_allowed"):
+        await manager.create_team(
+            TeamCreate(
+                name="Forbidden Mode Team",
+                members=[{"persona_preset_id": "preset-1", "agent_id": "search"}],
+            ),
+            owner_user_id="user-1",
+            user=TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=[]),
+        )
+
+
+@pytest.mark.asyncio
+async def test_validate_member_model_access_allows_empty_member_model(
+    manager, mock_storage, monkeypatch
+):
+    called = False
+
+    class _ModelStorage:
+        async def get(self, _model_id):
+            nonlocal called
+            called = True
+
+    import src.infra.agent.model_storage as model_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+    mock_storage.create_team = AsyncMock(return_value=_make_team(name="Default Team"))
+
+    await manager.create_team(
+        TeamCreate(name="Default Team", members=[{"persona_preset_id": "preset-1"}]),
+        owner_user_id="user-1",
+    )
+
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_validate_member_model_access_allows_enabled_allowed_model(
+    manager, mock_storage, monkeypatch
+):
+    model = ModelConfig(
+        id="model-member",
+        value="openai/member",
+        label="Member",
+        enabled=True,
+    )
+
+    class _ModelStorage:
+        async def get(self, model_id):
+            assert model_id == "model-member"
+            return model
+
+    async def fake_allowed(_user):
+        return ["model-member"]
+
+    import src.infra.agent.model_access as model_access
+    import src.infra.agent.model_storage as model_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+    monkeypatch.setattr(model_access, "resolve_user_allowed_model_ids", fake_allowed)
+    mock_storage.create_team = AsyncMock(return_value=_make_team(name="Allowed Team"))
+
+    await manager.create_team(
+        TeamCreate(
+            name="Allowed Team",
+            members=[{"persona_preset_id": "preset-1", "model_id": "model-member"}],
+        ),
+        owner_user_id="user-1",
+        user=TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=[]),
+    )
+
+    mock_storage.create_team.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_validate_member_model_access_rejects_missing_or_disabled_model(
+    manager, monkeypatch
+):
+    class _ModelStorage:
+        async def get(self, _model_id):
+            return None
+
+    import src.infra.agent.model_storage as model_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+
+    with pytest.raises(ValueError, match="team_member_model_unavailable"):
+        await manager.create_team(
+            TeamCreate(
+                name="Missing Model Team",
+                members=[{"persona_preset_id": "preset-1", "model_id": "missing"}],
+            ),
+            owner_user_id="user-1",
+        )
+
+
+@pytest.mark.asyncio
+async def test_validate_member_model_access_rejects_role_disallowed_model(
+    manager, monkeypatch
+):
+    model = ModelConfig(
+        id="model-member",
+        value="openai/member",
+        label="Member",
+        enabled=True,
+    )
+
+    class _ModelStorage:
+        async def get(self, _model_id):
+            return model
+
+    async def fake_allowed(_user):
+        return ["other-model"]
+
+    import src.infra.agent.model_access as model_access
+    import src.infra.agent.model_storage as model_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+    monkeypatch.setattr(model_access, "resolve_user_allowed_model_ids", fake_allowed)
+
+    with pytest.raises(ValueError, match="team_member_model_not_allowed"):
+        await manager.create_team(
+            TeamCreate(
+                name="Forbidden Model Team",
+                members=[{"persona_preset_id": "preset-1", "model_id": "model-member"}],
+            ),
+            owner_user_id="user-1",
+            user=TokenPayload(sub="user-1", username="tester", roles=["user"], permissions=[]),
+        )
 
 
 @pytest.mark.asyncio

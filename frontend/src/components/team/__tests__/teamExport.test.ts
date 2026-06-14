@@ -60,6 +60,19 @@ test("toTeamExportData keeps fields needed for importing teams later", () => {
     {
       ...team("1"),
       tags: ["research"],
+      members: [
+        {
+          member_id: "m-analyst",
+          persona_preset_id: "preset-1",
+          model_id: "model-member",
+          role_name: "Analyst",
+          role_avatar: null,
+          role_tags: ["research"],
+          role_instructions: "",
+          position: 0,
+          enabled: true,
+        },
+      ],
       team_instructions: "Coordinate analysis.",
     },
   ]);
@@ -70,7 +83,19 @@ test("toTeamExportData keeps fields needed for importing teams later", () => {
       description: "",
       avatar: null,
       tags: ["research"],
-      members: [],
+      members: [
+        {
+          member_id: "m-analyst",
+          persona_preset_id: "preset-1",
+          model_id: "model-member",
+          role_name: "Analyst",
+          role_avatar: null,
+          role_tags: ["research"],
+          role_instructions: "",
+          position: 0,
+          enabled: true,
+        },
+      ],
       default_member_id: null,
       team_instructions: "Coordinate analysis.",
       starter_prompts: [],

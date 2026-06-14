@@ -258,7 +258,85 @@ async def test_create_team(storage):
     assert len(team.members) == 1
     assert team.members[0].persona_preset_id == "preset-1"
     assert team.members[0].member_id.startswith("m-")
+    assert team.members[0].agent_id is None
+    assert team.members[0].model_id is None
     assert team.visibility.value == "private"
+
+
+@pytest.mark.asyncio
+async def test_create_and_get_team_preserves_member_model_id(storage):
+    s, store, users = storage
+    team = await s.create_team(
+        owner_user_id="user-1",
+        name="Model Team",
+        members=[
+            {
+                "member_id": "m-analyst",
+                "persona_preset_id": "preset-1",
+                "model_id": "model-member",
+            },
+        ],
+    )
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.members[0].model_id == "model-member"
+    assert store[0]["members"][0]["model_id"] == "model-member"
+
+
+@pytest.mark.asyncio
+async def test_create_and_get_team_preserves_member_agent_id(storage):
+    s, store, users = storage
+    team = await s.create_team(
+        owner_user_id="user-1",
+        name="Mode Team",
+        members=[
+            {
+                "member_id": "m-analyst",
+                "persona_preset_id": "preset-1",
+                "agent_id": "search",
+            },
+        ],
+    )
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.members[0].agent_id == "search"
+    assert store[0]["members"][0]["agent_id"] == "search"
+
+
+@pytest.mark.asyncio
+async def test_old_team_member_without_model_id_returns_none(storage):
+    s, store, users = storage
+    team = await s.create_team(
+        owner_user_id="user-1",
+        name="Legacy Team",
+        members=[{"member_id": "m-legacy", "persona_preset_id": "preset-1"}],
+    )
+    del store[0]["members"][0]["model_id"]
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.members[0].model_id is None
+
+
+@pytest.mark.asyncio
+async def test_old_team_member_without_agent_id_returns_none(storage):
+    s, store, users = storage
+    team = await s.create_team(
+        owner_user_id="user-1",
+        name="Legacy Team",
+        members=[{"member_id": "m-legacy", "persona_preset_id": "preset-1"}],
+    )
+    del store[0]["members"][0]["agent_id"]
+
+    fetched = await s.get_team(team.id, owner_user_id="user-1")
+
+    assert fetched is not None
+    assert fetched.members[0].agent_id is None
 
 
 @pytest.mark.asyncio
@@ -668,6 +746,46 @@ async def test_clone_team(storage):
 
 
 @pytest.mark.asyncio
+async def test_clone_team_preserves_member_model_id(storage):
+    s, store, users = storage
+    original = await s.create_team(
+        owner_user_id="user-1",
+        name="Original",
+        members=[
+            {
+                "persona_preset_id": "preset-1",
+                "model_id": "model-member",
+            },
+        ],
+    )
+
+    cloned = await s.clone_team(original.id, owner_user_id="user-1")
+
+    assert cloned is not None
+    assert cloned.members[0].model_id == "model-member"
+
+
+@pytest.mark.asyncio
+async def test_clone_team_preserves_member_agent_id(storage):
+    s, store, users = storage
+    original = await s.create_team(
+        owner_user_id="user-1",
+        name="Original",
+        members=[
+            {
+                "persona_preset_id": "preset-1",
+                "agent_id": "search",
+            },
+        ],
+    )
+
+    cloned = await s.clone_team(original.id, owner_user_id="user-1")
+
+    assert cloned is not None
+    assert cloned.members[0].agent_id == "search"
+
+
+@pytest.mark.asyncio
 async def test_update_team_preserves_client_member_ids_and_default(storage):
     s, store, users = storage
     original = await s.create_team(
@@ -697,6 +815,60 @@ async def test_update_team_preserves_client_member_ids_and_default(storage):
     assert updated.avatar == "icon:sparkles"
     assert [m.member_id for m in updated.members] == ["m-alpha", "m-beta"]
     assert updated.default_member_id == "m-beta"
+
+
+@pytest.mark.asyncio
+async def test_update_team_preserves_member_model_id(storage):
+    s, store, users = storage
+    original = await s.create_team(
+        owner_user_id="user-1",
+        name="Original",
+        members=[{"member_id": "m-alpha", "persona_preset_id": "preset-1"}],
+    )
+
+    updated = await s.update_team(
+        original.id,
+        owner_user_id="user-1",
+        update={
+            "members": [
+                {
+                    "member_id": "m-alpha",
+                    "persona_preset_id": "preset-1",
+                    "model_id": "model-member",
+                },
+            ],
+        },
+    )
+
+    assert updated is not None
+    assert updated.members[0].model_id == "model-member"
+
+
+@pytest.mark.asyncio
+async def test_update_team_preserves_member_agent_id(storage):
+    s, store, users = storage
+    original = await s.create_team(
+        owner_user_id="user-1",
+        name="Original",
+        members=[{"member_id": "m-alpha", "persona_preset_id": "preset-1"}],
+    )
+
+    updated = await s.update_team(
+        original.id,
+        owner_user_id="user-1",
+        update={
+            "members": [
+                {
+                    "member_id": "m-alpha",
+                    "persona_preset_id": "preset-1",
+                    "agent_id": "search",
+                },
+            ],
+        },
+    )
+
+    assert updated is not None
+    assert updated.members[0].agent_id == "search"
 
 
 @pytest.mark.asyncio

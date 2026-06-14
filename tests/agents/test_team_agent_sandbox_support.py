@@ -275,6 +275,353 @@ async def test_team_agent_node_rejects_invalid_team_id(
         )
 
 
+async def _run_team_node_with_members(
+    monkeypatch: pytest.MonkeyPatch,
+    team_nodes,
+    fake_graph: _FakeDeepAgent,
+    members,
+) -> None:
+    from src.agents.team_agent.context import TeamAgentContext
+    from src.kernel.schemas.team import TeamResponse
+
+    team = TeamResponse(
+        id="team-1",
+        owner_user_id="user-1",
+        name="Model Team",
+        members=members,
+    )
+
+    async def fake_resolve_runtime_team(**_kwargs):
+        return team
+
+    monkeypatch.setattr(team_nodes, "resolve_runtime_team", fake_resolve_runtime_team)
+
+    class _PresetManager:
+        async def use_preset(self, *_args, **_kwargs):
+            return SimpleNamespace(system_prompt="You are a focused role.", skill_names=[])
+
+    import src.infra.persona_preset.manager as persona_manager
+
+    monkeypatch.setattr(persona_manager, "get_persona_preset_manager", lambda: _PresetManager())
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
+    monkeypatch.setattr(team_nodes, "create_persistent_backend_factory", lambda **_kwargs: object())
+
+    context = TeamAgentContext(session_id="session-1", user_id="user-1")
+    config = {
+        "configurable": {
+            "context": context,
+            "presenter": object(),
+            "base_url": "",
+            "agent_options": {},
+            "team_id": "team-1",
+        }
+    }
+
+    await team_nodes.team_router_node(
+        {"input": "hello", "session_id": "session-1", "attachments": []},
+        config,
+    )
+
+
+@pytest.mark.asyncio
+async def test_team_member_without_model_override_uses_main_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    get_model_calls: list[dict] = []
+
+    async def fake_get_model(**kwargs):
+        get_model_calls.append(kwargs)
+        return "main-llm"
+
+    async def fake_member_model(member_model_id, **_kwargs):
+        assert member_model_id is None
+        return None
+
+    monkeypatch.setattr(team_nodes.LLMClient, "get_model", fake_get_model)
+    monkeypatch.setattr(team_nodes, "resolve_team_member_model_config", fake_member_model)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-writer",
+                persona_preset_id="preset-1",
+                role_name="Writer",
+                enabled=True,
+            )
+        ],
+    )
+
+    subagent = fake_graph.captured_create_kwargs["subagents"][0]
+    assert "model" not in subagent
+    assert len(get_model_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_team_member_model_override_sets_subagent_model_and_profile_middleware(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.model import ModelConfig, ModelProfile
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    get_model_calls: list[dict] = []
+
+    async def fake_get_model(**kwargs):
+        get_model_calls.append(kwargs)
+        return "member-llm" if kwargs.get("model_id") == "model-member" else "main-llm"
+
+    async def fake_member_model(member_model_id, **_kwargs):
+        assert member_model_id == "model-member"
+        return ModelConfig(
+            id="model-member",
+            value="openai/member",
+            label="Member",
+            enabled=True,
+            profile=ModelProfile(image_url_to_base64=True),
+        )
+
+    monkeypatch.setattr(team_nodes.LLMClient, "get_model", fake_get_model)
+    monkeypatch.setattr(team_nodes, "resolve_team_member_model_config", fake_member_model)
+    monkeypatch.setattr(team_nodes, "ImageUrlToBase64Middleware", lambda: "image-b64")
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-writer",
+                persona_preset_id="preset-1",
+                model_id="model-member",
+                role_name="Writer",
+                enabled=True,
+            )
+        ],
+    )
+
+    subagent = fake_graph.captured_create_kwargs["subagents"][0]
+    assert subagent["model"] == "member-llm"
+    assert "image-b64" in subagent["middleware"]
+    assert [call.get("model_id") for call in get_model_calls] == [None, "model-member"]
+
+
+@pytest.mark.asyncio
+async def test_multiple_team_members_use_their_own_model_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.model import ModelConfig
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    async def fake_get_model(**kwargs):
+        return f"llm:{kwargs.get('model_id') or 'main'}"
+
+    async def fake_member_model(member_model_id, **_kwargs):
+        return ModelConfig(
+            id=member_model_id,
+            value=f"openai/{member_model_id}",
+            label=member_model_id,
+            enabled=True,
+        )
+
+    monkeypatch.setattr(team_nodes.LLMClient, "get_model", fake_get_model)
+    monkeypatch.setattr(team_nodes, "resolve_team_member_model_config", fake_member_model)
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-a",
+                persona_preset_id="preset-1",
+                model_id="model-a",
+                role_name="A",
+                enabled=True,
+            ),
+            TeamMemberResponse(
+                member_id="m-b",
+                persona_preset_id="preset-2",
+                model_id="model-b",
+                role_name="B",
+                enabled=True,
+            ),
+        ],
+    )
+
+    subagents = fake_graph.captured_create_kwargs["subagents"]
+    assert [subagent["model"] for subagent in subagents] == ["llm:model-a", "llm:model-b"]
+
+
+@pytest.mark.asyncio
+async def test_team_member_model_unavailable_is_not_silently_fallbacked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    async def fake_member_model(*_args, **_kwargs):
+        raise ValueError("team_member_model_unavailable")
+
+    monkeypatch.setattr(team_nodes, "resolve_team_member_model_config", fake_member_model)
+
+    with pytest.raises(ValueError, match="team_member_model_unavailable"):
+        await _run_team_node_with_members(
+            monkeypatch,
+            team_nodes,
+            fake_graph,
+            [
+                TeamMemberResponse(
+                    member_id="m-writer",
+                    persona_preset_id="preset-1",
+                    model_id="deleted-model",
+                    role_name="Writer",
+                    enabled=True,
+                )
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_team_member_agent_mode_override_injects_search_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    async def fake_member_agent(member_agent_id, **_kwargs):
+        assert member_agent_id == "search"
+        return "search"
+
+    monkeypatch.setattr(team_nodes, "resolve_team_member_agent_id", fake_member_agent)
+    monkeypatch.setattr(
+        team_nodes,
+        "SectionPromptMiddleware",
+        lambda sections: {"sections": sections},
+    )
+
+    await _run_team_node_with_members(
+        monkeypatch,
+        team_nodes,
+        fake_graph,
+        [
+            TeamMemberResponse(
+                member_id="m-research",
+                persona_preset_id="preset-1",
+                agent_id="search",
+                role_name="Researcher",
+                enabled=True,
+            )
+        ],
+    )
+
+    subagent = fake_graph.captured_create_kwargs["subagents"][0]
+    section_middleware = next(
+        item for item in subagent["middleware"] if isinstance(item, dict) and "sections" in item
+    )
+    assert any("virtual storage, not a real filesystem" in section for section in section_middleware["sections"])
+
+
+@pytest.mark.asyncio
+async def test_team_member_agent_unavailable_is_not_silently_fallbacked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_deepagents_shims(monkeypatch)
+
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.team import TeamMemberResponse
+
+    fake_graph = _FakeDeepAgent()
+    _patch_common(monkeypatch, team_nodes, fake_graph)
+
+    async def fake_member_agent(*_args, **_kwargs):
+        raise ValueError("team_member_agent_unavailable")
+
+    monkeypatch.setattr(team_nodes, "resolve_team_member_agent_id", fake_member_agent)
+
+    with pytest.raises(ValueError, match="team_member_agent_unavailable"):
+        await _run_team_node_with_members(
+            monkeypatch,
+            team_nodes,
+            fake_graph,
+            [
+                TeamMemberResponse(
+                    member_id="m-research",
+                    persona_preset_id="preset-1",
+                    agent_id="deleted-agent",
+                    role_name="Researcher",
+                    enabled=True,
+                )
+            ],
+        )
+
+
+@pytest.mark.asyncio
+async def test_team_member_model_access_rejects_missing_runtime_user(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.agents.team_agent import nodes as team_nodes
+    from src.kernel.schemas.model import ModelConfig
+
+    class _ModelStorage:
+        async def get(self, model_id):
+            assert model_id == "model-member"
+            return ModelConfig(
+                id="model-member",
+                value="openai/member",
+                label="Member",
+                enabled=True,
+            )
+
+    class _UserStorage:
+        async def get_by_id(self, user_id):
+            assert user_id == "missing-user"
+            return None
+
+    import src.infra.agent.model_storage as model_storage
+    import src.infra.user.storage as user_storage
+
+    monkeypatch.setattr(model_storage, "get_model_storage", lambda: _ModelStorage())
+    monkeypatch.setattr(user_storage, "UserStorage", lambda: _UserStorage())
+
+    with pytest.raises(ValueError, match="team_member_model_not_allowed"):
+        await team_nodes.resolve_team_member_model_config(
+            "model-member",
+            user_id="missing-user",
+        )
+
+
 @pytest.mark.asyncio
 async def test_team_agent_node_reads_existing_state_messages_for_recommendations(
     monkeypatch: pytest.MonkeyPatch,
@@ -287,6 +634,7 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
     fake_graph = _FakeDeepAgent()
     fake_graph.state_messages = ["history message"]
     _patch_common(monkeypatch, team_nodes, fake_graph)
+    monkeypatch.setattr(team_nodes.settings, "ENABLE_SANDBOX", False)
     monkeypatch.setattr(team_nodes.settings, "ENABLE_RECOMMEND_QUESTIONS", True)
     import src.agents.core.recommendations as recommendations
 
@@ -314,7 +662,7 @@ async def test_team_agent_node_reads_existing_state_messages_for_recommendations
     await asyncio.sleep(0)
 
     assert fake_graph.aget_state_calls == 1
-    assert result["messages"] == []
+    assert result == {"output": ""}
 
 
 def test_team_agent_declares_sandbox_support() -> None:

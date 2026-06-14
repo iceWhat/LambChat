@@ -1322,6 +1322,27 @@
     var(--theme-primary-light)
   );
 }
+.team-member-card__model {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--theme-text-secondary);
+  font-size: 0.6875rem;
+  line-height: 1.2;
+}
+.team-member-card__model span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.team-member-card__model svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
 .team-member-card__default-dot {
   width: 6px;
   height: 6px;
@@ -1365,6 +1386,11 @@
 .dark .team-member-card__action-btn--danger:hover {
   color: #f87171;
   background: color-mix(in srgb, #7f1d1d 20%, var(--theme-bg-card));
+}
+.list-item-card:has(.team-member-card__avatar-btn) .list-item-card__instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 /* Team instructions fill card width */
 .list-item-card:has(.team-member-card__avatar-btn)

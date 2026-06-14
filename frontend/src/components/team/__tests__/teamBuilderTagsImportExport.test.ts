@@ -26,3 +26,22 @@ test("team editor persists team tags", () => {
   assert.match(builderSource, /inputToTags\(teamTagsInput\)/);
   assert.match(builderSource, /tagsToInput\(team\.tags\)/);
 });
+
+test("team editor persists member model overrides", () => {
+  assert.match(builderSource, /model_id:\s*null/);
+  assert.match(builderSource, /model_id:\s*m\.model_id \?\? null/);
+  assert.match(builderSource, /handleModelChange/);
+  assert.match(builderSource, /modelApi\s*\.\s*listAvailable\(\)/);
+  assert.match(builderSource, /useOptionalSettingsContext/);
+  assert.match(wrapperSource, /record\.model_id/);
+  assert.match(wrapperSource, /model_id:\s*[\s\S]*record\.model_id[\s\S]*:\s*null/);
+});
+
+test("team editor persists member agent mode overrides", () => {
+  assert.match(builderSource, /agent_id:\s*null/);
+  assert.match(builderSource, /agent_id:\s*m\.agent_id \?\? null/);
+  assert.match(builderSource, /handleAgentChange/);
+  assert.match(builderSource, /agentApi\s*\.\s*list\(\)/);
+  assert.match(wrapperSource, /record\.agent_id/);
+  assert.match(wrapperSource, /agent_id:\s*[\s\S]*record\.agent_id[\s\S]*:\s*null/);
+});

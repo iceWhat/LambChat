@@ -38,6 +38,34 @@ def test_team_create_rejects_too_many_members() -> None:
         )
 
 
+def test_team_member_schema_accepts_null_and_string_model_id() -> None:
+    no_override = TeamCreate(
+        name="Default Model Team",
+        members=[{"persona_preset_id": "preset-1", "model_id": None}],
+    )
+    override = TeamCreate(
+        name="Override Model Team",
+        members=[{"persona_preset_id": "preset-1", "model_id": "model-member"}],
+    )
+
+    assert no_override.members[0].model_id is None
+    assert override.members[0].model_id == "model-member"
+
+
+def test_team_member_schema_accepts_null_and_string_agent_id() -> None:
+    no_override = TeamCreate(
+        name="Default Mode Team",
+        members=[{"persona_preset_id": "preset-1", "agent_id": None}],
+    )
+    override = TeamCreate(
+        name="Override Mode Team",
+        members=[{"persona_preset_id": "preset-1", "agent_id": "search"}],
+    )
+
+    assert no_override.members[0].agent_id is None
+    assert override.members[0].agent_id == "search"
+
+
 def _team(team_id: str = "team-1") -> TeamResponse:
     return TeamResponse(
         id=team_id,
@@ -52,6 +80,7 @@ def _team(team_id: str = "team-1") -> TeamResponse:
 @pytest.mark.asyncio
 async def test_collection_crud_accepts_paths_without_trailing_slash() -> None:
     calls: list[str] = []
+    seen_users: list[TokenPayload] = []
 
     class _FakeManager:
         async def list_teams(self, **kwargs):
@@ -60,6 +89,7 @@ async def test_collection_crud_accepts_paths_without_trailing_slash() -> None:
 
         async def create_team(self, body, **kwargs):
             calls.append("create")
+            seen_users.append(kwargs["user"])
             return _team("created")
 
     app = FastAPI()
@@ -75,6 +105,64 @@ async def test_collection_crud_accepts_paths_without_trailing_slash() -> None:
     assert list_response.status_code == 200
     assert create_response.status_code == 201
     assert calls == ["list", "create"]
+    assert seen_users[0].sub == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_create_team_returns_bad_request_for_invalid_member_model() -> None:
+    class _FakeManager:
+        async def create_team(self, body, **kwargs):
+            raise ValueError("team_member_model_unavailable")
+
+    app = FastAPI()
+    app.include_router(team_route.router, prefix="/api/teams")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[team_route._get_manager] = lambda: _FakeManager()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.post(
+            "/api/teams",
+            json={
+                "name": "Team",
+                "members": [
+                    {"persona_preset_id": "preset-1", "model_id": "missing-model"}
+                ],
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "team_member_model_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_update_team_passes_current_user_to_model_validation() -> None:
+    calls: list[dict] = []
+
+    class _FakeManager:
+        async def update_team(self, team_id, body, **kwargs):
+            calls.append(kwargs)
+            return _team(team_id)
+
+    app = FastAPI()
+    app.include_router(team_route.router, prefix="/api/teams")
+    app.dependency_overrides[api_deps.get_current_user_required] = _fake_user
+    app.dependency_overrides[team_route._get_manager] = lambda: _FakeManager()
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        response = await client.put(
+            "/api/teams/team-1",
+            json={
+                "members": [
+                    {"persona_preset_id": "preset-1", "model_id": "model-member"}
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    assert calls[0]["owner_user_id"] == "user-1"
+    assert calls[0]["user"].sub == "user-1"
 
 
 @pytest.mark.asyncio

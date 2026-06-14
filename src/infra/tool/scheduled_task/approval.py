@@ -9,6 +9,18 @@ from src.infra.team.manager import TeamManager
 logger = get_logger(__name__)
 
 
+async def create_approval(*args, **kwargs):
+    from src.api.routes.human import create_approval as _create_approval
+
+    return await _create_approval(*args, **kwargs)
+
+
+async def wait_for_response(*args, **kwargs):
+    from src.api.routes.human import wait_for_response as _wait_for_response
+
+    return await _wait_for_response(*args, **kwargs)
+
+
 def _format_approval_message(preview: dict[str, Any]) -> str:
     immediate = "✅ Yes" if preview["run_on_start"] else "❌ No"
     return (
@@ -143,7 +155,6 @@ async def _confirm_scheduled_task_creation(
     timeout: int = 300,
 ) -> dict[str, Any]:
     """Create a human-in-the-loop confirmation and wait for the user's decision."""
-    from src.api.routes.human import create_approval, wait_for_response
     from src.infra.logging.context import TraceContext
 
     ctx = TraceContext.get_request_context()

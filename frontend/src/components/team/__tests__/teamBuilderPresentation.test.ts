@@ -83,14 +83,14 @@ test("team builder relies on shared panel header mobile density", () => {
 });
 
 test("team editor uses one sidebar form matching role editor patterns", () => {
-  assert.match(builderSource, /className="es-form team-editor-form"/);
-  assert.match(builderSource, /es-section team-form-identity/);
-  assert.match(builderSource, /team-member-builder/);
-  assert.match(builderSource, /team-form-role-list/);
-  assert.match(builderSource, /team-form-selected/);
-  assert.match(builderSource, /team-editor-form__footer/);
-  assert.match(builderSource, /team-editor-validation/);
-  assert.match(builderSource, /team-editor-save-hint/);
+  assert.match(builderSource, /className="es-form"/);
+  assert.match(builderSource, /ppe-profile-section/);
+  assert.match(builderSource, /tmb-header/);
+  assert.match(builderSource, /team-role-picker-trigger/);
+  assert.match(builderSource, /team-role-picker-dropdown__list/);
+  assert.match(builderSource, /team-form-selected__list/);
+  assert.match(wrapperSource, /footerState/);
+  assert.match(wrapperSource, /<EditorSidebar/);
   assert.doesNotMatch(builderSource, /activeMobilePane/);
   assert.doesNotMatch(builderSource, /team-builder-mobile-switch/);
   assert.doesNotMatch(builderSource, /data-mobile-pane/);
@@ -98,47 +98,47 @@ test("team editor uses one sidebar form matching role editor patterns", () => {
   assert.match(memberCardSource, /list-item-card/);
   assert.match(memberCardSource, /team-member-card__avatar-btn/);
   assert.match(builderSource, /teamAvatar/);
-  assert.match(builderSource, /team-avatar-picker/);
+  assert.match(builderSource, /ppe-icon-picker/);
   assert.match(builderSource, /persona-avatars/);
   assert.match(teamCss, /\.team-editor-form\s*\{/);
   assert.match(teamCss, /\.team-form-role-option\s*\{/);
-  assert.match(teamCss, /\.team-form-selected\s*\{/);
+  assert.match(teamCss, /\.team-form-selected__list\s*\{/);
   assert.match(
     teamCss,
-    /\.team-form-selected__list \.list-item-card\s*\{[\s\S]*?max-width:\s*none;/,
+    /\.team-form-selected__list \.list-item-card\s*\{[\s\S]*?width:\s*100%;/,
   );
-  assert.match(teamCss, /\.team-editor-validation\s*\{/);
+  assert.match(teamCss, /\.team-role-picker-dropdown\s*\{/);
 });
 
 test("team editor defines dedicated tablet and mobile adaptations", () => {
   assert.match(teamCss, /@media \(max-width:\s*1180px\)/);
   assert.match(teamCss, /@media \(max-width:\s*760px\)/);
-  assert.match(teamCss, /\.team-form-profile-grid/);
-  assert.match(teamCss, /\.team-editor-form__actions/);
+  assert.match(builderSource, /ppe-profile-section/);
+  assert.match(teamCss, /\.tmb-header/);
   assert.match(
     teamCss,
-    /@media \(max-width:\s*760px\) \{[\s\S]*?\.team-member-builder__header,[\s\S]*?\.team-editor-form__footer\s*\{[\s\S]*?flex-direction:\s*column;/,
+    /@media \(max-width:\s*760px\) \{[\s\S]*?\.tmb-header\s*\{[\s\S]*?align-items:\s*stretch;/,
   );
   assert.match(
     teamCss,
-    /@media \(max-width:\s*760px\) \{[\s\S]*?\.team-editor-form__actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(7rem,\s*1fr\)\);/,
+    /@media \(max-width:\s*760px\) \{[\s\S]*?\.tmb-header__row\s*\{[\s\S]*?flex-wrap:\s*wrap;/,
   );
   assert.match(
     teamCss,
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.team-form-profile-grid\s*\{[\s\S]*?grid-template-columns:\s*1fr;/,
+    /@media \(max-width:\s*760px\) \{[\s\S]*?\.team-editor-action-stack\s*\{[\s\S]*?min-width:\s*0;/,
   );
 });
 
 test("team styles allow long scrolling lists and compact mobile cards", () => {
   assert.match(teamCss, /\.team-load-sentinel/);
-  assert.match(teamCss, /\.team-avatar-picker/);
+  assert.match(teamCss, /\.team-role-picker-dropdown__list/);
   assert.match(
     teamCss,
-    /\.team-form-role-list\s*\{[\s\S]*?overflow-y:\s*auto;/,
+    /\.team-role-picker-dropdown__list\s*\{[\s\S]*?overflow-y:\s*auto;/,
   );
   assert.match(
     teamCss,
-    /@media \(max-width:\s*639px\) \{[\s\S]*?\.team-form-role-option\s*\{[\s\S]*?align-items:\s*flex-start;/,
+    /@media \(max-width:\s*639px\) \{[\s\S]*?\.team-form-role-list\s*\{[\s\S]*?max-height:\s*16rem;/,
   );
   assert.match(
     teamCss,
@@ -171,8 +171,28 @@ test("team avatar image containers constrain absolute avatar images", () => {
       `${selector} avatar images should receive explicit image sizing rules`,
     );
   }
-  assertCssDeclaration(".team-picker-avatar", "width", "2rem");
-  assertCssDeclaration(".team-picker-avatar", "height", "2rem");
+  assertCssDeclaration(".team-picker-avatar", "width", "2\\.5rem");
+  assertCssDeclaration(".team-picker-avatar", "height", "2\\.5rem");
   assertCssDeclaration(".team-toolbar-avatar", "width", "1\\.125rem");
   assertCssDeclaration(".team-toolbar-avatar", "height", "1\\.125rem");
+});
+
+test("team member card exposes collapsible member mode and model selectors", () => {
+  assert.match(memberCardSource, /availableAgents/);
+  assert.match(memberCardSource, /onAgentChange/);
+  assert.match(memberCardSource, /followTeamMode/);
+  assert.match(memberCardSource, /value=\{member\.agent_id \?\? ""\}/);
+  assert.match(memberCardSource, /onAgentChange\?\.\(e\.target\.value \|\| null\)/);
+  assert.match(memberCardSource, /availableModels/);
+  assert.match(memberCardSource, /onModelChange/);
+  assert.match(memberCardSource, /team-member-card__model/);
+  assert.match(memberCardSource, /followSessionModel/);
+  assert.match(memberCardSource, /<select/);
+  assert.match(memberCardSource, /value=\{member\.model_id \?\? ""\}/);
+  assert.match(memberCardSource, /onModelChange\?\.\(e\.target\.value \|\| null\)/);
+  assert.match(teamCss, /\.team-member-card__model\s*\{/);
+  assert.match(
+    teamCss,
+    /\.team-member-card__model span\s*\{[\s\S]*?text-overflow:\s*ellipsis;/,
+  );
 });

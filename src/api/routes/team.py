@@ -51,7 +51,10 @@ async def create_team(
     user: TokenPayload = Depends(get_current_user_required),
     manager: TeamManager = Depends(_get_manager),
 ):
-    return await manager.create_team(body, owner_user_id=user.sub)
+    try:
+        return await manager.create_team(body, owner_user_id=user.sub, user=user)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{team_id}", response_model=TeamResponse)
@@ -74,9 +77,11 @@ async def update_team(
     manager: TeamManager = Depends(_get_manager),
 ):
     try:
-        return await manager.update_team(team_id, body, owner_user_id=user.sub)
+        return await manager.update_team(team_id, body, owner_user_id=user.sub, user=user)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="team_not_found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.patch("/{team_id}/preference", response_model=TeamResponse)
