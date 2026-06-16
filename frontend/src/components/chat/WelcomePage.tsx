@@ -531,7 +531,13 @@ export const WelcomePage = memo(function WelcomePage({
             onScroll={showPersonaCards ? handleGalleryScroll : undefined}
             className={
               showGallerySection
-                ? "welcome-persona-gallery relative pb-1 sm:pb-0"
+                ? [
+                    "welcome-persona-gallery relative pb-1 sm:pb-0",
+                    (teamSkeletonCount > 0 || personaSkeletonCount > 0) &&
+                      "welcome-persona-gallery--loading",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
                 : "welcome-suggestions-grid-wrapper"
             }
           >

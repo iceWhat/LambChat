@@ -18,6 +18,14 @@ const welcomeCss = readFileSync(
   resolve(currentDir, "../../../styles/welcome.css"),
   "utf8",
 );
+const welcomePageSource = readFileSync(
+  resolve(currentDir, "../WelcomePage.tsx"),
+  "utf8",
+);
+const chatSkeletonsSource = readFileSync(
+  resolve(currentDir, "../../skeletons/ChatSkeletons.tsx"),
+  "utf8",
+);
 
 test("keeps every welcome persona card reachable on mobile", () => {
   const className = getWelcomePersonaCardClass(3);
@@ -36,14 +44,22 @@ test("keeps later starter prompt pills reachable on narrow screens", () => {
 test("caps welcome suggestion prompts to two rows with vertical scrolling", () => {
   assert.match(
     welcomeCss,
-    /\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*--welcome-suggestion-row-height: 2\.5rem;[\s\S]*max-height: calc\(\s*var\(--welcome-suggestion-row-height\) \* 2 \+ var\(--welcome-suggestion-row-gap\)\s*\);[\s\S]*overflow-y: auto;/,
+    /\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*--welcome-suggestion-row-height: 2\.5rem;/,
+  );
+  assert.match(
+    welcomeCss,
+    /\.welcome-suggestions-grid-wrapper\s*\{[\s\S]*var\(--welcome-suggestion-row-height\) \* 2 \+[\s\S]*var\(--welcome-suggestion-row-gap\)[\s\S]*overflow-y: auto;/,
   );
 });
 
 test("caps welcome persona choices to two rows with vertical scrolling", () => {
   assert.match(
     welcomeCss,
-    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*--welcome-persona-card-height: 6rem;[\s\S]*max-height: calc\(\s*var\(--welcome-persona-card-height\) \* 2 \+ var\(--welcome-persona-row-gap\)\s*\);[\s\S]*overflow-y: auto;/,
+    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*--welcome-persona-card-height: 6rem;/,
+  );
+  assert.match(
+    welcomeCss,
+    /@media \(min-width: 640px\) \{[\s\S]*\.welcome-persona-gallery\s*\{[\s\S]*var\(--welcome-persona-card-height\) \* 2 \+ var\(--welcome-persona-row-gap\)[\s\S]*overflow-y: auto;/,
   );
 });
 
@@ -127,6 +143,18 @@ test("shows welcome choice skeletons only while the first page is loading", () =
   assert.equal(getWelcomePersonaSkeletonCount(true, 0), 12);
   assert.equal(getWelcomePersonaSkeletonCount(true, 2), 0);
   assert.equal(getWelcomePersonaSkeletonCount(false, 0), 0);
+});
+
+test("renders twelve welcome skeleton cards in shared chat loading state", () => {
+  assert.match(chatSkeletonsSource, /Array\.from\(\{\s*length:\s*12\s*\}\)/);
+});
+
+test("expands welcome choice gallery while skeleton cards are loading", () => {
+  assert.match(welcomePageSource, /welcome-persona-gallery--loading/);
+  assert.match(
+    welcomeCss,
+    /\.welcome-persona-gallery\.welcome-persona-gallery--loading\s*\{[\s\S]*max-height:\s*none;/,
+  );
 });
 
 test("uses only the selected persona starter prompts after a welcome persona is selected", () => {

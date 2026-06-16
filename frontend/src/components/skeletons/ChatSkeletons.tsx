@@ -63,7 +63,7 @@ function UserMessageSkeleton({
 }) {
   return (
     <div className="w-full px-4 sm:px-6 py-4 group">
-      <div className="mx-auto flex max-w-3xl lg:max-w-4xl xl:max-w-5xl justify-end">
+      <div className="mx-auto flex max-w-4xl lg:max-w-5xl xl:max-w-6xl justify-end">
         <div
           className={`flex flex-col items-stretch max-w-[90%] ${msg.bubble}`}
         >
@@ -124,7 +124,7 @@ function AssistantMessageSkeleton() {
 function ChatInputSkeleton() {
   return (
     <div className="shrink-0">
-      <div className="mx-auto w-full max-w-3xl lg:max-w-4xl xl:max-w-5xl px-4 sm:px-6 py-3">
+      <div className="mx-auto w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl px-4 sm:px-6 py-3">
         <div
           className="flex flex-col w-full rounded-3xl px-1 border"
           style={{
@@ -284,8 +284,8 @@ export function WelcomeSkeleton() {
           </div>
         </div>
         {/* Persona card grid skeleton */}
-        <div className="welcome-persona-gallery relative pb-1 sm:pb-0">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="welcome-persona-gallery welcome-persona-gallery--loading relative pb-1 sm:pb-0">
+          {Array.from({ length: 12 }).map((_, i) => (
             <div
               key={i}
               className="welcome-card welcome-persona-card welcome-persona-skeleton relative flex min-w-[15.75rem] snap-start flex-col py-3 px-3 rounded-2xl border text-left overflow-hidden sm:min-w-0"

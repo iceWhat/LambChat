@@ -282,7 +282,7 @@ export function ToolResultPanel({
                       : ""
                   }`
                 : isCenter
-                  ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-3xl lg:max-w-4xl xl:max-w-5xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
+                  ? `overflow-hidden h-full relative transition-all duration-300 ease-out ${"sm:max-w-4xl lg:max-w-5xl xl:max-w-6xl sm:h-[80dvh] sm:rounded-2xl sm:my-auto"}`
                   : `h-full relative rounded-l-xl overflow-hidden shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.12)] dark:shadow-[-4px_0_24px_-4px_rgba(0,0,0,0.4)] ${
                       animateIn
                         ? "animate-[slide-in-right_200ms_ease-out_backwards]"
