@@ -525,7 +525,17 @@ class BackgroundTaskManager:
             if session and session.metadata:
                 run_id = session.metadata.get("current_run_id")
                 if run_id:
-                    return await self.cancel_run(run_id, user_id=user_id)
+                    run_info = await self._build_run_info_from_session(
+                        session,
+                        session_id=session_id,
+                        run_id=str(run_id),
+                        user_id=user_id,
+                    )
+                    return await self.cancel_run(
+                        str(run_id),
+                        user_id=user_id,
+                        run_info_override=run_info,
+                    )
                 else:
                     return {
                         "success": False,
@@ -542,6 +552,46 @@ class BackgroundTaskManager:
             "message": "取消失败",
         }
 
+    async def _build_run_info_from_session(
+        self,
+        session: Any,
+        *,
+        session_id: str,
+        run_id: str,
+        user_id: Optional[str],
+    ) -> Dict[str, Any]:
+        metadata = getattr(session, "metadata", None) or {}
+        trace_id = metadata.get("trace_id") or await self._lookup_trace_id_for_run(run_id)
+        run_info: Dict[str, Any] = {
+            "session_id": session_id,
+            "trace_id": trace_id or "",
+            "agent_id": metadata.get("agent_id") or getattr(session, "agent_id", None),
+            "user_id": user_id or getattr(session, "user_id", None),
+        }
+        existing = self._run_info.get(run_id)
+        if existing:
+            run_info.update({key: value for key, value in existing.items() if value is not None})
+        self._run_info.setdefault(run_id, run_info)
+        return run_info
+
+    async def _lookup_trace_id_for_run(self, run_id: str) -> Optional[str]:
+        try:
+            from src.infra.session.trace_storage import get_trace_storage
+
+            trace_storage = get_trace_storage()
+            cursor = (
+                trace_storage.collection.find({"run_id": run_id}, {"trace_id": 1, "_id": 0})
+                .sort("started_at", -1)
+                .limit(1)
+            )
+            traces = await cursor.to_list(length=1)
+            if traces:
+                trace_id = traces[0].get("trace_id")
+                return str(trace_id) if trace_id else None
+        except Exception as e:
+            logger.warning("Failed to lookup trace_id for run %s: %s", run_id, e)
+        return None
+
     async def resume_session(
         self,
         session_id: str,
@@ -550,7 +600,11 @@ class BackgroundTaskManager:
         return await self._recovery_service().resume_session(session_id, reason)
 
     async def cancel_run(
-        self, run_id: str, publish: bool = True, user_id: Optional[str] = None
+        self,
+        run_id: str,
+        publish: bool = True,
+        user_id: Optional[str] = None,
+        run_info_override: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         取消特定 run 的任务（支持分布式）
@@ -568,7 +622,7 @@ class BackgroundTaskManager:
                 "message": str  # 状态信息
             }
         """
-        run_info = self._run_info.get(run_id)
+        run_info = run_info_override or self._run_info.get(run_id)
 
         result = await self._cancellation.cancel_run(
             run_id=run_id,
@@ -578,10 +632,11 @@ class BackgroundTaskManager:
         )
 
         # 更新 session 状态为 cancelled
-        if result["success"] and run_info and self._executor is not None:
+        if result["success"] and run_info:
             session_id = run_info.get("session_id")
             if session_id:
-                await self._executor._update_session_status(
+                executor = self._ensure_executor()
+                await executor._update_session_status(
                     session_id, TaskStatus.CANCELLED, "Task cancelled", run_id=run_id
                 )
 

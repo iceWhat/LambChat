@@ -283,6 +283,29 @@ def _is_user_cancelled_task(metadata: dict[str, Any]) -> bool:
     )
 
 
+async def _has_persisted_cancel_event(session_id: str, run_id: str) -> bool:
+    try:
+        from src.infra.session.dual_writer import get_dual_writer
+
+        events = await get_dual_writer().read_session_events(
+            session_id,
+            event_types=["user:cancel"],
+            run_id=run_id,
+            completed_only=False,
+            max_events=1,
+        )
+        return bool(events)
+    except Exception as exc:
+        logger.warning(
+            "Failed to inspect persisted cancel event during startup recovery: "
+            "session=%s, run_id=%s, error=%s",
+            session_id,
+            run_id,
+            exc,
+        )
+        return False
+
+
 def _is_latest_run(
     metadata: dict[str, Any],
     run_id: str,
@@ -290,6 +313,15 @@ def _is_latest_run(
     """Only reconcile the run that is still recorded as current for the session."""
     current_run_id = metadata.get("current_run_id")
     return current_run_id is not None and str(current_run_id) == str(run_id)
+
+
+def _is_superseded_by_newer_run(
+    metadata: dict[str, Any],
+    run_id: str,
+) -> bool:
+    """Return true when the session already points to a newer conversation run."""
+    current_run_id = metadata.get("current_run_id")
+    return current_run_id is not None and str(current_run_id) != str(run_id)
 
 
 def _is_latest_explicit_system_restart_failure(
@@ -326,6 +358,17 @@ class TaskStartupCleanupService:
         self._resume_interrupted_run = resume_interrupted_run
         self._replay_pending_queued_tasks_cb = replay_pending_queued_tasks
         self._cleanup_stale_queues_cb = cleanup_stale_queues
+
+    async def _is_user_cancelled_run(
+        self,
+        session_id: str,
+        metadata: dict[str, Any],
+        run_id: str,
+    ) -> bool:
+        return _is_user_cancelled_task(metadata) or await _has_persisted_cancel_event(
+            session_id,
+            run_id,
+        )
 
     async def cleanup_stale_tasks(self) -> None:
         """
@@ -408,11 +451,19 @@ class TaskStartupCleanupService:
             )
             if not run_id:
                 continue
-            if _is_user_cancelled_task(metadata):
+            if await self._is_user_cancelled_run(session_id, metadata, str(run_id)):
                 logger.info(
                     "Skipping user-cancelled RUNNING task during startup recovery: session=%s, run_id=%s",
                     session_id,
                     run_id,
+                )
+                continue
+            if _is_superseded_by_newer_run(metadata, run_id):
+                logger.info(
+                    "Skipping superseded RUNNING task during startup recovery: session=%s, old_run=%s, current_run=%s",
+                    session_id,
+                    run_id,
+                    metadata.get("current_run_id"),
                 )
                 continue
             if not _is_latest_run(metadata, run_id):
@@ -504,11 +555,19 @@ class TaskStartupCleanupService:
             user_id = session.get("user_id")
             if not run_id or not user_id:
                 continue
-            if _is_user_cancelled_task(metadata):
+            if await self._is_user_cancelled_run(session_id, metadata, str(run_id)):
                 logger.info(
                     "Skipping user-cancelled PENDING task during startup recovery: session=%s, run_id=%s",
                     session_id,
                     run_id,
+                )
+                continue
+            if _is_superseded_by_newer_run(metadata, run_id):
+                logger.info(
+                    "Skipping superseded PENDING task during startup recovery: session=%s, old_run=%s, current_run=%s",
+                    session_id,
+                    run_id,
+                    metadata.get("current_run_id"),
                 )
                 continue
             if not _is_latest_run(metadata, run_id):
@@ -751,11 +810,20 @@ class TaskStartupCleanupService:
                     user_id = session.get("user_id")
                     if not run_id or not user_id:
                         continue
-                    if _is_user_cancelled_task(metadata):
+                    if await self._is_user_cancelled_run(session_id, metadata, str(run_id)):
                         logger.info(
                             "Skipping user-cancelled queued task replay during startup recovery: session=%s, run_id=%s",
                             session_id,
                             run_id,
+                        )
+                        continue
+
+                    if _is_superseded_by_newer_run(metadata, run_id):
+                        logger.info(
+                            "Skipping superseded queued task replay during startup recovery: session=%s, old_run=%s, current_run=%s",
+                            session_id,
+                            run_id,
+                            metadata.get("current_run_id"),
                         )
                         continue
 

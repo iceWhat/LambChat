@@ -346,6 +346,77 @@ async def test_startup_cleanup_service_recovers_latest_running_session_without_h
 
 
 @pytest.mark.asyncio
+async def test_startup_cleanup_service_skips_running_session_superseded_by_new_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        name="Newer Run Session",
+        metadata={
+            "current_run_id": "run-new",
+            "task_status": "running",
+        },
+    )
+    storage = _FakeStorage(session)
+    storage.collection = _FakeCollection(
+        [
+            [
+                {
+                    "_id": "mongo-1",
+                    "session_id": "session-1",
+                    "user_id": "user-1",
+                    "metadata": {"current_run_id": "run-old"},
+                }
+            ],
+            [],
+            [],
+        ]
+    )
+    heartbeat = _FakeHeartbeat(exists=False)
+    recovery_calls = []
+
+    async def _fake_load_session(raw_session):
+        assert raw_session["session_id"] == "session-1"
+        return session
+
+    async def _fake_resume(session, source_run_id: str, reason: str):
+        recovery_calls.append((session.id, source_run_id, reason))
+        return {"success": True, "run_id": "run-recovered", "message": "ok"}
+
+    async def _no_op() -> None:
+        return None
+
+    class _FakeLimiterRedis:
+        async def zscore(self, key: str, member: str):
+            return None
+
+    class _FakeLimiter:
+        def __init__(self) -> None:
+            self.redis = _FakeLimiterRedis()
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter",
+        lambda: _FakeLimiter(),
+    )
+
+    service = startup_cleanup_module.TaskStartupCleanupService(
+        storage=storage,
+        heartbeat=heartbeat,
+        ensure_executor=lambda: None,
+        load_session_record=_fake_load_session,
+        resume_interrupted_run=_fake_resume,
+        replay_pending_queued_tasks=_no_op,
+        cleanup_stale_queues=_no_op,
+    )
+
+    await service.cleanup_stale_tasks()
+
+    assert recovery_calls == []
+
+
+@pytest.mark.asyncio
 async def test_startup_cleanup_service_skips_scan_when_lease_is_held_elsewhere(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -710,6 +781,97 @@ async def test_startup_cleanup_service_skips_user_cancelled_running_sessions(
 
 
 @pytest.mark.asyncio
+async def test_startup_cleanup_service_skips_running_session_with_persisted_cancel_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        name="Cancel Event Session",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "running",
+        },
+    )
+    storage = _FakeStorage(session)
+    storage.collection = _FakeCollection(
+        [
+            [
+                {
+                    "_id": "mongo-1",
+                    "session_id": "session-1",
+                    "user_id": "user-1",
+                    "metadata": {
+                        "current_run_id": "run-old",
+                        "task_status": "running",
+                    },
+                }
+            ],
+            [],
+            [],
+        ]
+    )
+    heartbeat = _FakeHeartbeat(exists=False)
+    recovery_calls = []
+
+    async def _fake_load_session(raw_session):
+        assert raw_session["session_id"] == "session-1"
+        return session
+
+    async def _fake_resume(session, source_run_id: str, reason: str):
+        recovery_calls.append((session.id, source_run_id, reason))
+        return {"success": True, "run_id": "run-new", "message": "ok"}
+
+    async def _no_op() -> None:
+        return None
+
+    class _FakeLimiterRedis:
+        async def zscore(self, key: str, member: str):
+            return None
+
+    class _FakeLimiter:
+        def __init__(self) -> None:
+            self.redis = _FakeLimiterRedis()
+
+    class _FakeDualWriter:
+        async def read_session_events(self, *args, **kwargs):
+            assert kwargs["run_id"] == "run-old"
+            assert kwargs["event_types"] == ["user:cancel"]
+            assert kwargs["completed_only"] is False
+            assert kwargs["max_events"] == 1
+            return [
+                {
+                    "event_type": "user:cancel",
+                    "data": {"run_id": "run-old"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter",
+        lambda: _FakeLimiter(),
+    )
+    monkeypatch.setattr(
+        "src.infra.session.dual_writer.get_dual_writer",
+        lambda: _FakeDualWriter(),
+    )
+
+    service = startup_cleanup_module.TaskStartupCleanupService(
+        storage=storage,
+        heartbeat=heartbeat,
+        ensure_executor=lambda: None,
+        load_session_record=_fake_load_session,
+        resume_interrupted_run=_fake_resume,
+        replay_pending_queued_tasks=_no_op,
+        cleanup_stale_queues=_no_op,
+    )
+
+    await service.cleanup_stale_tasks()
+
+    assert recovery_calls == []
+
+
+@pytest.mark.asyncio
 async def test_startup_cleanup_service_skips_user_cancelled_abandoned_queued_sessions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -865,6 +1027,80 @@ async def test_replay_pending_queued_tasks_replays_latest_queued_session(
     await service.replay_pending_queued_tasks()
 
     assert fake_limiter.release_calls == [("user-1", "run-old", True)]
+
+
+@pytest.mark.asyncio
+async def test_replay_pending_queued_tasks_skips_session_superseded_by_new_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        name="Superseded Queued Session",
+        metadata={
+            "current_run_id": "run-new",
+            "task_status": "queued",
+        },
+    )
+    storage = _FakeStorage(session)
+    storage.collection = _FakeCollection(
+        [
+            [
+                {
+                    "_id": "mongo-1",
+                    "session_id": "session-1",
+                    "user_id": "user-1",
+                    "metadata": {"current_run_id": "run-old"},
+                }
+            ]
+        ]
+    )
+    heartbeat = _FakeHeartbeat(exists=False)
+    recovery_calls = []
+
+    class _FakeLimiterRedis:
+        async def lrange(self, key: str, start: int, end: int):
+            return ['{"run_id":"run-old","queued_at":0}']
+
+        async def zscore(self, key: str, member: str):
+            return None
+
+    class _FakeLimiter:
+        def __init__(self) -> None:
+            self.redis = _FakeLimiterRedis()
+            self.release_calls = []
+
+        async def release(self, user_id: str, run_id: str, dequeue: bool = True) -> None:
+            self.release_calls.append((user_id, run_id, dequeue))
+
+    fake_limiter = _FakeLimiter()
+
+    async def _fake_load_session(raw_session):
+        assert raw_session["session_id"] == "session-1"
+        return session
+
+    async def _fake_resume(session, source_run_id: str, reason: str):
+        recovery_calls.append((session.id, source_run_id, reason))
+        return {"success": True, "run_id": "run-recovered", "message": "ok"}
+
+    monkeypatch.setattr(
+        "src.infra.task.concurrency.get_concurrency_limiter",
+        lambda: fake_limiter,
+    )
+
+    service = startup_cleanup_module.TaskStartupCleanupService(
+        storage=storage,
+        heartbeat=heartbeat,
+        ensure_executor=lambda: None,
+        load_session_record=_fake_load_session,
+        resume_interrupted_run=_fake_resume,
+    )
+
+    await service.replay_pending_queued_tasks()
+
+    assert fake_limiter.release_calls == []
+    assert recovery_calls == []
 
 
 @pytest.mark.asyncio

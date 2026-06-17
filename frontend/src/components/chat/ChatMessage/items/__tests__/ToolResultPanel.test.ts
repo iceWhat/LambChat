@@ -161,13 +161,18 @@ test("tool result header truncates long titles and subtitles on narrow screens",
   );
   assert.match(
     componentSource,
-    /className="tool-console-subtitle-list inline-flex items-center gap-1 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] overflow-hidden"/,
-    "tag subtitles should share the same responsive width behavior as command subtitles",
+    /className="tool-console-subtitle-list inline-flex items-end gap-1 min-w-0 max-w-\[45vw\] sm:max-w-\[min\(32rem,52%\)\] overflow-hidden"/,
+    "tag subtitles should share the same responsive width behavior and bottom alignment as command subtitles",
   );
   assert.match(
     componentSource,
     /className="tool-console-subtitle-chip inline-flex items-end shrink-0 max-w-full px-0 h-5 pb-\[1px\] text-xs font-normal leading-none text-theme-text-tertiary"/,
     "individual subtitle tags should expose the readable bottom-aligned chip styling hook",
+  );
+  assert.match(
+    componentSource,
+    /className="tool-console-subtitle-overflow inline-flex items-end shrink-0 h-5 pb-\[1px\] text-xs font-normal leading-none text-theme-text-tertiary tabular-nums"/,
+    "subtitle overflow count should align to the same baseline as visible tags",
   );
   assert.doesNotMatch(
     componentSource,

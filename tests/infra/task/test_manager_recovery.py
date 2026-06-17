@@ -29,12 +29,71 @@ class _FakeStorage:
         self.updates.append((session_id, session_update))
 
 
+class _FakeCancellation:
+    def __init__(self, result: dict) -> None:
+        self.result = result
+        self.calls: list[dict] = []
+
+    async def cancel_run(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.result
+
+
 class _FakeHeartbeat:
     def __init__(self, exists: bool = False) -> None:
         self.exists = exists
 
     async def check_exists(self, run_id: str) -> bool:
         return self.exists
+
+
+@pytest.mark.asyncio
+async def test_cancel_session_persists_cancelled_status_without_local_run_info() -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "running",
+            "agent_id": "search",
+            "trace_id": "trace-1",
+        },
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+    manager._cancellation = _FakeCancellation(
+        {
+            "success": True,
+            "cancelled_locally": False,
+            "run_id": "run-old",
+            "message": "取消信号已发送，任务将在下次检查点中断",
+        }
+    )
+
+    result = await manager.cancel("session-1", user_id="user-1")
+
+    assert result["success"] is True
+    assert manager._cancellation.calls == [
+        {
+            "run_id": "run-old",
+            "publish": True,
+            "user_id": "user-1",
+            "run_info": {
+                "session_id": "session-1",
+                "trace_id": "trace-1",
+                "agent_id": "search",
+                "user_id": "user-1",
+            },
+        }
+    ]
+    assert storage.updates
+    metadata = storage.updates[-1][1].metadata
+    assert metadata["task_status"] == "cancelled"
+    assert metadata["task_error_code"] == "cancelled"
+    assert metadata["task_recoverable"] is False
+    assert metadata["current_run_id"] == "run-old"
 
 
 class _FakeRedis:
@@ -60,6 +119,16 @@ class _FakeRedis:
 class _FakeCursor:
     def __init__(self, docs):
         self._docs = docs
+        self.sort_args = None
+        self.limit_value = None
+
+    def sort(self, *args):
+        self.sort_args = args
+        return self
+
+    def limit(self, value: int):
+        self.limit_value = value
+        return self
 
     async def to_list(self, length: int):
         return list(self._docs)
@@ -69,11 +138,52 @@ class _FakeCollection:
     def __init__(self, docs_per_call):
         self._docs_per_call = list(docs_per_call)
         self.calls = 0
+        self.find_calls: list[tuple[tuple, dict]] = []
 
     def find(self, *args, **kwargs):
+        self.find_calls.append((args, kwargs))
         docs = self._docs_per_call[self.calls]
         self.calls += 1
         return _FakeCursor(docs)
+
+
+@pytest.mark.asyncio
+async def test_cancel_session_looks_up_trace_id_when_session_metadata_lacks_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = SimpleNamespace(
+        id="session-1",
+        user_id="user-1",
+        agent_id="search",
+        metadata={
+            "current_run_id": "run-old",
+            "task_status": "running",
+            "agent_id": "search",
+        },
+    )
+    storage = _FakeStorage(session)
+    manager = BackgroundTaskManager()
+    manager._storage = storage
+    manager._cancellation = _FakeCancellation(
+        {
+            "success": True,
+            "cancelled_locally": False,
+            "run_id": "run-old",
+            "message": "取消信号已发送，任务将在下次检查点中断",
+        }
+    )
+    trace_collection = _FakeCollection([[{"trace_id": "trace-from-store"}]])
+
+    monkeypatch.setattr(
+        "src.infra.session.trace_storage.get_trace_storage",
+        lambda: SimpleNamespace(collection=trace_collection),
+    )
+
+    result = await manager.cancel("session-1", user_id="user-1")
+
+    assert result["success"] is True
+    assert manager._cancellation.calls[0]["run_info"]["trace_id"] == "trace-from-store"
+    assert trace_collection.find_calls == [(({"run_id": "run-old"}, {"trace_id": 1, "_id": 0}), {})]
 
 
 @pytest.mark.asyncio

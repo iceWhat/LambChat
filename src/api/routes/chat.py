@@ -190,6 +190,7 @@ async def _update_session_config(
     agent_id: str,
     request: AgentRequest,
     language: str,
+    trace_id: str | None = None,
 ) -> None:
     """Update session metadata with conversation configuration."""
     session_manager = SessionManager()
@@ -199,6 +200,7 @@ async def _update_session_config(
         agent_id=agent_id,
         request=request,
         language=language,
+        trace_id=trace_id,
     )
     await session_manager.update_session_metadata(session_id, conversation_config)
 
@@ -229,6 +231,7 @@ def build_conversation_config(
     request: AgentRequest,
     language: str,
     session_id: str | None = None,
+    trace_id: str | None = None,
 ) -> dict:
     """Build session metadata for conversation configuration."""
     conversation_config = {
@@ -242,6 +245,8 @@ def build_conversation_config(
         "disabled_mcp_tools": request.disabled_mcp_tools or [],
         "language": language,
     }
+    if trace_id:
+        conversation_config["trace_id"] = trace_id
     if request.persona_preset_id:
         conversation_config["persona_preset_id"] = request.persona_preset_id
     if request.persona_preset_id and request.persona_snapshot:
@@ -533,6 +538,7 @@ async def chat_stream(
             agent_id,
             request,
             preferred_language,
+            trace_id=trace_id,
         )
 
         return {
@@ -598,6 +604,7 @@ async def chat_stream(
         agent_id,
         request,
         preferred_language,
+        trace_id=trace_id,
     )
 
     return {

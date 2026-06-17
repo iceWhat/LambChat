@@ -457,7 +457,7 @@ export function ToolResultPanel({
                       const visible = segments.slice(0, maxVisible);
                       const overflow = segments.length - maxVisible;
                       return (
-                        <div className="tool-console-subtitle-list inline-flex items-center gap-1 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] overflow-hidden">
+                        <div className="tool-console-subtitle-list inline-flex items-end gap-1 min-w-0 max-w-[45vw] sm:max-w-[min(32rem,52%)] overflow-hidden">
                           {visible.map((tag, i) => (
                             <span
                               key={i}
@@ -470,7 +470,7 @@ export function ToolResultPanel({
                             </span>
                           ))}
                           {overflow > 0 && (
-                            <span className="shrink-0 text-[10px] font-medium text-theme-text-tertiary tabular-nums">
+                            <span className="tool-console-subtitle-overflow inline-flex items-end shrink-0 h-5 pb-[1px] text-xs font-normal leading-none text-theme-text-tertiary tabular-nums">
                               +{overflow}
                             </span>
                           )}

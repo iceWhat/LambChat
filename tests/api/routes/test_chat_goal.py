@@ -30,6 +30,21 @@ def test_build_conversation_config_does_not_persist_run_scoped_goal() -> None:
     assert "active_goal" not in config
 
 
+def test_build_conversation_config_persists_trace_id_for_cancellation_recovery() -> None:
+    request = AgentRequest(message="continue")
+
+    config = build_conversation_config(
+        run_id="run-1",
+        agent_id="search",
+        request=request,
+        language="en",
+        session_id="session-1",
+        trace_id="trace-1",
+    )
+
+    assert config["trace_id"] == "trace-1"
+
+
 def test_resolve_goal_for_request_uses_request_goal_without_rewriting_message() -> None:
     request = AgentRequest(
         message="continue",
